@@ -1,0 +1,5 @@
+LIBRARY QuickTime.qts
+EXPORTS
+    theQuickTimeDispatcher
+    _CallComponent=CallComponent
+    _CallComponentFunctionWithStorage=CallComponentFunctionWithStorage

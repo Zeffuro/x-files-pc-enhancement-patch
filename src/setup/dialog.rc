@@ -1,0 +1,24 @@
+#include <windows.h>
+
+105 DIALOGEX 0, 0, 360, 274
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "The X-Files Setup"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT "Install The X-Files", -1, 12, 12, 330, 14
+    LTEXT "Choose an English PC DVD folder or ISO, extracted CD set, or all seven CD ISOs in one folder. Setup installs a copy in a new folder.", -1, 12, 32, 336, 28
+    LTEXT "Game files (folder or DVD ISO)", -1, 12, 66, 250, 12
+    EDITTEXT 1101, 12, 80, 212, 15, ES_AUTOHSCROLL | WS_TABSTOP
+    PUSHBUTTON "Folder...", 1102, 230, 80, 56, 16
+    PUSHBUTTON "ISO...", 1110, 292, 80, 56, 16
+    LTEXT "Install to a new folder", -1, 12, 108, 280, 12
+    EDITTEXT 1103, 12, 122, 274, 15, ES_AUTOHSCROLL | WS_TABSTOP
+    PUSHBUTTON "Browse...", 1104, 292, 122, 56, 16
+    CONTROL "Start in a window", 1105, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 12, 148, 240, 13
+    CONTROL "Desktop shortcut", 1108, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 12, 168, 150, 13
+    CONTROL "Start Menu shortcut", 1109, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 184, 168, 162, 13
+    LTEXT "Updating? Close the game and extract the new release ZIP into the installed folder. Replace files when asked. Saves and settings are kept.", 1106, 12, 190, 336, 25
+    CONTROL "", 1107, "msctls_progress32", WS_BORDER, 12, 224, 336, 9
+    DEFPUSHBUTTON "Install", IDOK, 218, 246, 70, 17
+    PUSHBUTTON "Cancel", IDCANCEL, 294, 246, 54, 17
+END

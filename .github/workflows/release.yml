@@ -1,0 +1,128 @@
+name: Build and test
+
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/quality.yml
+
+  build:
+    needs: checks
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      FFMPEG_ROOT: C:/xfiles-deps/ffmpeg
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          path-type: inherit
+          install: make diffutils curl tar xz
+      - uses: actions/cache@v4
+        id: codecs
+        with:
+          path: C:/xfiles-deps/ffmpeg
+          key: ffmpeg-msvc-x86-${{ runner.os }}-${{ hashFiles('tools/build-ffmpeg.sh') }}
+      - name: Build codecs
+        if: steps.codecs.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: bash tools/build-ffmpeg.sh C:/xfiles-deps/cache C:/xfiles-deps/ffmpeg
+      - name: Configure
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TYPE: ${{ github.ref_type }}
+        run: |
+          $version = @()
+          if ($env:RELEASE_TYPE -eq 'tag') {
+            if ($env:RELEASE_TAG -notmatch '^v([0-9]+\.[0-9]+\.[0-9]+)$') {
+              throw 'Release tags must have the form v0.1.0.'
+            }
+            $version = @("-DXFILES_VERSION=$($Matches[1])")
+          }
+          cmake -S . -B build -G "Visual Studio 17 2022" -A Win32 "-DFFMPEG_ROOT=$env:FFMPEG_ROOT" -DXFILES_CODE_ANALYSIS=ON @version
+          if ($LASTEXITCODE) { throw 'Configure failed.' }
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure --timeout 180 -LE audio-hardware
+      - name: Test failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failure-logs
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/test-logs/*.log
+          if-no-files-found: ignore
+      - name: Package
+        run: cpack --config build/CPackConfig.cmake -C Release
+      - name: Check package and write checksum
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TYPE: ${{ github.ref_type }}
+        run: |
+          $packages = @(Get-ChildItem build/packages/*.zip)
+          if ($packages.Count -ne 1) { throw 'Expected one release ZIP.' }
+          if ($packages[0].Name -notmatch '^xfiles-enhancement-([0-9]+\.[0-9]+\.[0-9]+)-windows-x86\.zip$') {
+            throw 'Unexpected package filename.'
+          }
+          $version = $Matches[1]
+          if ($env:RELEASE_TYPE -eq 'tag' -and "v$version" -ne $env:RELEASE_TAG) {
+            throw 'The package version does not match the tag.'
+          }
+          python tools/check-package.py $packages[0].FullName --version $version
+          if ($LASTEXITCODE) { throw 'Package check failed.' }
+          $hash = (Get-FileHash $packages[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($packages[0].Name)" | Set-Content build/packages/SHA256SUMS.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xfiles-enhancement-windows-x86
+          path: |
+            build/packages/*.zip
+            build/packages/SHA256SUMS.txt
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: xfiles-enhancement-windows-x86
+          path: packages
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cd packages
+          sha256sum --check SHA256SUMS.txt
+          printf '%s\n\n%s\n\n%s\n' \
+            'New install: Extract the release ZIP and run XFilesSetup.exe. Select your English PC DVD ISO, DVD files or complete CD set, then choose a new folder such as C:\Games\The X-Files.' \
+            'Updating: Close the game and extract the contents of the release ZIP into the folder containing XFilesPlay.exe. Replace files when asked. Saves and settings are kept. Do not run Setup again.' \
+            'Uses FFmpeg under LGPL-2.1-or-later; its matching source and build script are included in the ZIP.' > ../release-notes.md
+          args=(--verify-tag --draft --generate-notes --notes-file ../release-notes.md)
+          if [[ "$RELEASE_TAG" == v0.* ]]; then args+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" ./*.zip SHA256SUMS.txt "${args[@]}"

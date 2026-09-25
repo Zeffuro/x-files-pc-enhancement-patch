@@ -1,0 +1,4 @@
+#pragma once
+
+inline constexpr char ddraw_sha256[] = "@DDRAW_SHA256@";
+inline constexpr char ddraw_config_sha256[] = "@DDRAW_CONFIG_SHA256@";

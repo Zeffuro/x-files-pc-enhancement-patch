@@ -1,0 +1,65 @@
+name: Bug report
+description: Something isn't working in the patch.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check existing issues first. Don't attach game files or disc images.
+  - type: input
+    id: version
+    attributes:
+      label: Patch version
+      description: Shown at the bottom of F10 settings. For a local build, include the commit.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 24H2, or Wine/Proton version"
+    validations:
+      required: true
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Game edition
+      options:
+        - English PC CD
+        - English PC DVD
+        - Other or unknown (describe below)
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: What were you trying to do, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can I reproduce it?
+      description: Include the scene or menu, your actions, and whether it happens every time.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Relevant settings or hardware
+      description: For display issues, include the mode and monitors. For input issues, include the controller and any mapping software.
+    validations:
+      required: false
+  - type: textarea
+    id: report
+    attributes:
+      label: Report ZIP or screenshots
+      description: |
+        F10 → Tools → Save report ZIP. After a crash the launcher also offers a report.
+        A saved game is optional. Check the ZIP before uploading; logs can contain local paths.
+        If you cannot open the game, paste the error or attach the available logs.
+    validations:
+      required: false

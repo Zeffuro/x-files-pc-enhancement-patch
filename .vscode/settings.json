@@ -1,0 +1,12 @@
+{
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.cppStandard": "c++20",
+    "C_Cpp.default.intelliSenseMode": "windows-msvc-x86",
+    "C_Cpp.default.defines": ["WIN32_LEAN_AND_MEAN", "NOMINMAX", "UNICODE", "_UNICODE"],
+    "C_Cpp.default.includePath": ["${workspaceFolder}/src", "${workspaceFolder}/build/generated"],
+    "cmake.preferredGenerators": ["Visual Studio 18 2026", "Visual Studio 17 2022"],
+    "cmake.configureArgs": ["-A", "Win32"],
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools"
+    }
+}

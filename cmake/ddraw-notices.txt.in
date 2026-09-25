@@ -1,0 +1,14 @@
+cnc-ddraw 7.1.0.0
+Source: https://github.com/FunkyFr3sh/cnc-ddraw
+Revision: 541b5de218ec3fbd6ea91e606ebfadc07c1786b0
+Includes patches/cnc-ddraw-desktop.patch to preserve the desktop display mode.
+
+@CNCDDRAW_LICENSE@
+
+Microsoft Detours
+
+@DETOURS_LICENSE@
+
+LodePNG
+
+@LODEPNG_LICENSE@

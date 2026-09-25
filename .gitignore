@@ -1,0 +1,10 @@
+/build*/
+/out/
+/.vs/
+/CMakeUserPresets.json
+*.user
+*.pdb
+*.obj
+*.log
+__pycache__/
+/.dev_docs/

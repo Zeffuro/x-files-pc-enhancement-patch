@@ -1,0 +1,126 @@
+diff --git a/src/dd.c b/src/dd.c
+index e69063a..00dac4a 100644
+--- a/src/dd.c
++++ b/src/dd.c
+@@ -682,7 +682,8 @@ HRESULT dd_SetDisplayMode(DWORD dwWidth, DWORD dwHeight, DWORD dwBPP, DWORD dwFl
+ 
+     if (!g_ddraw.mode.dmPelsWidth)
+     {
+-        ChangeDisplaySettings(NULL, 0);
++        if (!g_config.windowed)
++            ChangeDisplaySettings(NULL, 0);
+ 
+         g_ddraw.mode.dmSize = sizeof(DEVMODE);
+         g_ddraw.mode.dmDriverExtra = 0;
+diff --git a/src/utils.c b/src/utils.c
+index d96920b..87b0c17 100644
+--- a/src/utils.c
++++ b/src/utils.c
+@@ -608,6 +608,8 @@ BOOL util_get_lowest_resolution(
+ 
+ void util_toggle_maximize()
+ {
++    static RECT restored = { 0 };
++    static SIZE maximized = { 0 };
+     if (!g_config.resizable || !g_config.windowed || g_config.fullscreen || !g_ddraw.width)
+         return;
+ 
+@@ -629,16 +631,23 @@ void util_toggle_maximize()
+         int x = dst_rc.left;
+         int y = dst_rc.top;
+ 
+-        if (client_rc.right != g_ddraw.width || client_rc.bottom != g_ddraw.height)
++        if (client_rc.right == maximized.cx && client_rc.bottom == maximized.cy)
+         {
+-            dst_rc.left = 0;
+-            dst_rc.top = 0;
+-            dst_rc.right = g_ddraw.width;
+-            dst_rc.bottom = g_ddraw.height;
+-
+-            AdjustWindowRectEx(&dst_rc, style, got_menu, exstyle);
++            maximized.cx = maximized.cy = 0;
++            util_set_window_rect(restored.left, restored.top, restored.right, restored.bottom, 0);
++            return;
+         }
+-        else if (g_config.boxing)
++
++        RECT window_rc;
++        if (!real_GetWindowRect(g_ddraw.hwnd, &window_rc))
++            return;
++        util_unadjust_window_rect(&window_rc, style, got_menu, exstyle);
++        restored.left = window_rc.left;
++        restored.top = window_rc.top;
++        restored.right = client_rc.right;
++        restored.bottom = client_rc.bottom;
++
++        if (g_config.boxing)
+         {
+             dst_rc.left = 0;
+             dst_rc.top = 0;
+@@ -704,6 +713,8 @@ void util_toggle_maximize()
+         util_unadjust_window_rect(&pos_rc, style, got_menu, exstyle);
+         util_unadjust_window_rect(&dst_rc, style, got_menu, exstyle);
+ 
++        maximized.cx = dst_rc.right - dst_rc.left;
++        maximized.cy = dst_rc.bottom - dst_rc.top;
+         util_set_window_rect(
+             pos_rc.left,
+             pos_rc.top,
+diff --git a/src/wndproc.c b/src/wndproc.c
+index 76f3387..6a19efc 100644
+--- a/src/wndproc.c
++++ b/src/wndproc.c
+@@ -40,6 +40,39 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+     static BOOL in_size_move = FALSE;
+     static int redraw_count = 0;
+ 
++    if (uMsg == RegisterWindowMessageA("XFilesEnhancement.DisplayMode"))
++    {
++        if ((wParam == 1 || wParam == 2) && g_config.windowed &&
++            g_config.toggle_borderless && (g_config.fullscreen != (wParam == 2)))
++        {
++            util_toggle_fullscreen();
++        }
++        return g_config.fullscreen ? 2 : 1;
++    }
++
++    if (uMsg == RegisterWindowMessageA("XFilesEnhancement.WindowSize"))
++    {
++        if (wParam >= 640 && wParam <= 8192 && lParam >= 480 && lParam <= 8192 &&
++            g_config.windowed &&
++            (g_config.window_rect.right != (int)wParam || g_config.window_rect.bottom != (int)lParam))
++        {
++            util_set_window_rect(-32000, -32000, (int)wParam, (int)lParam, 0);
++        }
++        return MAKELONG(g_config.window_rect.right, g_config.window_rect.bottom);
++    }
++
++    if (uMsg == RegisterWindowMessageA("XFilesEnhancement.ScalingFilter"))
++    {
++        if (g_ddraw.renderer != d3d9_render_main)
++            return 0;
++        if (wParam >= 1 && wParam <= 4 && g_config.d3d9_filter != (int)wParam - 1)
++        {
++            g_config.d3d9_filter = (int)wParam - 1;
++            dd_SetDisplayMode(0, 0, 0, 0);
++        }
++        return g_config.d3d9_filter + 1;
++    }
++
+     switch (uMsg)
+     {
+     case WM_NULL:
+@@ -176,7 +209,12 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+                 case HTTOPRIGHT:
+                     return real_DefWindowProcA(hWnd, uMsg, wParam, lParam);
+                 case HTCLIENT:
+-                    if (!g_mouse_locked && !g_config.devmode)
++                    if (g_config.devmode)
++                    {
++                        real_SetCursor((HCURSOR)InterlockedExchangeAdd((LONG*)&g_ddraw.old_cursor, 0));
++                        return TRUE;
++                    }
++                    if (!g_mouse_locked)
+                     {
+                         real_SetCursor(LoadCursor(NULL, IDC_ARROW));
+                         return TRUE;
