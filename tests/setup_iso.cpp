@@ -16,18 +16,24 @@ void verify_disc_import(const std::filesystem::path& base) {
             bytes[offset + i] = static_cast<unsigned char>(value >> (8 * i));
         }
     };
+    const auto put_both = [&](std::size_t offset, unsigned value) {
+        put(offset, value);
+        for (unsigned i = 0; i < 4; ++i) {
+            bytes[offset + 4 + i] = static_cast<unsigned char>(value >> (8 * (3 - i)));
+        }
+    };
     const auto descriptor = 16 * 2048;
     bytes[descriptor] = 1;
     std::copy_n("CD001", 5, bytes.begin() + descriptor + 1);
     bytes[descriptor + 6] = 1;
     bytes[descriptor + 129] = 8;
     bytes[descriptor + 156] = 34;
-    put(descriptor + 158, 20);
-    put(descriptor + 166, 2048);
+    put_both(descriptor + 158, 20);
+    put_both(descriptor + 166, 2048);
     const auto record = 20 * 2048;
     bytes[record] = 44;
-    put(record + 2, 21);
-    put(record + 10, 5);
+    put_both(record + 2, 21);
+    put_both(record + 10, 5);
     bytes[record + 32] = 10;
     std::copy_n("TEST.TXT;1", 10, bytes.begin() + record + 33);
     std::copy_n("hello", 5, bytes.begin() + 21 * 2048);
@@ -50,13 +56,13 @@ void verify_disc_import(const std::filesystem::path& base) {
     for (int malformed = 0; malformed < 3; ++malformed) {
         auto backup = bytes;
         if (malformed == 0) {
-            put(record + 2, 1000);
+            put_both(record + 2, 1000);
         } else if (malformed == 1) {
             bytes[record + 33] = '/';
         } else {
             bytes[record + 25] = 2;
-            put(record + 2, 20);
-            put(record + 10, 2048);
+            put_both(record + 2, 20);
+            put_both(record + 10, 2048);
         }
         write();
         bool rejected = false;

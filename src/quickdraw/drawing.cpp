@@ -1,5 +1,6 @@
 #include "world.h"
 #include "regions.h"
+#include "game/render/caption_surface.h"
 #include <intrin.h>
 
 namespace {
@@ -75,6 +76,7 @@ void fill(const Rect* rectangle, Color color) {
     if (!painted) {
         unsupported(Selector::PaintRect, "QuickDraw: rectangle fill failed", 0);
     }
+    native_game::caption_surface::paint(dc, area);
     GdiFlush();
 }
 

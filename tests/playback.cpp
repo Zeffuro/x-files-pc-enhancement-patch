@@ -2,6 +2,7 @@
 #include "dispatch.h"
 #include "playback/menu_colors.h"
 #include "playback/components.h"
+#include "playback/caption_layout.h"
 #include "playback/volume.h"
 #include "settings.h"
 #include "quickdraw/types.h"
@@ -346,7 +347,7 @@ void verify(const std::filesystem::path& path, bool audio_output) {
 }
 
 void verify_last_frame(const std::filesystem::path& path, bool captions = false,
-                       bool overlay = false) {
+                       bool overlay = false, bool below = false, bool background = false) {
     const auto data = fixture(true, captions, overlay);
     std::ofstream output(path, std::ios::binary);
     output.write(reinterpret_cast<const char*>(data.data()), data.size());
@@ -365,27 +366,31 @@ void verify_last_frame(const std::filesystem::path& path, bool captions = false,
             "Cannot create video fixture.");
     invoke(Selector::CloseMovieFile, reference);
     quickdraw::Port* port = nullptr;
-    const quickdraw::Rect box{0, 0, 60, 80};
+    const quickdraw::Rect box =
+        below ? quickdraw::Rect{0, 0, 150, 200} : quickdraw::Rect{0, 0, 60, 80};
     require(static_cast<short>(invoke(Selector::QTNewGWorld, address(&port), quickdraw::bgra_format,
                                       address(&box))) == 0,
             "Cannot create video drawing port.");
     invoke(Selector::SetMovieGWorld, address(movie), address(port));
     if (captions) {
-        const quickdraw::Rect picture{0, 0, 30, 80};
+        const quickdraw::Rect picture = below ? box : quickdraw::Rect{0, 0, 30, 80};
         invoke(Selector::SetMovieBox, address(movie), address(&picture));
         const auto text_track = invoke(Selector::GetMovieIndTrack, address(movie), 2);
         require(text_track != 0, "Caption track missing.");
         auto lit_pixels = [&] {
             unsigned count = 0;
             const auto pixels = (*port->pixels)->base;
-            for (int i = 0; i < 30 * 80; ++i) {
+            for (int i = 0; i < (picture.bottom - picture.top) * (picture.right - picture.left);
+                 ++i) {
                 count += pixels[i * 4] > 0;
             }
             return count;
         };
-        const quickdraw::Rect clipped_picture{0, 0, 25, 80};
         invoke(Selector::SetGWorld, address(port));
-        invoke(Selector::ClipRect, address(&clipped_picture));
+        const quickdraw::Rect clipped_picture{0, 0, 25, 80};
+        if (!below && !background) {
+            invoke(Selector::ClipRect, address(&clipped_picture));
+        }
         invoke(Selector::SetMovieTimeValue, address(movie), 100);
         invoke(Selector::UpdateMovie, address(movie));
         const auto clipped_pixels = lit_pixels();
@@ -404,18 +409,34 @@ void verify_last_frame(const std::filesystem::path& path, bool captions = false,
             require(lit_pixels() > 0 && !std::equal(combined.begin(), combined.end(), pixels),
                     "Disabling the front caption did not reveal the earlier wording.");
         }
-        invoke(Selector::ClipRect, address(&box));
-        invoke(Selector::UpdateMovie, address(movie));
-        require(overlay || lit_pixels() == clipped_pixels,
-                "Movie clipping cut off caption glyphs.");
-        for (int row = 0; row < 30; ++row) {
-            const auto pixels = (*port->pixels)->base + row * 80 * 4;
-            require(pixels[1] >= 248 && pixels[79 * 4 + 1] >= 248,
-                    "Caption background covered the movie image.");
+        if (!below && !background) {
+            invoke(Selector::ClipRect, address(&box));
+            invoke(Selector::UpdateMovie, address(movie));
+            require(overlay || lit_pixels() == clipped_pixels,
+                    "Movie clipping cut off caption glyphs.");
+            for (int row = 0; row < 30; ++row) {
+                const auto pixels = (*port->pixels)->base + row * 80 * 4;
+                require(pixels[1] >= 248 && pixels[79 * 4 + 1] >= 248,
+                        "Caption background covered the movie image.");
+            }
+        } else if (background) {
+            require((*port->pixels)->base[1] >= 248 &&
+                        (*port->pixels)->base[(29 * 80 + 40) * 4 + 1] < 128,
+                    "Optional caption background did not stay within the cue band.");
+        } else {
+            const auto pixels = (*port->pixels)->base;
+            require(pixels[1] == 0 && pixels[(20 * box.right + box.right / 2) * 4 + 1] >= 248,
+                    "Below-picture captions did not letterbox the video image.");
         }
         invoke(Selector::SetTrackEnabled, text_track, 0);
         invoke(Selector::UpdateMovie, address(movie));
         require(lit_pixels() == 0, "Disabling captions left stale text.");
+        if (below || background) {
+            const auto pixels = (*port->pixels)->base;
+            const auto row = below ? box.bottom - 1 : picture.bottom - 1;
+            require(pixels[(row * box.right + box.right / 2) * 4 + 1] >= 248,
+                    "Disabling captions left stale shading behind.");
+        }
         invoke(Selector::SetTrackEnabled, text_track, 1);
         invoke(Selector::UpdateMovie, address(movie));
         require(lit_pixels() > 0, "Re-enabling captions lost the current sample.");
@@ -425,18 +446,43 @@ void verify_last_frame(const std::filesystem::path& path, bool captions = false,
         invoke(Selector::StopMovie, address(movie));
         require(lit_pixels() == 0, "Expired captions remained visible.");
         const auto restored = (*port->pixels)->base;
-        for (int i = 0; i < 30 * 80; ++i) {
-            require(restored[i * 4 + 1] >= 248,
-                    "Caption expiry did not restore the stationary video frame.");
+        if (below) {
+            require(restored[box.right * 20 * 4 + box.right * 2 + 1] >= 248 &&
+                        restored[((box.bottom - 1) * box.right) * 4 + 1] == 0,
+                    "Caption expiry changed the reserved picture layout.");
+        } else {
+            for (int i = 0; i < 30 * 80; ++i) {
+                require(restored[i * 4 + 1] >= 248,
+                        "Caption expiry did not restore the stationary video frame.");
+            }
         }
     }
     invoke(Selector::SetMovieTimeValue, address(movie), 500);
     invoke(Selector::UpdateMovie, address(movie));
     const auto pixels = (*port->pixels)->base;
-    require(pixels[0] == 0 && pixels[1] >= 248 && pixels[2] == 0,
+    const auto final = pixels + (below ? box.right / 2 * 4 : 0);
+    require(final[0] == 0 && final[1] >= 248 && final[2] == 0,
             "Seeking directly to the movie end did not draw its final frame.");
     invoke(Selector::DisposeMovie, address(movie));
     invoke(Selector::DisposeGWorld, address(port));
+}
+
+void verify_caption_layout() {
+    const quickdraw::Rect box{0, 0, 150, 200};
+    const RECT clip{0, 0, 200, 150};
+    CaptionStyle style;
+    style.placement = CaptionPlacement::Below;
+    const auto layout = playback::layout_captions(box, box, clip, style);
+    require(!layout.below && layout.image.bottom == box.bottom && layout.image.left == box.left &&
+                layout.image.right == box.right,
+            "Caption placement resized the picture.");
+    require(layout.caption.bottom == box.bottom && layout.caption.top == box.top,
+            "Caption layout displaced bottom captions.");
+    const quickdraw::Rect short_box{0, 0, 80, 200};
+    const RECT short_clip{0, 0, 200, 80};
+    require(!playback::layout_captions(short_box, short_box, short_clip, style).below &&
+                !playback::layout_captions(box, box, RECT{0, 0, 200, 120}, style).below,
+            "Below-picture placement did not fall back for small or clipped movies.");
 }
 
 }
@@ -458,11 +504,29 @@ int wmain(int argc, wchar_t** argv) {
         return 1;
     }
     try {
-        require(audio_output || argc == 3, "External movie fixtures require audio-output mode.");
         const auto directory = std::filesystem::temp_directory_path() /
                                (L"xfiles-playback-" + std::to_wstring(GetCurrentProcessId()) +
                                 L"-" + std::to_wstring(GetTickCount64()));
         std::filesystem::create_directory(directory);
+        const bool below_variant = argc == 4 && std::wstring_view(argv[3]) == L"--caption-below";
+        const bool background_variant =
+            argc == 4 && std::wstring_view(argv[3]) == L"--caption-background";
+        if (below_variant || background_variant) {
+            const auto profile =
+                read_settings(std::filesystem::path(argv[0]).parent_path() / L"patch.ini");
+            require(profile.caption_style.placement == CaptionPlacement::Inside &&
+                        profile.caption_style.background == background_variant,
+                    "Caption variant settings were not loaded before playback.");
+            invoke(Selector::QTMLInitInternals, 2);
+            const auto movie_folder = directory / L"XV";
+            std::filesystem::create_directory(movie_folder);
+            verify_last_frame(movie_folder / L"caption-variant.xmv", true, false, false,
+                              background_variant);
+            invoke(Selector::QTMLTermInternals);
+            FreeLibrary(library);
+            return 0;
+        }
+        require(audio_output || argc == 3, "External movie fixtures require audio-output mode.");
         const auto settings_path = directory / L"patch.ini";
         require(read_settings(settings_path).menu_black_background,
                 "Menu black enhancement should default to enabled.");
@@ -487,13 +551,20 @@ int wmain(int argc, wchar_t** argv) {
         std::ofstream(settings_path) << "[Accessibility]\nCaptionFont=1\nCaptionScale=125\n";
         require(read_settings(settings_path).caption_style == CaptionStyle{CaptionFont::Game, 125},
                 "Caption appearance settings were not read.");
+        std::ofstream(settings_path)
+            << "[Accessibility]\nCaptionBackground=1\nCaptionPlacement=1\n";
+        require(read_settings(settings_path).caption_style.background &&
+                    read_settings(settings_path).caption_style.placement ==
+                        CaptionPlacement::Inside,
+                "Caption background and placement settings were not read.");
         for (unsigned font = 2; font < caption_fonts.size(); ++font) {
             std::ofstream(settings_path) << "[Accessibility]\nCaptionFont=" << font << "\n";
             require(read_settings(settings_path).caption_style.font ==
                         static_cast<CaptionFont>(font),
                     "A bundled subtitle font was rejected.");
         }
-        std::ofstream(settings_path) << "[Accessibility]\nCaptionFont=99\nCaptionScale=0\n";
+        std::ofstream(settings_path)
+            << "[Accessibility]\nCaptionFont=99\nCaptionScale=0\nCaptionPlacement=99\n";
         require(read_settings(settings_path).caption_style == CaptionStyle{},
                 "Invalid caption settings did not fall back to readable defaults.");
         const auto path = directory / L"silence.mov";
@@ -509,6 +580,7 @@ int wmain(int argc, wchar_t** argv) {
         verify_last_frame(directory / L"video.mov");
         verify_last_frame(directory / L"captions.mov", true);
         verify_last_frame(directory / L"overlapping-captions.mov", true, true);
+        verify_caption_layout();
         verify_menu_black();
         require(playback::is_menu_entrance("49583.XMV") &&
                     playback::is_menu_entrance("49589.XMV") &&

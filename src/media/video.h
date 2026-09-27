@@ -19,6 +19,7 @@ public:
     Video(const Video&) = delete;
     Video& operator=(const Video&) = delete;
 
+    const Frame& last_frame() const;
     const Frame& image(const Description& format, std::span<const std::uint8_t> packet);
     const Frame& decode(const Movie& movie, const Track& track, std::size_t sample);
 

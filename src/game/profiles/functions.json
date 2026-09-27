@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "functions": [
+    {
+      "field": "draw_list",
+      "role": "Draw a dialogue choice list",
+      "abi": "__stdcall(void*, void*, void*)"
+    },
+    {
+      "field": "current_input",
+      "role": "Get the current input object",
+      "abi": "__stdcall(void*)"
+    },
+    {
+      "field": "lookup",
+      "role": "Look up an owned resource reference",
+      "abi": "__stdcall(void*, void*)"
+    },
+    {
+      "field": "release",
+      "role": "Release a resource reference",
+      "abi": "__thiscall(void*)"
+    },
+    {
+      "field": "picture_bounds",
+      "role": "Read picture bounds",
+      "abi": "__stdcall(void*, Rectangle*)"
+    },
+    {
+      "field": "activate",
+      "role": "Activate a queued input",
+      "abi": "__stdcall(void*, int, void*)"
+    },
+    {
+      "field": "remove",
+      "role": "Remove a queued input",
+      "abi": "__stdcall(void*, void*)"
+    },
+    {
+      "field": "pause",
+      "role": "Pause input state",
+      "abi": "__stdcall(void*, int, void*)"
+    },
+    {
+      "field": "restore_preferences",
+      "role": "Restore preferences",
+      "abi": "__stdcall(void*, void*)"
+    },
+    {
+      "field": "restore_view",
+      "role": "Restore the main view",
+      "abi": "__stdcall(void*)"
+    },
+    {
+      "field": "string_create",
+      "role": "Construct a native string",
+      "abi": "__thiscall(void*, const char*)"
+    },
+    {
+      "field": "string_destroy",
+      "role": "Destroy a native string",
+      "abi": "__thiscall(void*)"
+    },
+    {
+      "field": "save_state",
+      "role": "Prepare the current save state",
+      "abi": "__stdcall(void*, void*)"
+    },
+    {
+      "field": "save_file",
+      "role": "Write a save file",
+      "abi": "__stdcall(void*, void*)"
+    },
+    {
+      "field": "load_file",
+      "role": "Load a save file",
+      "abi": "__stdcall(void*, void*)"
+    },
+    {
+      "field": "text_draw",
+      "role": "Draw native text within a rectangle",
+      "abi": "__stdcall(void*, void*, void*, void*)"
+    },
+    {
+      "field": "text_out",
+      "role": "Draw native text at a point",
+      "abi": "__stdcall(void*, void*, void*)"
+    },
+    {
+      "field": "string_resource",
+      "role": "Load a native module string",
+      "abi": "__stdcall(void*, unsigned, void*)"
+    },
+    {
+      "field": "credit_update",
+      "role": "Update native positioned drawable group",
+      "abi": "__stdcall(void*, void*)"
+    },
+    {
+      "field": "credit_draw",
+      "role": "Draw native positioned drawable group",
+      "abi": "__stdcall(void*, void*, void*)"
+    },
+    {
+      "field": "credit_invalidate",
+      "role": "Invalidate native drawable group bounds",
+      "abi": "__stdcall(void*, Rectangle*)"
+    },
+    {
+      "field": "canvas_invalidate",
+      "role": "Invalidate native canvas bounds",
+      "abi": "__stdcall(void*, Rectangle*)"
+    },
+    {
+      "field": "canvas_transfer",
+      "role": "Copy native canvas to presentation target",
+      "abi": "__stdcall(void*, void*, Rectangle*, Rectangle*, void*, int)"
+    }
+  ]
+}

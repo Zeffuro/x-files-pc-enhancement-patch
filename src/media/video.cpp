@@ -256,6 +256,10 @@ const Frame& Video::image(const Description& format, std::span<const std::uint8_
     return state.frame;
 }
 
+const Frame& Video::last_frame() const {
+    return state_->frame;
+}
+
 const Frame& Video::decode(const Movie& movie, const Track& track, std::size_t sample) {
     auto& state = *state_;
     const auto& selected = track.samples.at(sample);

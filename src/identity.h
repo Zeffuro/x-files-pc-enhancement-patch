@@ -2,10 +2,12 @@
 
 #include <filesystem>
 #include <string>
+#include "game/profiles/generated.h"
 
 struct Identity {
     std::string sha256;
     const char* edition;
+    const native_game::Build* build;
 };
 
 Identity identify(const std::filesystem::path& executable);

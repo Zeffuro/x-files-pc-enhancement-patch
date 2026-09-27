@@ -4,5 +4,10 @@
 #include <filesystem>
 
 namespace enhancements {
-std::filesystem::path show_tools_dialog(HWND owner, HMODULE module);
+struct ToolsResult {
+    std::filesystem::path checkpoint;
+    bool inspect = false;
+};
+
+ToolsResult show_tools_dialog(HWND owner, HMODULE module);
 }

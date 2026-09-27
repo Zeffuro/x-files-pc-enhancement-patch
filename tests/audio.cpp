@@ -60,6 +60,11 @@ void test_pcm() {
         rejected = true;
     }
     require(rejected, "Truncated 16-bit PCM sample was accepted");
+
+    const std::vector<std::uint8_t> unsigned8{0, 128, 255, 64};
+    require(media::decode_unsigned_pcm(unsigned8) ==
+                std::vector<std::int16_t>{-32768, 0, 32512, -16384},
+            "Unsigned 8-bit PCM midpoint or amplitude is incorrect");
 }
 
 void decode_file(const std::filesystem::path& source, const std::filesystem::path& destination) {
@@ -78,6 +83,8 @@ void decode_file(const std::filesystem::path& source, const std::filesystem::pat
                     "Audio packet indexing is incorrect");
             const auto pcm = description.codec == "twos"
                                  ? media::decode_signed_pcm(movie.packet(sample), description.depth)
+                             : description.codec == "raw "
+                                 ? media::decode_unsigned_pcm(movie.packet(sample))
                                  : decoder.decode(movie.packet(sample));
             output.write(reinterpret_cast<const char*>(pcm.data()), pcm.size() * sizeof(pcm[0]));
         }
@@ -96,7 +103,7 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 3) {
             decode_file(argv[1], argv[2]);
         }
-        std::cout << "IMA4 and signed PCM decoding checks passed.\n";
+        std::cout << "IMA4 and PCM decoding checks passed.\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

@@ -19,4 +19,16 @@ add_library(movie-zlib STATIC
     ${zlib_SOURCE_DIR}/zutil.c)
 target_include_directories(movie-zlib SYSTEM PUBLIC ${zlib_SOURCE_DIR})
 set_property(TARGET movie-zlib PROPERTY COMPILE_OPTIONS /W0 /utf-8)
-install(FILES ${zlib_SOURCE_DIR}/LICENSE DESTINATION . RENAME zlib.LICENSE)
+add_library(movie-minizip STATIC
+    ${zlib_SOURCE_DIR}/contrib/minizip/unzip.c
+    ${zlib_SOURCE_DIR}/contrib/minizip/zip.c
+    ${zlib_SOURCE_DIR}/contrib/minizip/ioapi.c
+    ${zlib_SOURCE_DIR}/contrib/minizip/iowin32.c)
+target_include_directories(movie-minizip SYSTEM PUBLIC ${zlib_SOURCE_DIR}/contrib/minizip)
+target_link_libraries(movie-minizip PUBLIC movie-zlib)
+target_compile_definitions(movie-minizip PRIVATE NOCRYPT NOUNCRYPT)
+set_property(TARGET movie-minizip PROPERTY COMPILE_OPTIONS /W0 /utf-8)
+file(READ "${zlib_SOURCE_DIR}/LICENSE" zlib_notice)
+file(READ "${zlib_SOURCE_DIR}/contrib/minizip/MiniZip64_info.txt" minizip_notice)
+file(WRITE "${CMAKE_BINARY_DIR}/generated/zlib.LICENSE" "${zlib_notice}\n${minizip_notice}")
+install(FILES "${CMAKE_BINARY_DIR}/generated/zlib.LICENSE" DESTINATION .)

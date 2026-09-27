@@ -4,6 +4,7 @@
 #include "palette.h"
 #include "graphics.h"
 #include "enhancements/controls.h"
+#include "game/render/caption_surface.h"
 
 #include <windows.h>
 #include <memory>
@@ -36,6 +37,7 @@ struct World {
             SelectObject(dc, previous_bitmap);
         }
         if (bitmap) {
+            native_game::caption_surface::forget(bitmap);
             DeleteObject(bitmap);
         }
         if (dc) {

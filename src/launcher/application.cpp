@@ -1,10 +1,12 @@
 #include "application.h"
 #include "configuration.h"
+#include "welcome.h"
 #include "process.h"
 #include "runtime.h"
 #include "preferences/store.h"
 #include "diagnostics/log_file.h"
 #include "diagnostics/report_dialog.h"
+#include "saves/storage.h"
 
 #include <fstream>
 #include <stdexcept>
@@ -20,12 +22,18 @@ std::filesystem::path application_directory() {
 }
 
 int execute_game(const StagedGame& game, const Session& session, bool diagnostic) {
+    const auto logs = diagnostics::prepare_log_directory(game.directory);
+    const auto saves = saves::prepare_directory(game.directory);
+    if (!SetEnvironmentVariableW(L"XFILES_PATCH_SAVES", saves.c_str())) {
+        throw std::runtime_error("Cannot configure the saved games folder.");
+    }
     if (!SetEnvironmentVariableW(L"XFILES_PATCH_MEDIA", session.media.c_str())) {
         throw std::runtime_error("Cannot configure the game files.");
     }
     const auto result = run_game(game.directory, session.portable, diagnostic);
-    std::ofstream report(game.directory / L"launcher.log");
+    std::ofstream report(logs / L"launcher.log");
     report << "patch=" << XFILES_BUILD_VERSION << "\nedition=" << game.identity.edition
+           << "\nbuild=" << (game.identity.build ? game.identity.build->label : "unknown")
            << "\nsha256=" << game.identity.sha256 << "\nexit=0x" << std::hex << result.exit_code
            << "\ntimeout=" << result.timed_out << "\ndesktop_changed=" << result.desktop_changed
            << "\ncursor_changed=" << result.cursor_changed << '\n';
@@ -56,11 +64,14 @@ int resume_game(const std::filesystem::path& directory) {
     }
     const auto identity = identify(game / L"XFiles.exe");
     if (!identity.edition) {
-        throw std::runtime_error("This game executable is not supported. Run Setup with an "
-                                 "English PC CD or DVD copy.");
+        throw std::runtime_error("This game executable is not supported. Run Setup with "
+                                 "a supported PC CD or DVD copy.");
     }
     const auto session = read_session(game);
     initialize_configuration(game);
+    if (!show_welcome(game)) {
+        return 0;
+    }
     if (session.portable) {
         preferences::Store store(game / L"preferences.ini");
         store.set("Exe Full Path", (game / L"XFiles.exe").string());

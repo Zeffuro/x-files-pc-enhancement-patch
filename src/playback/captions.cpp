@@ -1,5 +1,6 @@
 #include "movie.h"
 #include "caption_text.h"
+#include "caption_paint.h"
 #include "quickdraw/world.h"
 #include "settings.h"
 
@@ -8,25 +9,6 @@
 
 namespace playback {
 namespace {
-
-const wchar_t* caption_font(CaptionFont selected) {
-    static const auto loaded = [] {
-        std::array<bool, caption_fonts.size()> result{true};
-        std::vector<wchar_t> path(32768);
-        const auto length =
-            GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
-        if (length && length < path.size()) {
-            const auto folder = std::filesystem::path(path.data()).parent_path();
-            for (std::size_t i = 1; i < caption_fonts.size(); ++i) {
-                result[i] = AddFontResourceExW((folder / caption_fonts[i].file).c_str(), FR_PRIVATE,
-                                               nullptr) != 0;
-            }
-        }
-        return result;
-    }();
-    const auto index = static_cast<std::size_t>(selected);
-    return caption_fonts[index < loaded.size() && loaded[index] ? index : 0].name;
-}
 
 std::wstring caption_text(std::span<const std::uint8_t> packet) {
     if (packet.size() < 2) {
@@ -55,6 +37,43 @@ std::wstring caption_text(std::span<const std::uint8_t> packet) {
 }
 
 std::wstring current_caption(const Movie& value) {
+    const auto mode = settings().captions;
+    if (mode == CaptionMode::On && !value.source_path.empty() &&
+        std::any_of(value.tracks.begin(), value.tracks.end(), [](const auto& track) {
+            return track->enabled && track->media->handler == "vide";
+        })) {
+        std::vector<wchar_t> executable(32768);
+        const auto length =
+            GetModuleFileNameW(nullptr, executable.data(), static_cast<DWORD>(executable.size()));
+        if (length && length < executable.size()) {
+            const auto game_root = std::filesystem::path(executable.data()).parent_path();
+            std::error_code error;
+            const auto manifest = game_root / L"subtitles" / L"manifest.tsv";
+            std::optional<std::filesystem::file_time_type> stamp;
+            if (std::filesystem::is_regular_file(manifest, error) && !error) {
+                stamp = std::filesystem::last_write_time(manifest, error);
+                if (error) {
+                    stamp.reset();
+                }
+            }
+            const auto generation = media::subtitles::install_generation();
+            if (!value.override_checked || stamp != value.override_stamp ||
+                generation != value.override_generation) {
+                value.override_checked = true;
+                value.override_stamp = stamp;
+                value.override_generation = generation;
+                value.override_cues = stamp ? media::subtitles::load_override(
+                                                  game_root, value.relative_path, value.source_path)
+                                            : std::nullopt;
+            }
+            if (value.override_cues) {
+                return media::subtitles::caption_at(
+                    *value.override_cues, static_cast<std::uint64_t>(std::max(0, value.time)),
+                    value.media->timescale);
+            }
+        }
+    }
+
     struct Caption {
         const media::Track* track;
         std::wstring text;
@@ -62,7 +81,6 @@ std::wstring current_caption(const Movie& value) {
 
     std::vector<Caption> captions;
     bool has_video = false;
-    const auto mode = settings().captions;
     for (const auto& track : value.tracks) {
         has_video |= track->enabled && track->media->handler == "vide";
         if (track->media->handler != "text" || mode == CaptionMode::Off ||
@@ -97,9 +115,10 @@ std::wstring current_caption(const Movie& value) {
     return has_video ? text : std::wstring{};
 }
 
-bool draw_captions(Movie& value, std::wstring text, bool video_changed) {
+bool draw_captions(Movie& value, std::wstring text, const CaptionLayout& geometry,
+                   const CaptionStyle& style, bool video_changed) {
     if (text.empty() && !value.caption_bounds) {
-        value.caption_style = settings().caption_style;
+        value.caption_style = style;
         return false;
     }
     if (!video_changed && !value.redraw && text == value.caption) {
@@ -114,52 +133,16 @@ bool draw_captions(Movie& value, std::wstring text, bool video_changed) {
         throw std::runtime_error("Cannot obtain caption drawing bounds");
     }
     RECT area{
-        std::max<LONG>({value.box.left, value.port->bounds.left, clip.left}),
-        std::max<LONG>({value.box.top, value.port->bounds.top, clip.top}),
-        std::min<LONG>({value.box.right, value.port->bounds.right, clip.right}),
-        std::min<LONG>({value.box.bottom, value.port->bounds.bottom, clip.bottom}),
+        std::max<LONG>({geometry.caption.left, value.port->bounds.left, clip.left}),
+        std::max<LONG>({geometry.caption.top, value.port->bounds.top, clip.top}),
+        std::min<LONG>({geometry.caption.right, value.port->bounds.right, clip.right}),
+        std::min<LONG>({geometry.caption.bottom, value.port->bounds.bottom, clip.bottom}),
     };
     if (area.right - area.left <= 8 || area.bottom <= area.top) {
         return false;
     }
-    const auto saved = SaveDC(dc);
-    const auto style = settings().caption_style;
-    const int font_height =
-        std::max(12, MulDiv(value.box.right - value.box.left, 18, 600)) * style.scale / 100;
-    const auto font = CreateFontW(-font_height, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                  DEFAULT_QUALITY, DEFAULT_PITCH, caption_font(style.font));
-    if (!saved || !font) {
-        if (saved) {
-            RestoreDC(dc, saved);
-        }
-        if (font) {
-            DeleteObject(font);
-        }
-        throw std::runtime_error("Cannot create caption drawing context");
-    }
-    SelectObject(dc, font);
-    SetBkMode(dc, TRANSPARENT);
-    auto layout = area;
-    layout.left += 4;
-    layout.right -= 4;
-    constexpr UINT format = DT_CENTER | DT_WORDBREAK | DT_NOPREFIX;
-    DrawTextW(dc, text.c_str(), static_cast<int>(text.size()), &layout, format | DT_CALCRECT);
-    const int height = std::max<LONG>(font_height, layout.bottom - layout.top) + 4;
-    area.top = std::max(area.top, area.bottom - height);
-    layout = area;
-    layout.left += 4;
-    layout.right -= 4;
-    layout.top += 2;
-    auto shadow = layout;
-    OffsetRect(&shadow, 1, 1);
-    SetTextColor(dc, RGB(0, 0, 0));
-    DrawTextW(dc, text.c_str(), static_cast<int>(text.size()), &shadow, format);
-    SetTextColor(dc, RGB(255, 255, 255));
-    DrawTextW(dc, text.c_str(), static_cast<int>(text.size()), &layout, format);
+    area = paint_caption(dc, area, text, style, value.box.right - value.box.left);
     GdiFlush();
-    RestoreDC(dc, saved);
-    DeleteObject(font);
     const quickdraw::Rect bounds{
         static_cast<std::int16_t>(area.top), static_cast<std::int16_t>(area.left),
         static_cast<std::int16_t>(area.bottom), static_cast<std::int16_t>(area.right)};

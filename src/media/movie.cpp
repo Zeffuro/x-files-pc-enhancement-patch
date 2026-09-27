@@ -195,7 +195,8 @@ void read_samples(Track& track, const std::vector<Atom>& list, Bytes file,
             if (desc.codec == "ima4") {
                 desc.packet_frames = Ima4::packet_frames;
                 desc.packet_bytes = Ima4::packet_bytes * desc.channels;
-            } else if (desc.codec == "twos" && (desc.depth == 8 || desc.depth == 16)) {
+            } else if ((desc.codec == "twos" && (desc.depth == 8 || desc.depth == 16)) ||
+                       (desc.codec == "raw " && desc.depth == 8)) {
                 desc.packet_bytes = (desc.depth / 8) * desc.channels;
             } else if ((desc.codec == "QDMC" || desc.codec == "QDM2") && u16(entry.body, 8) == 1) {
                 desc.packet_frames = u32(entry.body, 28);

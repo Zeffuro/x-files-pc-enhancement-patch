@@ -1,6 +1,7 @@
 #include "files.h"
 #include "platform/imports.h"
 #include "runtime.h"
+#include "saves/paths.h"
 
 #include <cstring>
 #include <vector>
@@ -25,6 +26,10 @@ std::filesystem::path mapped_file(const char* path) noexcept {
 HANDLE WINAPI open_file(const char* path, DWORD access, DWORD sharing,
                         SECURITY_ATTRIBUTES* security, DWORD creation, DWORD flags,
                         HANDLE template_file) {
+    const auto save = saves::redirected_path(path);
+    if (!save.empty()) {
+        return CreateFileW(save.c_str(), access, sharing, security, creation, flags, template_file);
+    }
     const auto result =
         CreateFileA(path, access, sharing, security, creation, flags, template_file);
     const auto error = GetLastError();
@@ -46,6 +51,10 @@ HANDLE WINAPI open_file(const char* path, DWORD access, DWORD sharing,
 }
 
 HANDLE WINAPI find_file(const char* path, WIN32_FIND_DATAA* data) {
+    const auto save = saves::redirected_path(path);
+    if (!save.empty()) {
+        return FindFirstFileA(save.string().c_str(), data);
+    }
     const auto result = FindFirstFileA(path, data);
     const auto error = GetLastError();
     if (result == INVALID_HANDLE_VALUE && missing_file(error)) {
@@ -59,6 +68,10 @@ HANDLE WINAPI find_file(const char* path, WIN32_FIND_DATAA* data) {
 }
 
 DWORD WINAPI attributes(const char* path) {
+    const auto save = saves::redirected_path(path);
+    if (!save.empty()) {
+        return GetFileAttributesW(save.c_str());
+    }
     const auto result = GetFileAttributesA(path);
     const auto error = GetLastError();
     if (result == INVALID_FILE_ATTRIBUTES && missing_file(error)) {
@@ -71,7 +84,15 @@ DWORD WINAPI attributes(const char* path) {
     return result;
 }
 
+BOOL WINAPI delete_file(const char* path) {
+    const auto save = saves::redirected_path(path);
+    return save.empty() ? DeleteFileA(path) : DeleteFileW(save.c_str());
+}
+
 FARPROC resolve(const char* name) {
+    if (!std::strcmp(name, "DeleteFileA")) {
+        return reinterpret_cast<FARPROC>(delete_file);
+    }
     if (!std::strcmp(name, "CreateFileA")) {
         return reinterpret_cast<FARPROC>(open_file);
     }

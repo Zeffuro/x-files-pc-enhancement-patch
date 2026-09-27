@@ -1,6 +1,7 @@
 #include "enhancements/game_resources.h"
 #include "menu.h"
 #include "game_ui.h"
+#include "game/layouts/input_events.h"
 #include "identity.h"
 #include "runtime.h"
 
@@ -35,8 +36,8 @@ void attach_menu() {
     }
     try {
         const auto identity = identify(path.data());
-        if (identity.edition && game::edition_named(identity.edition)) {
-            profile = game::edition_named(identity.edition);
+        if (identity.build && identity.build->profile) {
+            profile = identity.build->profile;
             image = reinterpret_cast<std::byte*>(GetModuleHandleW(nullptr));
         }
     } catch (...) {
@@ -133,6 +134,23 @@ game::ScriptControls game::script_controls() {
         }
         const auto rectangle =
             reinterpret_cast<Rectangle*>(object + edition().control_rectangle)->bounds;
+        if (*reinterpret_cast<unsigned*>(object + 8) &&
+            !*reinterpret_cast<unsigned*>(object + 12) && rectangle.left >= 0 &&
+            rectangle.top >= 0 && rectangle.right <= 640 && rectangle.bottom <= 480 &&
+            rectangle.right > rectangle.left && rectangle.bottom > rectangle.top &&
+            (rectangle.right - rectangle.left < 640 || rectangle.bottom - rectangle.top < 480)) {
+            unsigned events = 0;
+            const auto& actions =
+                reinterpret_cast<const native_game::InputEvents*>(object)->actions;
+            for (unsigned event = 0; event < actions.size(); ++event) {
+                if (actions[event].count && actions[event].count <= 256) {
+                    events |= 1u << event;
+                }
+            }
+            if (events) {
+                result.event_targets.push_back({rectangle, id, events});
+            }
+        }
         if (id == script_control::dialog_background) {
             result.script_dialog = true;
         }

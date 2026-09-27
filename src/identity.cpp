@@ -62,12 +62,6 @@ std::string sha256(const std::filesystem::path& path, std::uintmax_t offset, std
 
 Identity identify(const std::filesystem::path& executable) {
     auto result = sha256(executable);
-    const char* edition = nullptr;
-    if (result == "eae65c27f0c026530e363ebc3483a150c002e831e88ae6e04d3c2f3d4da859ce") {
-        edition = "CD";
-    }
-    if (result == "1c7385b15bc11f6ff46b5a30ca383441df96be5be1c1dec31eae650f2243a2ad") {
-        edition = "DVD";
-    }
-    return {result, edition};
+    const auto build = native_game::build_for_hash(result);
+    return {result, build && build->profile ? build->edition.data() : nullptr, build};
 }

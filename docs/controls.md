@@ -1,77 +1,126 @@
-# Controls
+# Controls and settings
 
 ## Keyboard
 
-**F10** opens settings. **Alt+Enter** switches between windowed and borderless.
-**F5** quick-saves during exploration. **F9** quick-loads during exploration or
-from the main menu. Close movies, conversations and device screens first.
-Loading discards unsaved progress.
+| Key | Action |
+|---|---|
+| F10 | Open enhancement settings |
+| Alt+Enter | Switch between windowed and borderless |
+| F5 | Quick-save during exploration |
+| F9 | Quick-load during exploration or from the main menu |
+
+Close movies, conversations and device screens before saving or loading.
+Loading replaces your current progress.
 
 ## Controller
 
-Controllers must be available through XInput. The PlayStation labels below show
-the matching button positions; they don't mean native PlayStation support.
+Use an Xbox-compatible controller. PlayStation controllers need to be set up as
+Xbox-compatible first. The PlayStation names below refer to matching button positions.
 
 | Xbox / PlayStation | Action |
 |---|---|
 | A / Cross | Use or confirm |
-| X / Square | Examine / right-click |
-| B / Circle | Switch inventory or device focus; close a conversation |
+| X / Square | Examine or right-click |
+| B / Circle | Switch inventory or device focus, or close a conversation |
 | Y / Triangle | Return to the game view |
-| Menu / Start | Open the menu; resume the game |
-| View / Select | Skip a movie, when enabled in the game options |
-| D-pad | Select menu, inventory, emotion or device controls |
+| Menu / Start | Open the menu or resume |
+| View / Select | Skip a movie, if enabled in the game options |
+| D-pad | Select controls |
 | Left stick | Move the pointer |
-| Right stick click / R3 | Switch between conversation choices and evidence icons |
+| Right stick click / R3 | Switch between conversation choices and evidence |
 | LB or RB + left/right | Select exits |
-| RT + left/right | Select scene hotspots |
-| LT | Equip the gun, when owned, and return the pointer to the scene |
+| RT + left/right | Select hotspots |
+| LT | Equip the gun, if owned |
 | LT + D-pad left/right | Select action targets (experimental) |
 
-The left stick moves the pointer by default. F10 can switch it to selecting
-controls or enable the spring-centred pointer.
-
-LT uses the gun's normal inventory action. A fires; entering the inventory
-holsters it. The stick still aims while LT is held.
-Combat and some menu controls are unfinished on both CD and DVD.
+With several controllers connected, using another controller makes it active.
+After reconnecting or leaving settings, release the buttons and centre the stick.
+Combat and some menus still need work.
 
 In conversations, up/down selects a response. Left/right or LB/RB switches
-Talk/History. R3 switches to the evidence icons: select one with the D-pad and
-press A to use it. Press R3 again to return to dialogue. Keyboard Tab switches
-the same groups. Right-click closes the conversation.
+Talk/History. R3 switches to evidence icons, then A uses the selected item.
+Keyboard Tab also switches groups. Right-click closes the conversation.
 
-On the PDA or workstation, B switches between toolbar/sidebar and content.
-Y goes back. Press A on a login, search or save-name field to open the on-screen
-keyboard. Use the D-pad to select a key, A to type, X to delete, and Y or Start to
-close it. Changes go straight into the game field. A physical keyboard and mouse
-still work.
+On the PDA or workstation, B switches between controls and content. Y goes back.
+Selecting a text field opens an on-screen keyboard. Use the D-pad to select a
+key, A to type, X to delete, and Y or Start to close it. You can also type normally.
 
-## Saves and reports
-
-Quick saves are stored in the game folder as `QUICKSAVE.x`. The previous
-successful save is kept as `QUICKSAVE.previous.x`. Normal save slots are separate.
-
-**F10 → Tools → Save to file** exports a save during exploration.
-**Load from file** opens a PC `.x` save during exploration or from the main menu.
-These leave your quick-save and normal slots alone. Choose a new filename when
-exporting; existing saves aren't overwritten. Loading discards unsaved progress.
-Saves include inventory and story state; the patch doesn't edit those flags.
-
-Tools also opens the logs folder or saves a report ZIP, with an optional saved
-game attached. The launcher offers the same report after a crash. Nothing is
-uploaded. Check the ZIP before sharing it: logs may contain local file paths.
+With the gun equipped, A fires. Entering inventory holsters it.
 
 ## Settings
 
-Open **Tweaks** on the main menu or press **F10** for display, audio, controller
-and subtitle settings. Gamepad support is on by default. Focus highlights appear
-when using a controller and disappear when you move or click the mouse. F10 also
-has Always and Off options.
+Choose **Tweaks** on the main menu or press **F10**. You can change the window
+size, picture sharpness, audio device, controller options and subtitles.
+Wider windows keep the original picture proportions and add side bars.
 
-The workstation login shortcut and menu animation skip are off by default.
-The animation skip covers the logo and header. Game fonts come from your game
-files. Subtitles default to Typist at the credits' base size.
+The first-launch **Recommended** preset enables controller support, the analog
+pointer, black menu backgrounds, shorter menu animations and the save browser.
+You can change each option separately.
 
-Both 4:3 and 16:9 window sizes keep the original image proportions. 16:9 adds
-side bars; it doesn't rearrange the interface. Direct3D 9 supports nearest-neighbour,
-bilinear, bicubic and Lanczos scaling. Bicubic is the default.
+For subtitles, choose a font and size, and optionally add a dark background.
+You can adjust the background's colour and opacity.
+
+- **On** shows installed subtitles or captions included in the movie.
+- **Game preference** follows the original game's caption setting.
+- **Off** hides captions.
+
+English editions include dialogue captions in many scenes. German, French and
+Spanish editions generally lack dialogue captions. Turning captions on does
+not create or translate missing text.
+
+## Saves
+
+Your saves are in the game's `saves` folder. Back up the whole folder when moving
+to another computer. Existing saves from older patch versions are kept.
+
+Enable **Save browser with thumbnails** in **F10 → Game**. The main menu's
+**Save** and **Load** buttons open separate screens. Choose a slot, optionally
+enter a name, then save. Overwriting or deleting a save asks for confirmation.
+Hover over a save to see a silent scene preview when available.
+
+Use **Previous** and **Next** to change pages. Pages wrap around. The mouse wheel
+and Page Up/Page Down work too. Arrow keys or the controller D-pad move between
+slots and buttons. Enter or A confirms, Escape or B goes back, and Tab or X moves
+to the next control. LB/RB changes pages.
+
+**Existing save files** on the Load screen lists older saves. **F10 → Tools** also
+lets you load from a file or export a save. Quick-saving keeps a backup of the
+previous quick-save.
+
+## Subtitle packs
+
+Use **F10 → Tools → Export subtitles** to save a ZIP or folder of editable subtitles.
+Edit the SRT files with a text editor or subtitle editor and save them as UTF-8.
+Keep the exported filenames, folders and `manifest.tsv` together.
+
+Choose **Install subtitles** and select the ZIP or folder, then set captions to
+**On**. A new pack replaces the previous pack without changing the original movies.
+To share your pack, ZIP the exported files and folders together.
+To remove it, close the game and delete the game's `subtitles` folder.
+
+For translations, export from the edition you want to play and check the wording
+and timing against its audio. The patch doesn't include translations.
+
+## Developer tools
+
+Press **Ctrl+F11**, use **F10 → Tools**, or right-click the game's title bar and
+choose **Developer tools**.
+
+- **Live movies** shows clips currently open in the game.
+- **Library** lets you browse clips, filter by place or captions, and search text.
+- **Play preview** plays a clip independently of the game.
+- **Subtitles** lets you edit captions, set their timing and move between clips.
+  Edits appear in the preview as you type. **Save** applies them without restarting.
+- **Your label** and **Your notes** let you describe clips in your own words.
+- **Game state** shows the current game values. **Show interaction targets** marks
+  places the player can interact with.
+
+Some files contain several still images. Their preview shows the image selected
+by the game. Sound-only captions are not supported yet.
+For game structures and file details, see [the technical reference](../src/game/README.md).
+
+## Bug reports
+
+Use **F10 → Tools → Save report ZIP**. You can include a save to help reproduce
+an issue. Nothing is uploaded automatically. Reports can contain local file
+paths, so check them before sharing. Logs are kept in the game's `logs` folder.

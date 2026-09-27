@@ -8,7 +8,8 @@ param(
     [ValidateRange(1, 128)]
     [int]$Jobs = [Math]::Min(8, [Environment]::ProcessorCount),
     [switch]$Clean,
-    [switch]$RebuildFFmpeg
+    [switch]$RebuildFFmpeg,
+    [switch]$InteractiveTests
 )
 
 $ErrorActionPreference = 'Stop'
@@ -83,7 +84,7 @@ try {
     Write-Host 'Checking C++ formatting (clang-format 22.1.3)...'
     Invoke-Checked $clangFormat (@('--dry-run', '--Werror') + $formatSources)
 
-    if (Get-Process XFiles -ErrorAction SilentlyContinue) {
+    if ($InteractiveTests -and (Get-Process XFiles -ErrorAction SilentlyContinue)) {
         throw 'Close The X-Files before building: the display tests need the game closed.'
     }
     if (-not $Version) {
@@ -120,6 +121,7 @@ try {
     # Clear cached library paths when the dependency prefix changes.
     Invoke-Checked 'cmake' @('-S', '.', '-B', $BuildDirectory, '-A', 'Win32',
         '-Uffmpeg_*', "-DFFMPEG_ROOT=$FFmpegRoot", "-DXFILES_VERSION=$Version",
+        "-DXFILES_INTERACTIVE_TESTS=$($InteractiveTests.IsPresent)",
         '-DXFILES_CODE_ANALYSIS=ON', "-DCLANG_FORMAT=$clangFormat")
     $buildArguments = @('--build', $BuildDirectory, '--config', 'Release', '--parallel', "$Jobs")
     if ($Clean) { $buildArguments += '--clean-first' }

@@ -1,5 +1,6 @@
 #include "enhancements/game_resources.h"
 #include "text_entry.h"
+#include "controller_state.h"
 #include "controls.h"
 #include "focus.h"
 #include "ui/highlight.h"
@@ -7,7 +8,6 @@
 #include "game_ui.h"
 #include "settings.h"
 
-#include <xinput.h>
 #include <algorithm>
 #include <deque>
 
@@ -19,7 +19,6 @@ struct Keyboard {
     HWND owner = nullptr;
     RECT field{};
     unsigned resource = 0, selected = 10;
-    WORD previous_buttons = 0;
     int horizontal = 0, vertical = 0;
     ULONGLONG repeat = 0, last = 0;
     bool opened = false;
@@ -28,18 +27,9 @@ struct Keyboard {
 std::deque<char> pending;
 ULONGLONG send_at = 0, closed_until = 0;
 
-WORD buttons(XINPUT_STATE& state) {
-    for (DWORD player = 0; player < XUSER_MAX_COUNT; ++player) {
-        if (XInputGetState(player, &state) == ERROR_SUCCESS) {
-            return state.Gamepad.wButtons;
-        }
-    }
-    state = {};
-    return 0;
-}
-
 void finish() {
     suspend_analog_cursor();
+    input::poll(false);
     keyboard.opened = false;
     hide_keyboard();
     closed_until = GetTickCount64() + 250;
@@ -90,42 +80,45 @@ void move(int horizontal, int vertical) {
 }
 
 void poll() {
-    XINPUT_STATE state{};
-    const auto current = buttons(state);
-    const auto pressed = current & ~keyboard.previous_buttons;
-    keyboard.previous_buttons = current;
+    const auto frame = input::poll(settings().gamepad);
+    const auto& state = frame.sample;
+    const auto current = state.buttons;
+    const auto pressed = frame.pressed;
     const auto now = GetTickCount64();
     const float elapsed = keyboard.last ? std::min(0.05f, (now - keyboard.last) / 1000.0f) : 0;
     keyboard.last = now;
+    if (frame.device_changed) {
+        keyboard.horizontal = keyboard.vertical = 0;
+        keyboard.repeat = 0;
+        suspend_analog_cursor();
+    }
     if (!settings().gamepad) {
         return;
     }
-    if (pressed & (XINPUT_GAMEPAD_Y | XINPUT_GAMEPAD_START)) {
+    if (pressed & (input::button::back | input::button::menu)) {
         finish();
         return;
     }
-    if (pressed & XINPUT_GAMEPAD_X) {
+    if (pressed & input::button::examine) {
         pending.push_back('\b');
     }
     const bool analog = settings().analog_cursor;
-    const bool selecting = (current & (XINPUT_GAMEPAD_DPAD_UP | XINPUT_GAMEPAD_DPAD_DOWN |
-                                       XINPUT_GAMEPAD_DPAD_LEFT | XINPUT_GAMEPAD_DPAD_RIGHT)) != 0;
+    const bool selecting = (current & (input::button::up | input::button::down |
+                                       input::button::left | input::button::right)) != 0;
     if (selecting) {
         suspend_analog_cursor();
     }
     if (analog && !(selecting && settings().spring_cursor)) {
-        move_analog_cursor(keyboard.owner, state.Gamepad.sThumbLX, state.Gamepad.sThumbLY, elapsed);
+        move_analog_cursor(keyboard.owner, state.left_x, state.left_y, elapsed);
     }
-    const int horizontal = std::clamp((current & XINPUT_GAMEPAD_DPAD_RIGHT ? 1 : 0) -
-                                          (current & XINPUT_GAMEPAD_DPAD_LEFT ? 1 : 0) +
-                                          (!analog && state.Gamepad.sThumbLX > 18000 ? 1 : 0) -
-                                          (!analog && state.Gamepad.sThumbLX < -18000 ? 1 : 0),
-                                      -1, 1);
-    const int vertical = std::clamp((current & XINPUT_GAMEPAD_DPAD_DOWN ? 1 : 0) -
-                                        (current & XINPUT_GAMEPAD_DPAD_UP ? 1 : 0) +
-                                        (!analog && state.Gamepad.sThumbLY < -18000 ? 1 : 0) -
-                                        (!analog && state.Gamepad.sThumbLY > 18000 ? 1 : 0),
-                                    -1, 1);
+    const int horizontal = std::clamp(
+        (current & input::button::right ? 1 : 0) - (current & input::button::left ? 1 : 0) +
+            (!analog && state.left_x > 18000 ? 1 : 0) - (!analog && state.left_x < -18000 ? 1 : 0),
+        -1, 1);
+    const int vertical = std::clamp(
+        (current & input::button::down ? 1 : 0) - (current & input::button::up ? 1 : 0) +
+            (!analog && state.left_y < -18000 ? 1 : 0) - (!analog && state.left_y > 18000 ? 1 : 0),
+        -1, 1);
     const bool changed = horizontal != keyboard.horizontal || vertical != keyboard.vertical;
     if ((horizontal || vertical) && (changed || now >= keyboard.repeat)) {
         move(horizontal, vertical);
@@ -133,7 +126,7 @@ void poll() {
     }
     keyboard.horizontal = horizontal;
     keyboard.vertical = vertical;
-    if (pressed & XINPUT_GAMEPAD_A) {
+    if (pressed & input::button::activate) {
         activate(keyboard.selected);
     }
 }
@@ -185,8 +178,7 @@ void open_text_entry(HWND owner, const RECT& field, unsigned resource) {
     keyboard.owner = owner;
     keyboard.field = field;
     keyboard.resource = resource;
-    XINPUT_STATE state{};
-    keyboard.previous_buttons = buttons(state);
+    input::poll(false);
     if (!point_controller(owner, field)) {
         return;
     }
@@ -265,8 +257,7 @@ void update_text_entry(HWND owner, bool focused) {
             hide_keyboard();
         }
         pending.clear();
-        XINPUT_STATE state{};
-        keyboard.previous_buttons = buttons(state);
+        input::poll(false);
         keyboard.last = 0;
         return;
     }
@@ -280,6 +271,7 @@ void update_text_entry(HWND owner, bool focused) {
 }
 
 void release_text_entry() {
+    input::poll(false);
     keyboard = {};
     pending.clear();
     release_keyboard();

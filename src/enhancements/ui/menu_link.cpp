@@ -1,5 +1,7 @@
 #include "menu_link.h"
+#include "enhancements/controls.h"
 #include "enhancements/game_ui.h"
+#include "localization/ui.h"
 
 #include <algorithm>
 
@@ -11,6 +13,8 @@ HMODULE module = nullptr;
 HBITMAP artwork = nullptr;
 int frame = 0;
 ULONGLONG last_frame = 0;
+ULONGLONG last_language_check = 0;
+ui::Language artwork_language = ui::Language::English;
 RECT previous{};
 constexpr auto artwork_bounds = settings_link;
 constexpr int frame_width = 336, frame_height = 86, last = 20;
@@ -80,7 +84,22 @@ void update_settings_link(HWND owner, bool visible) {
             return;
         }
         SetLayeredWindowAttributes(overlay, RGB(0, 0, 0), 255, LWA_COLORKEY);
-        artwork = LoadBitmapW(module, MAKEINTRESOURCEW(201));
+    }
+    if (!artwork || GetTickCount64() - last_language_check >= 1000) {
+        const auto language = ui::language();
+        last_language_check = GetTickCount64();
+        if (!artwork || language != artwork_language) {
+            const auto replacement =
+                LoadBitmapW(module, MAKEINTRESOURCEW(201 + static_cast<int>(language)));
+            if (replacement) {
+                if (artwork) {
+                    DeleteObject(artwork);
+                }
+                artwork = replacement;
+                artwork_language = language;
+                InvalidateRect(overlay, nullptr, FALSE);
+            }
+        }
     }
     const auto& client = info.rcClient;
     const auto scale =
@@ -92,8 +111,8 @@ void update_settings_link(HWND owner, bool visible) {
                 static_cast<LONG>(x + artwork_bounds.right * scale),
                 static_cast<LONG>(y + artwork_bounds.bottom * scale)};
     POINT cursor{};
-    const bool hot =
-        GetCursorPos(&cursor) && ScreenToClient(owner, &cursor) && PtInRect(&settings_link, cursor);
+    const bool hot = game_is_foreground(owner) && GetCursorPos(&cursor) &&
+                     ScreenToClient(owner, &cursor) && PtInRect(&settings_link, cursor);
     if (!EqualRect(&bounds, &previous) || !IsWindowVisible(overlay)) {
         previous = bounds;
         if (auto positions = BeginDeferWindowPos(1)) {

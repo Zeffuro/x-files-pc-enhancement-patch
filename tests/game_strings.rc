@@ -1,0 +1,27 @@
+#pragma code_page(65001)
+
+LANGUAGE 10, 1
+STRINGTABLE
+BEGIN
+    4101 "Música"
+    4102 "Guión"
+    4103 "Teléfono celular"
+END
+
+LANGUAGE 12, 1
+STRINGTABLE
+BEGIN
+    4141 "Téléphone portable"
+END
+
+LANGUAGE 7, 1
+STRINGTABLE
+BEGIN
+    4161 "Überprüfung"
+END
+
+LANGUAGE 17, 1
+STRINGTABLE
+BEGIN
+    4181 "日本語"
+END

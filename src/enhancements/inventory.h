@@ -7,6 +7,13 @@
 
 namespace enhancements {
 
+struct InventoryEntry {
+    RECT bounds;
+    std::optional<unsigned> resource;
+    std::wstring asset_path;
+};
+
+std::vector<InventoryEntry> inventory_items(const game::MainView* view);
 std::vector<RECT> inventory_bounds(const game::MainView* view);
 std::optional<RECT> inventory_item_bounds(const game::MainView* view, unsigned resource);
 bool focus_inventory_item(HWND window, unsigned resource);

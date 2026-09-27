@@ -2,10 +2,12 @@
 
 #include "runtime.h"
 #include "media/movie.h"
+#include "media/subtitles.h"
 #include "quickdraw/types.h"
 #include "audio.h"
 #include "media/video.h"
 #include "settings.h"
+#include "caption_layout.h"
 
 #include <memory>
 #include <chrono>
@@ -44,9 +46,18 @@ enum class Error : std::int16_t {
 
 struct Movie {
     Movie* pointer = this;
+    std::uint64_t inspection_id = 0;
+    std::uint64_t last_frame_draw = 0;
     std::shared_ptr<media::Movie> media;
     std::string filename;
+    std::filesystem::path source_path;
+    std::filesystem::path relative_path;
+    mutable std::optional<std::filesystem::file_time_type> override_stamp;
+    mutable std::uint64_t override_generation = 0;
+    mutable std::optional<std::vector<media::subtitles::Cue>> override_cues;
+    mutable bool override_checked = false;
     std::vector<std::unique_ptr<Track>> tracks;
+    Track* last_drawn_track = nullptr;
     quickdraw::Port* port = nullptr;
     quickdraw::Rect box{};
     std::int32_t time = 0;
@@ -66,6 +77,7 @@ struct Movie {
     std::wstring caption;
     CaptionStyle caption_style;
     std::optional<quickdraw::Rect> caption_bounds;
+    std::optional<CaptionLayout> caption_layout;
 };
 
 Movie& movie(MovieHandle handle);
@@ -80,7 +92,8 @@ void trace_movie(const char* event, const Movie& movie, std::int32_t value);
 void sync_audio(Movie& movie);
 bool draw_movie(Movie& movie);
 std::wstring current_caption(const Movie& movie);
-bool draw_captions(Movie& movie, std::wstring text, bool video_changed);
+bool draw_captions(Movie& movie, std::wstring text, const CaptionLayout& layout,
+                   const CaptionStyle& style, bool video_changed);
 void run_callbacks(MovieHandle handle, std::int32_t before, std::int32_t after);
 void release_callbacks(MovieHandle handle = nullptr);
 

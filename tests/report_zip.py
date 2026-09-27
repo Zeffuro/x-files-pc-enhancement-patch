@@ -9,13 +9,16 @@ with tempfile.TemporaryDirectory(prefix="xfiles-report-") as folder:
     with zipfile.ZipFile(pathlib.Path(folder) / "report.zip") as archive:
         assert archive.testzip() is None
         assert set(archive.namelist()) == {
-            "report.txt", "quicktime.log", "launcher.log", "desktop.log", "crash-desktop.log"
+            "report.txt", "quicktime.log", "launcher.log", "desktop.log", "crash-desktop.log",
+            "cnc-ddraw-XFiles-1.log", "legacy/launcher.log"
         }
         assert archive.read("crash-desktop.log") == b"previous crash desktop"
         desktop = archive.read("desktop.log")
         assert len(desktop) == 2 * 1024 * 1024 and desktop.endswith(b"desktop tail")
         assert archive.read("report.txt") == b"test summary"
         assert archive.read("launcher.log") == b"launcher evidence"
+        assert archive.read("legacy/launcher.log") == b"old launcher"
+        assert archive.read("cnc-ddraw-XFiles-1.log") == b"display evidence"
         log = archive.read("quicktime.log")
         assert len(log) == 2 * 1024 * 1024 and log.endswith(b"tail")
     with zipfile.ZipFile(pathlib.Path(folder) / "with-save.zip") as archive:

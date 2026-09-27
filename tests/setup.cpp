@@ -29,6 +29,45 @@ int wmain(int argc, wchar_t** argv) {
         }
         require(media_catalog(false).size() > 3000 && media_catalog(true).size() > 3000,
                 "Packaged catalogs incomplete");
+        const auto italian = media_catalog(MediaSetId::cd_it);
+        const auto japanese = media_catalog(MediaSetId::cd_jp);
+        require(italian.size() == 3038 && japanese.size() == 3041,
+                "Italian or Japanese catalog lost original disc files");
+        require(italian.at(L"nav7.nmv").size == japanese.at(L"nav7.nmv").size &&
+                    italian.at(L"nav2.nmv").sha256 != japanese.at(L"nav2.nmv").sha256,
+                "Italian or Japanese navigation archive mapping is wrong");
+        std::map<std::wstring, std::set<std::string>> identities;
+        for (const auto& set : media_sets()) {
+            const auto catalog = media_catalog(set.id);
+            require(catalog.size() >= 3031, "Language catalog incomplete");
+            identities.clear();
+            for (const auto& [name, file] : catalog) {
+                identities[name].insert(file.sha256);
+            }
+            require(identify_media_set(identities) == set.id,
+                    "Executable identity hid the language resource identity");
+            identities.erase(L"xfilest.dll");
+            bool rejected = false;
+            try {
+                identify_media_set(identities);
+            } catch (const std::exception&) {
+                rejected = true;
+            }
+            require(rejected, "Missing language resources accepted");
+        }
+        identities.clear();
+        for (const auto id : {MediaSetId::cd_de, MediaSetId::cd_es}) {
+            for (const auto& [name, file] : media_catalog(id)) {
+                identities[name].insert(file.sha256);
+            }
+        }
+        bool ambiguous = false;
+        try {
+            identify_media_set(identities);
+        } catch (const std::exception&) {
+            ambiguous = true;
+        }
+        require(ambiguous, "Two languages sharing one executable were silently merged");
         const auto base = fs::temp_directory_path() /
                           (L"xfiles-setup-test-" + std::to_wstring(GetCurrentProcessId()));
         fs::create_directories(base / L"source");

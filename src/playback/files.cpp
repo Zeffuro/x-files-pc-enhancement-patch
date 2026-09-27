@@ -1,7 +1,10 @@
 #include "movie.h"
+#include "inspection.h"
 #include "media/files.h"
 
 #include <windows.h>
+#include <algorithm>
+#include <cwctype>
 #include <filesystem>
 #include <unordered_map>
 
@@ -24,6 +27,7 @@ static_assert(sizeof(FileSpec) == 262);
 
 thread_local std::unordered_map<short, std::filesystem::path> files;
 thread_local std::unordered_map<MovieHandle, std::unique_ptr<Movie>> movies;
+thread_local std::uint64_t next_inspection_id = 0;
 
 Error __cdecl open_file(const FileSpec* spec, short* reference, std::int8_t permission) {
     if (!spec || !reference || spec->volume || spec->directory || permission != 1 ||
@@ -68,7 +72,28 @@ Error __cdecl from_file(MovieHandle* output, short reference, short* resource, s
     }
     try {
         auto movie = std::make_unique<Movie>();
+        movie->inspection_id = ++next_inspection_id;
         movie->filename = file->second.filename().string();
+        movie->source_path = file->second;
+        std::vector<wchar_t> executable(32768);
+        const auto length =
+            GetModuleFileNameW(nullptr, executable.data(), static_cast<DWORD>(executable.size()));
+        if (length && length < executable.size()) {
+            const auto game_root = std::filesystem::path(executable.data()).parent_path();
+            const auto relative = file->second.lexically_relative(game_root);
+            if (!relative.empty() && *relative.begin() != "..") {
+                movie->relative_path = relative;
+            }
+        }
+        if (movie->relative_path.empty()) {
+            movie->relative_path = file->second.filename();
+            auto parent = file->second.parent_path().filename().wstring();
+            std::transform(parent.begin(), parent.end(), parent.begin(), std::towupper);
+            if (parent == L"XV" || parent == L"XN" || parent == L"XS" || parent == L"XT" ||
+                parent == L"XG") {
+                movie->relative_path = parent / movie->relative_path;
+            }
+        }
         movie->media = std::make_shared<media::Movie>(media::Movie::open(file->second));
         if (movie->media->duration > INT32_MAX || movie->media->timescale > INT32_MAX) {
             return Error::InvalidMovie;
@@ -125,6 +150,86 @@ Movie& movie(MovieHandle handle) {
 
 bool movie_exists(MovieHandle handle) {
     return movies.contains(handle);
+}
+
+std::uint64_t inspect_time(std::uint64_t id) {
+    for (const auto& [handle, value] : movies) {
+        if (value->inspection_id == id) {
+            const auto elapsed = value->rate
+                                     ? std::chrono::duration<double>(
+                                           std::chrono::steady_clock::now() - value->started)
+                                           .count()
+                                     : 0.0;
+            return std::min(
+                value->media->duration,
+                static_cast<std::uint64_t>(std::max(0, value->time)) +
+                    static_cast<std::uint64_t>(std::max(0.0, elapsed) * value->media->timescale));
+        }
+    }
+    return 0;
+}
+
+std::vector<MovieSnapshot> inspect_movies() {
+    std::vector<MovieSnapshot> result;
+    for (const auto& [handle, value] : movies) {
+        bool video = false, audio = false;
+        for (const auto& track : value->tracks) {
+            video |= track->enabled && track->media->handler == "vide";
+            audio |= track->enabled && track->media->handler == "soun";
+        }
+        result.push_back({value->inspection_id,
+                          value->relative_path,
+                          value->time,
+                          value->media->duration,
+                          value->media->timescale,
+                          value->active,
+                          value->rate != 0,
+                          video,
+                          audio,
+                          value->override_cues.has_value(),
+                          value->caption,
+                          {},
+                          value->last_frame_draw,
+                          value->box.left,
+                          value->box.top,
+                          value->box.right - value->box.left,
+                          value->box.bottom - value->box.top});
+        auto& preview = result.back().preview;
+        for (const auto& track : value->tracks) {
+            if (track.get() != value->last_drawn_track || !track->video || !track->displayed) {
+                continue;
+            }
+            const auto& frame = track->video->last_frame();
+            if (!frame.width || !frame.height || frame.pixels.empty()) {
+                continue;
+            }
+            result.back().image = media::frame_reference(*track->media, *track->displayed);
+            const auto scale = std::min(1.0, std::min(320.0 / frame.width, 180.0 / frame.height));
+            preview.width = std::max(1u, static_cast<unsigned>(frame.width * scale));
+            preview.height = std::max(1u, static_cast<unsigned>(frame.height * scale));
+            preview.pixels.resize(preview.width * preview.height * 4);
+            for (unsigned y = 0; y < preview.height; ++y) {
+                for (unsigned x = 0; x < preview.width; ++x) {
+                    const auto src = (y * frame.height / preview.height * frame.width +
+                                      x * frame.width / preview.width) *
+                                     4;
+                    std::copy_n(frame.pixels.data() + src, 4,
+                                preview.pixels.data() + (y * preview.width + x) * 4);
+                }
+            }
+            break;
+        }
+    }
+    std::sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
+        if (a.video != b.video) {
+            return a.video > b.video;
+        }
+        if (a.active != b.active) {
+            return a.active > b.active;
+        }
+        return a.id < b.id;
+    });
+    return result;
 }
 
 std::vector<MovieHandle> pause_movies() {

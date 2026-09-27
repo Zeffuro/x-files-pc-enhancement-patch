@@ -2,7 +2,9 @@
 #include "menu_colors.h"
 #include "settings.h"
 #include "quickdraw/world.h"
+#include "game/render/caption_surface.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace playback {
@@ -11,8 +13,24 @@ bool draw_movie(Movie& value) {
     bool changed = false;
     try {
         auto caption = current_caption(value);
+        const auto style = settings().caption_style;
+        const auto dc = quickdraw::port_dc(value.port);
+        RECT clip{value.box.left, value.box.top, value.box.right, value.box.bottom};
+        if (dc && GetClipBox(dc, &clip) == ERROR) {
+            throw std::runtime_error("Cannot obtain movie drawing bounds");
+        }
+        const auto layout = layout_captions(
+            value.box, dc && value.port ? value.port->bounds : value.box, clip, style);
+        const auto same_rect = [](const quickdraw::Rect& left, const quickdraw::Rect& right) {
+            return left.top == right.top && left.left == right.left &&
+                   left.bottom == right.bottom && left.right == right.right;
+        };
+        const bool layout_changed = !value.caption_layout ||
+                                    !same_rect(value.caption_layout->image, layout.image) ||
+                                    !same_rect(value.caption_layout->caption, layout.caption) ||
+                                    value.caption_layout->below != layout.below;
         const bool caption_changed =
-            caption != value.caption || value.caption_style != settings().caption_style;
+            caption != value.caption || value.caption_style != style || layout_changed;
         for (auto& track : value.tracks) {
             if (!track->enabled || track->media->handler != "vide") {
                 continue;
@@ -36,7 +54,6 @@ bool draw_movie(Movie& value) {
                 restore_menu_black(corrected);
                 pixels = corrected.data();
             }
-            const auto dc = quickdraw::port_dc(value.port);
             if (!dc) {
                 throw std::runtime_error("Movie has no drawing port");
             }
@@ -47,22 +64,37 @@ bool draw_movie(Movie& value) {
             format.bmiHeader.biPlanes = 1;
             format.bmiHeader.biBitCount = 32;
             format.bmiHeader.biCompression = BI_RGB;
-            const auto& box = value.box;
-            const auto result = StretchDIBits(dc, box.left, box.top, box.right - box.left,
-                                              box.bottom - box.top, 0, 0, frame.width, frame.height,
-                                              pixels, &format, DIB_RGB_COLORS, SRCCOPY);
+            if (layout.below) {
+                const RECT box{value.box.left, value.box.top, value.box.right, value.box.bottom};
+                FillRect(dc, &box, static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
+            }
+            const auto& image = layout.image;
+            const auto result = StretchDIBits(
+                dc, image.left, image.top, image.right - image.left, image.bottom - image.top, 0, 0,
+                frame.width, frame.height, pixels, &format, DIB_RGB_COLORS, SRCCOPY);
             if (result == GDI_ERROR) {
                 throw std::runtime_error("Movie frame drawing failed");
             }
             trace_movie("frame", value, static_cast<std::int32_t>(*sample));
+            value.last_frame_draw = GetTickCount64();
             track->displayed = sample;
+            value.last_drawn_track = track.get();
             changed = true;
         }
-        changed |= draw_captions(value, std::move(caption), changed);
+        changed |= draw_captions(value, std::move(caption), layout, style, changed);
         if (changed) {
+            std::optional<RECT> caption_area;
+            if (value.caption_bounds) {
+                const auto& area = *value.caption_bounds;
+                caption_area = RECT{area.left, area.top, area.right, area.bottom};
+            }
+            native_game::caption_surface::paint(
+                dc, {value.box.left, value.box.top, value.box.right, value.box.bottom},
+                caption_area);
             GdiFlush();
             quickdraw::present_port(value.port, value.box);
         }
+        value.caption_layout = layout;
         value.redraw = false;
     } catch (const std::exception& error) {
         unsupported(Selector::MoviesTask, error.what(), 0);

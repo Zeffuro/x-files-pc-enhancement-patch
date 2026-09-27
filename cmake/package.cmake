@@ -4,6 +4,7 @@ install(FILES
     "${ddraw_package}/ddraw.dll"
     "${ddraw_package}/cnc-ddraw.LICENSE"
     "${CMAKE_SOURCE_DIR}/README.md"
+    "${CMAKE_SOURCE_DIR}/CHANGELOG.md"
     "${CMAKE_SOURCE_DIR}/LICENSE"
     "${CMAKE_SOURCE_DIR}/THIRD_PARTY.md"
     ${ffmpeg_runtime}
@@ -15,6 +16,10 @@ install(FILES "${CMAKE_SOURCE_DIR}/config/ddraw.ini" "${CMAKE_SOURCE_DIR}/config
 
 install(FILES "${CMAKE_SOURCE_DIR}/docs/controls.md" "${CMAKE_SOURCE_DIR}/docs/building.md"
     DESTINATION docs)
+
+install(FILES "${CMAKE_SOURCE_DIR}/data/clip-labels.tsv" DESTINATION defaults)
+install(FILES "${CMAKE_SOURCE_DIR}/assets/patch.ico" "${CMAKE_SOURCE_DIR}/assets/patch.svg"
+    DESTINATION icons)
 
 file(GLOB ffmpeg_source_archives "${FFMPEG_ROOT}/source/ffmpeg-*.tar.xz")
 list(LENGTH ffmpeg_source_archives archive_count)
@@ -38,7 +43,7 @@ add_custom_target(notice-files ALL
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/docs/controls.md" "${CMAKE_SOURCE_DIR}/docs/building.md"
         "$<TARGET_FILE_DIR:quicktime>/docs"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${zlib_SOURCE_DIR}/LICENSE"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_BINARY_DIR}/generated/zlib.LICENSE"
         "$<TARGET_FILE_DIR:quicktime>/zlib.LICENSE"
     VERBATIM)
 add_dependencies(launcher-common notice-files)

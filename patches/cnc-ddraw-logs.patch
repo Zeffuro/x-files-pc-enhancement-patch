@@ -1,0 +1,31 @@
+diff --git a/src/debug.c b/src/debug.c
+index 9d615b5..3630d0c 100644
+--- a/src/debug.c
++++ b/src/debug.c
+@@ -1,6 +1,7 @@
+ #include <windows.h>
+ #include <dbghelp.h>
+ #include <stdio.h>
++#include <string.h>
+ #include <d3d9.h>
+ #include <time.h>
+ #include "directinput.h"
+@@ -193,6 +194,18 @@ void dbg_init()
+             char game_path[MAX_PATH] = { 0 };
+             _makepath(game_path, drive, dir, NULL, NULL);
+ 
++            char log_path[MAX_PATH] = { 0 };
++            DWORD length = GetEnvironmentVariableA("XFILES_PATCH_LOG_DIR", log_path, sizeof(log_path) - 2);
++            if (length && length < sizeof(log_path) - 2)
++            {
++                if (log_path[length - 1] != '\\' && log_path[length - 1] != '/')
++                {
++                    log_path[length++] = '\\';
++                    log_path[length] = 0;
++                }
++                memcpy(game_path, log_path, length + 1);
++            }
++
+             _snprintf(g_dbg_dmp_path1, sizeof(g_dbg_dmp_path1) - 1, "%scnc-ddraw-%s-1.dmp", game_path, filename);
+             _snprintf(g_dbg_dmp_path2, sizeof(g_dbg_dmp_path2) - 1, "%scnc-ddraw-%s-2.dmp", game_path, filename);
+ 

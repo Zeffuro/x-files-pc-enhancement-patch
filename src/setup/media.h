@@ -8,11 +8,19 @@
 #include <optional>
 #include <memory>
 
+enum class MediaSetId { unknown, cd_en, dvd_en, cd_de, cd_fr, cd_es, cd_it, cd_jp };
+
+struct ImageGeometry {
+    std::uint32_t sector_size = 2048;
+    std::uint32_t payload_offset = 0;
+};
+
 struct MediaFile {
     std::filesystem::path source, relative;
     std::uintmax_t size;
     std::string checksum;
     std::optional<std::uint64_t> offset;
+    ImageGeometry geometry;
 };
 
 struct MediaSource {
@@ -20,6 +28,7 @@ struct MediaSource {
     std::vector<MediaFile> files;
     std::uintmax_t bytes = 0;
     std::shared_ptr<void> workspace;
+    MediaSetId set = MediaSetId::unknown;
 };
 
 MediaSource inspect_media(const std::filesystem::path& selected);

@@ -1,5 +1,6 @@
 #include "input_source.h"
 #include "inventory.h"
+#include "game/layouts/asset_reference.h"
 
 #include <algorithm>
 
@@ -8,6 +9,37 @@ namespace {
 
 thread_local bool focused = false;
 thread_local POINT return_point{};
+
+template <class T> bool read(const void* address, T& value) {
+    SIZE_T bytes = 0;
+    return ReadProcessMemory(GetCurrentProcess(), address, &value, sizeof(value), &bytes) &&
+           bytes == sizeof(value);
+}
+
+template <class T> const void* field(const T* object, std::size_t offset) {
+    return reinterpret_cast<const void*>(reinterpret_cast<std::uintptr_t>(object) + offset);
+}
+
+bool visible_inventory(const game::MainView* view) {
+    game::List<game::ChildView> children{};
+    if (!view || !read(field(view, game::edition().children), children) || children.count > 64) {
+        return false;
+    }
+    auto* address = children.first;
+    for (unsigned i = 0; address && i < children.count; ++i) {
+        game::List<game::ChildView>::Node node{};
+        game::ChildView child{};
+        if (!read(address, node)) {
+            break;
+        }
+        if (read(node.value, child) &&
+            child.object == field(view, offsetof(game::MainView, inventory))) {
+            return true;
+        }
+        address = node.next;
+    }
+    return false;
+}
 
 bool move_cursor(HWND window, POINT point) {
     return ClientToScreen(window, &point) && move_controller_pointer(point.x, point.y);
@@ -20,32 +52,50 @@ bool point_at(HWND window, const RECT& bounds) {
 
 }
 
+std::vector<InventoryEntry> inventory_items(const game::MainView* view) {
+    game::Inventory inventory{};
+    if (!view || !read(field(view, offsetof(game::MainView, inventory)), inventory) ||
+        inventory.items.count > 256) {
+        return {};
+    }
+    std::vector<InventoryEntry> result;
+    auto* address = inventory.items.first;
+    for (unsigned i = 0; address && i < inventory.items.count; ++i) {
+        game::List<game::InventoryItem>::Node node{};
+        game::InventoryItem item{};
+        game::InventoryIcon icon{};
+        if (!read(address, node)) {
+            break;
+        }
+        address = node.next;
+        if (!read(node.value, item) || !read(item.icon, icon)) {
+            continue;
+        }
+        InventoryEntry entry{icon.rectangle.bounds, std::nullopt};
+        game::InventoryIcon::Graphic graphic{};
+        game::InventoryIcon::Graphic::Resource resource{};
+        // MoviesTask can dispatch this inspection while native objects are changing.
+        if (read(icon.graphic, graphic) && read(graphic.resource, resource)) {
+            entry.resource = resource.id;
+            entry.asset_path = native_game::read_asset_path(
+                graphic.resource, game::executable_image(), game::edition());
+        }
+        result.push_back(entry);
+    }
+    return result;
+}
+
 std::vector<RECT> inventory_bounds(const game::MainView* view) {
-    constexpr unsigned max_items = 64;
-    if (!view) {
+    if (!visible_inventory(view)) {
         return {};
     }
-    const auto& children = *reinterpret_cast<const game::List<game::ChildView>*>(
-        reinterpret_cast<const std::byte*>(view) + game::edition().children);
-    if (view->inventory.items.count > max_items || children.count > max_items) {
-        return {};
-    }
-    bool visible = false;
-    auto child = children.first;
-    for (unsigned index = 0; child && index < children.count; ++index, child = child->next) {
-        visible |= child->value && child->value->object == &view->inventory;
-    }
-    if (!visible) {
+    const auto items = inventory_items(view);
+    if (items.size() > 64) {
         return {};
     }
     std::vector<RECT> result;
-    auto node = view->inventory.items.first;
-    for (unsigned index = 0; node && index < view->inventory.items.count;
-         ++index, node = node->next) {
-        if (!node->value || !node->value->icon) {
-            continue;
-        }
-        const auto bounds = node->value->icon->rectangle.bounds;
+    for (const auto& item : items) {
+        const auto& bounds = item.bounds;
         if (bounds.left >= 0 && bounds.top >= 0 && bounds.right <= 640 && bounds.bottom <= 480 &&
             bounds.right > bounds.left && bounds.bottom > bounds.top) {
             result.push_back(bounds);
@@ -75,15 +125,11 @@ std::optional<RECT> inventory_item_bounds(const game::MainView* view, unsigned r
     if (visible.empty()) {
         return std::nullopt;
     }
-    auto node = view->inventory.items.first;
-    for (unsigned i = 0; node && i < view->inventory.items.count; ++i, node = node->next) {
-        const auto icon = node->value ? node->value->icon : nullptr;
-        if (icon && icon->graphic && icon->graphic->resource &&
-            icon->graphic->resource->id == resource &&
-            std::any_of(visible.begin(), visible.end(), [&](const RECT& bounds) {
-                return EqualRect(&bounds, &icon->rectangle.bounds);
-            })) {
-            return icon->rectangle.bounds;
+    for (const auto& item : inventory_items(view)) {
+        if (item.resource == resource &&
+            std::any_of(visible.begin(), visible.end(),
+                        [&](const RECT& bounds) { return EqualRect(&bounds, &item.bounds); })) {
+            return item.bounds;
         }
     }
     return std::nullopt;

@@ -1,10 +1,13 @@
 #include "tools_dialog.h"
 #include "resources.h"
+#include "subtitle_dialog.h"
 #include "enhancements/quick_save.h"
 #include "enhancements/game_ui.h"
 #include "diagnostics/report_dialog.h"
+#include "diagnostics/log_file.h"
 #include "identity.h"
 #include "settings.h"
+#include "localization/ui.h"
 
 #include <commdlg.h>
 #include <shellapi.h>
@@ -23,6 +26,7 @@ std::string summary(const std::filesystem::path& directory) {
     const auto& value = settings();
     std::ostringstream text;
     text << "The X-Files enhancement " XFILES_BUILD_VERSION "\nEdition: " << identity.edition
+         << "\nBuild: " << (identity.build ? identity.build->label : "unknown")
          << "\nExecutable SHA256: " << identity.sha256 << "\nGamepad: " << value.gamepad
          << "\nAnalog pointer: " << value.analog_cursor
          << "\nSpring pointer: " << value.spring_cursor
@@ -52,6 +56,7 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
     try {
         if (message == WM_INITDIALOG) {
             SetWindowLongPtrW(window, DWLP_USER, data);
+            ui::translate_dialog(window);
             SetDlgItemTextA(window, IDC_BUILD_VERSION, "Version " XFILES_BUILD_VERSION);
             EnableWindow(GetDlgItem(window, IDC_LOAD_CHECKPOINT), checkpoint_available());
             EnableWindow(GetDlgItem(window, IDC_EXPORT_SAVE), export_save_available());
@@ -61,33 +66,46 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             return FALSE;
         }
         switch (LOWORD(parameter)) {
+            case IDC_CLIP_INSPECTOR: {
+                EndDialog(window, IDC_CLIP_INSPECTOR);
+                return TRUE;
+            }
+            case IDC_EXPORT_SUBTITLES:
+            case IDC_INSTALL_SUBTITLES:
+                subtitle_dialog(
+                    window, reinterpret_cast<HMODULE>(GetWindowLongPtrW(window, GWLP_HINSTANCE)),
+                    state->directory, LOWORD(parameter) == IDC_INSTALL_SUBTITLES);
+                return TRUE;
             case IDC_ABOUT:
-                MessageBoxA(window,
-                            "The X-Files PC Enhancement Patch " XFILES_BUILD_VERSION "\n"
-                            "Copyright (c) 2026 Zeffuro. MIT License.\n\n"
-                            "Uses FFmpeg libraries under LGPL-2.1-or-later, cnc-ddraw (MIT), "
-                            "and zlib (zlib license).\n\n"
-                            "License notices are in the game folder. Matching FFmpeg source "
-                            "and the build script are in the patch release ZIP.\n\n"
-                            "Unofficial patch. Game content belongs to its owners.",
-                            "About the patch", MB_OK | MB_ICONINFORMATION);
+                MessageBoxW(
+                    window,
+                    (std::wstring(L"The X-Files PC Enhancement Patch " XFILES_BUILD_VERSION L"\n") +
+                     ui::translate(
+                         L"Copyright (c) 2026 Zeffuro. MIT License.\n\nUses FFmpeg libraries under "
+                         L"LGPL-2.1-or-later, cnc-ddraw (MIT), and zlib (zlib license).\n\nLicense "
+                         L"notices are in the game folder. Matching FFmpeg source and the build "
+                         L"script are in the patch release ZIP.\n\nUnofficial patch. Game content "
+                         L"belongs to its owners."))
+                        .c_str(),
+                    ui::translate(L"About the patch"), MB_OK | MB_ICONINFORMATION);
                 return TRUE;
             case IDC_LOAD_CHECKPOINT:
                 if (checkpoint_available()) {
                     state->checkpoint =
-                        diagnostics::choose_save_file(window, false, state->directory);
+                        diagnostics::choose_save_file(window, false, state->directory / L"saves");
                     if (!state->checkpoint.empty()) {
                         EndDialog(window, IDOK);
                     }
                 }
                 return TRUE;
-            case IDC_OPEN_LOGS:
-                if (reinterpret_cast<INT_PTR>(ShellExecuteW(window, L"open",
-                                                            state->directory.c_str(), nullptr,
+            case IDC_OPEN_LOGS: {
+                const auto logs = diagnostics::prepare_log_directory(state->directory);
+                if (reinterpret_cast<INT_PTR>(ShellExecuteW(window, L"open", logs.c_str(), nullptr,
                                                             nullptr, SW_SHOWNORMAL)) <= 32) {
                     throw std::runtime_error("Cannot open the logs folder");
                 }
                 return TRUE;
+            }
             case IDC_SAVE_REPORT:
                 diagnostics::save_report_dialog(window, state->directory, summary(state->directory),
                                                 IsDlgButtonChecked(window, IDC_REPORT_SAVE) ==
@@ -95,10 +113,12 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                 return TRUE;
             case IDC_EXPORT_SAVE: {
                 if (export_save_available()) {
-                    const auto path = diagnostics::choose_save_file(window, true, state->directory);
+                    const auto path =
+                        diagnostics::choose_save_file(window, true, state->directory / L"saves");
                     if (!path.empty()) {
                         export_save(path);
-                        MessageBoxW(window, L"Saved game exported.", L"The X-Files", MB_OK);
+                        MessageBoxW(window, ui::translate(L"Saved game exported."), L"The X-Files",
+                                    MB_OK);
                     }
                 }
                 return TRUE;
@@ -115,7 +135,7 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
 }
 }
 
-std::filesystem::path show_tools_dialog(HWND owner, HMODULE module) {
+ToolsResult show_tools_dialog(HWND owner, HMODULE module) {
     std::wstring executable(32768, L'\0');
     const auto size =
         GetModuleFileNameW(nullptr, executable.data(), static_cast<DWORD>(executable.size()));
@@ -129,6 +149,7 @@ std::filesystem::path show_tools_dialog(HWND owner, HMODULE module) {
     if (result == -1) {
         throw std::runtime_error("Cannot open game tools");
     }
-    return result == IDOK ? state.checkpoint : std::filesystem::path{};
+    return {result == IDOK ? state.checkpoint : std::filesystem::path{},
+            result == IDC_CLIP_INSPECTOR};
 }
 }

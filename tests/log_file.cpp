@@ -47,23 +47,35 @@ int main() {
         diagnostics::append_log(root / "missing" / "test.log", "failure")) {
         return 3;
     }
-    std::ofstream(root / "launcher.log") << "launcher";
-    std::ofstream(root / "quicktime.log") << "quicktime";
-    std::ofstream(root / "desktop.log") << "desktop";
+    std::ofstream(root / "quicktime.log.previous") << "older";
+    const auto logs = diagnostics::prepare_log_directory(root);
+    if (!std::filesystem::exists(logs / "legacy" / "quicktime.log.previous") ||
+        std::filesystem::exists(root / "quicktime.log.previous")) {
+        return 9;
+    }
+    std::ofstream(logs / "launcher.log") << "launcher";
+    std::ofstream(root / "launcher.log") << "legacy";
+    diagnostics::prepare_log_directory(root);
+    if (!std::filesystem::exists(logs / "legacy" / "launcher.log") ||
+        std::filesystem::exists(root / "launcher.log")) {
+        return 10;
+    }
+    std::ofstream(logs / "quicktime.log") << "quicktime";
+    std::ofstream(logs / "desktop.log") << "desktop";
     diagnostics::preserve_crash_logs(root);
     for (const auto& [name, expected] :
          {std::pair{"crash.log", "launcher"}, std::pair{"crash-quicktime.log", "quicktime"},
           std::pair{"crash-desktop.log", "desktop"}}) {
-        std::ifstream input(root / name);
+        std::ifstream input(logs / name);
         std::string actual;
         input >> actual;
         if (actual != expected) {
             return 6;
         }
     }
-    std::filesystem::remove(root / "desktop.log");
+    std::filesystem::remove(logs / "desktop.log");
     diagnostics::preserve_crash_logs(root);
-    if (std::filesystem::exists(root / "crash-desktop.log")) {
+    if (std::filesystem::exists(logs / "crash-desktop.log")) {
         return 7;
     }
     std::ofstream(root / "empty.log");

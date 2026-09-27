@@ -18,7 +18,8 @@ constexpr std::size_t maximum_samples = 64 * 1024 * 1024;
 Audio::Audio(const media::Movie& movie, const media::Track& track) {
     const auto& description = track.descriptions.at(0);
     const bool compressed = description.codec == "QDMC" || description.codec == "QDM2";
-    if ((!compressed && description.codec != "ima4" && description.codec != "twos") ||
+    if ((!compressed && description.codec != "ima4" && description.codec != "twos" &&
+         description.codec != "raw ") ||
         track.timescale != description.sample_rate) {
         throw std::runtime_error("Unsupported movie audio format");
     }
@@ -52,7 +53,9 @@ Audio::Audio(const media::Movie& movie, const media::Track& track) {
             if (bytes.size() != description.packet_bytes) {
                 throw std::runtime_error("Invalid PCM packet size");
             }
-            packet = media::decode_signed_pcm(bytes, description.depth);
+            packet = description.codec == "raw "
+                         ? media::decode_unsigned_pcm(bytes)
+                         : media::decode_signed_pcm(bytes, description.depth);
         }
         if (packet.size() > maximum_samples || decoded.size() > maximum_samples - packet.size()) {
             throw std::runtime_error("Decoded audio exceeds the buffer limit");

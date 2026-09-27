@@ -1,5 +1,6 @@
 #include "report_dialog.h"
 #include "report.h"
+#include "localization/ui.h"
 
 #include <commdlg.h>
 #include <shellapi.h>
@@ -26,9 +27,9 @@ std::filesystem::path choose(HWND owner, bool writing, bool zip,
     dialog.lpstrFilter =
         zip ? L"Troubleshooting ZIP\0*.zip\0\0" : L"X-Files PC saved game\0*.x\0\0";
     dialog.lpstrDefExt = zip ? L"zip" : L"x";
-    dialog.lpstrTitle = zip       ? L"Save troubleshooting report"
-                        : writing ? L"Save game to file"
-                                  : L"Choose saved game";
+    dialog.lpstrTitle = ui::translate(zip       ? L"Save troubleshooting report"
+                                      : writing ? L"Save game to file"
+                                                : L"Choose saved game");
     dialog.Flags =
         OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | OFN_EXPLORER | (writing ? 0 : OFN_FILEMUSTEXIST);
     if (writing ? GetSaveFileNameW(&dialog) : GetOpenFileNameW(&dialog)) {
@@ -50,7 +51,9 @@ void save_report_dialog(HWND owner, const std::filesystem::path& directory,
                         std::string_view details, bool include_save) {
     std::filesystem::path save;
     if (include_save) {
-        save = choose_save_file(owner, false, directory);
+        save = choose_save_file(
+            owner, false,
+            std::filesystem::is_directory(directory / L"saves") ? directory / L"saves" : directory);
         if (save.empty()) {
             return;
         }
@@ -60,30 +63,35 @@ void save_report_dialog(HWND owner, const std::filesystem::path& directory,
         return;
     }
     create_report(directory, output, details, save);
-    MessageBoxW(owner, L"Report saved. Nothing was uploaded. Review the ZIP before sharing it.",
-                L"The X-Files", MB_OK | MB_ICONINFORMATION);
+    MessageBoxW(
+        owner,
+        ui::translate(L"Report saved. Nothing was uploaded. Review the ZIP before sharing it."),
+        L"The X-Files", MB_OK | MB_ICONINFORMATION);
 }
 
 void show_crash_report(const std::filesystem::path& directory, unsigned exit_code) {
-    const auto result =
-        MessageBoxW(nullptr,
-                    L"The game stopped unexpectedly. Diagnostic logs have been kept in the game "
-                    L"folder.\n\nCreate a troubleshooting ZIP now?",
-                    L"The X-Files", MB_YESNO | MB_ICONERROR);
+    const auto result = MessageBoxW(
+        nullptr,
+        ui::translate(L"The game stopped unexpectedly. Diagnostic logs have been kept in the "
+                      L"game's logs folder.\n\nCreate a troubleshooting ZIP now?"),
+        L"The X-Files", MB_YESNO | MB_ICONERROR);
     if (result != IDYES) {
         return;
     }
     const bool include_save =
-        MessageBoxW(nullptr,
-                    L"Include a saved game to help reproduce the problem?\n\nYou can choose one "
-                    L"existing save. The game cannot recover unsaved progress after a crash.",
-                    L"Troubleshooting report", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES;
+        MessageBoxW(
+            nullptr,
+            ui::translate(
+                L"Include a saved game to help reproduce the problem?\n\nYou can choose one "
+                L"existing save. The game cannot recover unsaved progress after a crash."),
+            ui::translate(L"Troubleshooting report"),
+            MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES;
     try {
         save_report_dialog(
             nullptr, directory,
             "The X-Files enhancement " XFILES_BUILD_VERSION "\nUnexpected exit: " +
                 std::to_string(exit_code) +
-                "\nSee crash.log for edition and executable identity.\n"
+                "\nSee logs/crash.log for edition and executable identity.\n"
                 "Logs may contain local paths. A save is included only if selected.\n",
             include_save);
     } catch (const std::exception& error) {

@@ -1,5 +1,6 @@
 #include "input_source.h"
 #include "dialogue.h"
+#include "game_strings.h"
 #include "game_ui.h"
 #include "identity.h"
 #include "platform/imports.h"
@@ -73,7 +74,11 @@ int WINAPI draw_text(HDC dc, LPCSTR text, int length, LPRECT bounds, UINT format
 }
 
 FARPROC resolve(const char* name) {
-    return std::strcmp(name, "DrawTextA") == 0 ? reinterpret_cast<FARPROC>(draw_text) : nullptr;
+    if (std::strcmp(name, "DrawTextA") == 0) {
+        return reinterpret_cast<FARPROC>(draw_text);
+    }
+    return std::strcmp(name, "LoadStringA") == 0 ? reinterpret_cast<FARPROC>(load_game_string)
+                                                 : nullptr;
 }
 
 int __stdcall draw_list(game::Container* object, void* context, void* clip) {
@@ -144,11 +149,13 @@ void attach_dialogue(HWND window) {
     }
     try {
         const auto identity = identify(path.data());
-        if (!identity.edition || !game::edition_named(identity.edition)) {
+        if (!identity.build || !identity.build->profile) {
             return;
         }
+        set_game_string_code_page(identity.build->id == native_game::BuildId::cd_10020 ? 932
+                                                                                       : 1252);
         auto* base = reinterpret_cast<std::byte*>(GetModuleHandleW(nullptr));
-        const auto& addresses = *game::edition_named(identity.edition);
+        const auto& addresses = *identity.build->profile;
         draw_slot = reinterpret_cast<DrawList*>(base + addresses.draw_slot);
         original_draw = reinterpret_cast<DrawList>(base + addresses.draw_list);
         talk_list = reinterpret_cast<game::ChoiceList*>(base + addresses.talk_list);
@@ -284,8 +291,7 @@ std::vector<RECT> conversation_evidence() {
     if (!current_dialogue() || !view) {
         return {};
     }
-    const auto& children = *reinterpret_cast<const game::List<game::ChildView>*>(
-        reinterpret_cast<const std::byte*>(view) + game::edition().children);
+    const auto& children = view->children_for(game::edition());
     std::vector<RECT> result;
     if (children.count > 64) {
         return result;

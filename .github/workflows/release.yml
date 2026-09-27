@@ -120,7 +120,7 @@ jobs:
           cd packages
           sha256sum --check SHA256SUMS.txt
           printf '%s\n\n%s\n\n%s\n' \
-            'New install: Extract the release ZIP and run XFilesSetup.exe. Select your English PC DVD ISO, DVD files or complete CD set, then choose a new folder such as C:\Games\The X-Files.' \
+            'New install: Extract the release ZIP and run XFilesSetup.exe. Select your supported PC game files or disc images, then choose a new folder such as C:\Games\The X-Files. English CD/DVD and German, French, Spanish, Italian and Japanese CD editions are supported.' \
             'Updating: Close the game and extract the contents of the release ZIP into the folder containing XFilesPlay.exe. Replace files when asked. Saves and settings are kept. Do not run Setup again.' \
             'Uses FFmpeg under LGPL-2.1-or-later; its matching source and build script are included in the ZIP.' > ../release-notes.md
           args=(--verify-tag --draft --generate-notes --notes-file ../release-notes.md)

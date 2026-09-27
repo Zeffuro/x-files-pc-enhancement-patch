@@ -1,0 +1,19 @@
+#include <windows.h>
+
+115 DIALOGEX 0, 0, 370, 252
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "The X-Files enhancements"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT "Make yourself at home", -1, 16, 14, 338, 16
+    LTEXT "Choose how you want to play. You can change these options later with F10.", -1, 16, 36, 338, 30
+    PUSHBUTTON "Recommended", 2106, 16, 72, 162, 22
+    PUSHBUTTON "Original game", 2107, 192, 72, 162, 22
+    AUTOCHECKBOX "Enable gamepad", 2101, 20, 108, 334, 16
+    AUTOCHECKBOX "Analog stick moves pointer (D-pad selects controls)", 2102, 20, 130, 334, 16
+    AUTOCHECKBOX "Restore black menu backgrounds", 2103, 20, 152, 334, 16
+    AUTOCHECKBOX "Skip menu logo and entrance animations", 2104, 20, 174, 334, 16
+    AUTOCHECKBOX "Save browser with thumbnails", 2105, 20, 196, 334, 16
+    PUSHBUTTON "Not now", IDCANCEL, 166, 226, 90, 22
+    DEFPUSHBUTTON "Start game", IDOK, 264, 226, 90, 22
+END

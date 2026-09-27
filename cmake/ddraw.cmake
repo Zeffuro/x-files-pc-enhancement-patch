@@ -17,16 +17,21 @@ ExternalProject_Add(cnc-ddraw
     PATCH_COMMAND "${CMAKE_COMMAND}"
         "-DSOURCE_DIR=<SOURCE_DIR>"
         "-DPATCH_FILE=${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-desktop.patch"
+        "-DLOG_PATCH_FILE=${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-logs.patch"
         -P "${CMAKE_SOURCE_DIR}/cmake/patch-ddraw.cmake"
     CONFIGURE_COMMAND ""
     BUILD_IN_SOURCE TRUE
-    BUILD_ALWAYS TRUE
     BUILD_COMMAND "${msbuild}" <SOURCE_DIR>/cnc-ddraw.vcxproj
         /m /v:minimal /p:Configuration=Release /p:Platform=Win32
         /p:SolutionDir=<SOURCE_DIR>/
     BUILD_BYPRODUCTS "${ddraw_source}/bin/Release/ddraw.dll"
     INSTALL_COMMAND ""
 )
+
+ExternalProject_Add_StepDependencies(cnc-ddraw patch
+    "${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-desktop.patch"
+    "${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-logs.patch"
+    "${CMAKE_SOURCE_DIR}/cmake/patch-ddraw.cmake")
 
 add_custom_target(display-files ALL
     COMMAND "${CMAKE_COMMAND}"

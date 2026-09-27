@@ -1,5 +1,6 @@
 #include "preferences/hooks.h"
 #include "media/files.h"
+#include "saves/dialogs.h"
 
 #include <cstdlib>
 
@@ -14,12 +15,20 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID reserved) {
         if (length && !install_preferences_hooks(GetModuleHandleW(nullptr), path)) {
             return FALSE;
         }
-        if (GetEnvironmentVariableW(L"XFILES_PATCH_MEDIA", nullptr, 0) &&
+        if ((GetEnvironmentVariableW(L"XFILES_PATCH_MEDIA", nullptr, 0) ||
+             GetEnvironmentVariableW(L"XFILES_PATCH_SAVES", nullptr, 0)) &&
             !media::install_file_hooks(GetModuleHandleW(nullptr))) {
             remove_preferences_hooks();
             return FALSE;
         }
+        if (GetEnvironmentVariableW(L"XFILES_PATCH_SAVES", nullptr, 0) &&
+            !saves::install_dialog_hooks(GetModuleHandleW(nullptr))) {
+            media::remove_file_hooks();
+            remove_preferences_hooks();
+            return FALSE;
+        }
     } else if (reason == DLL_PROCESS_DETACH && !reserved) {
+        saves::remove_dialog_hooks();
         remove_preferences_hooks();
         media::remove_file_hooks();
     }

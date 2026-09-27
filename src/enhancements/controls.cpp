@@ -1,4 +1,5 @@
 #include "input_source.h"
+#include "controller_state.h"
 #include "controls.h"
 #include "ui/settings_dialog.h"
 #include "ui/menu_link.h"
@@ -14,6 +15,10 @@
 #include "quick_save.h"
 #include "ui/notification.h"
 #include "settings.h"
+#include "devtools/inspector.h"
+#include "diagnostics/game_context.h"
+#include "saves/browser.h"
+#include "game/render/native_render.h"
 
 #include <commctrl.h>
 #include <shellapi.h>
@@ -24,6 +29,7 @@ namespace {
 
 constexpr UINT_PTR subclass_id = 0x5846;
 constexpr UINT settings_command = 0x1ff0;
+constexpr UINT inspector_command = 0x1fe0;
 constexpr UINT settings_message = WM_APP + 0x46;
 thread_local HWND game_window = nullptr;
 thread_local UINT_PTR timer = 0;
@@ -39,10 +45,12 @@ thread_local HICON previous_small_icon = nullptr;
 
 void show_settings(HWND window) {
     if (!dialog_open) {
+        input::poll(false);
         dialog_open = true;
-        update_settings_link(window, false);
+        update_settings_link(window, !IsIconic(window));
         show_settings_dialog(window);
         dialog_open = false;
+        input::poll(false);
     }
 }
 
@@ -50,6 +58,13 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
                              DWORD_PTR) {
     static bool settings_clicked = false;
     observe_mouse_button(message);
+    if (!dialog_open && !text_entry_busy() &&
+        saves::browser_message(window, message, value, data)) {
+        if (message == WM_KEYDOWN && value < navigation_keys.size()) {
+            navigation_keys[value] = true;
+        }
+        return 0;
+    }
     if (message == WM_RBUTTONDOWN && !dialog_open && !text_entry_busy()) {
         right_click_consumed = close_dialogue(window);
         if (right_click_consumed) {
@@ -95,6 +110,13 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         return 0;
     }
     if (message == WM_KEYDOWN && !dialog_open && !text_entry_busy()) {
+        if (value == VK_F11 && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            if (!(data & (1L << 30))) {
+                devtools::request_inspector();
+            }
+            navigation_keys[value] = true;
+            return 0;
+        }
         if (value == VK_F5 || value == VK_F9) {
             if (!(data & (1L << 30)) && game_is_foreground(window)) {
                 quick_save(window, value == VK_F9);
@@ -161,21 +183,37 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         show_settings(window);
         return 0;
     }
+    if (message == WM_SYSCOMMAND && (value & 0xfff0) == inspector_command) {
+        if (!dialog_open) {
+            devtools::request_inspector();
+        }
+        return 0;
+    }
     if (message == WM_SYSCOMMAND && (value & 0xfff0) == settings_command) {
         show_settings(window);
         return 0;
     }
     if (message == WM_TIMER && value == timer) {
+        diagnostics::record_game_context();
         attach_modal_input(window);
         update_menu();
         update_quick_load();
+        saves::update_browser(window);
+        if (saves::browser_active()) {
+            update_settings_link(window, false);
+            update_highlight(window, false);
+            devtools::update_inspector(window, false);
+            poll_controller(window);
+            return 0;
+        }
         update_notification(window);
         const bool focused = game_is_foreground(window);
-        update_settings_link(window, !dialog_open && !IsIconic(window));
+        update_settings_link(window, !IsIconic(window));
         update_dialogue(focused && !dialog_open);
         update_login(window, focused && !dialog_open);
         update_highlight(window, focused && !dialog_open && !text_entry_busy());
         update_text_entry(window, focused && !dialog_open);
+        devtools::update_inspector(window, !dialog_open && !text_entry_busy());
         const bool pressed = focused && (GetAsyncKeyState(VK_F10) & 0x8000);
         const bool open = pressed && !f10_down;
         f10_down = pressed;
@@ -185,6 +223,8 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             } else {
                 poll_controller(window);
             }
+        } else {
+            input::poll(false);
         }
         return 0;
     }
@@ -218,11 +258,13 @@ void attach_controls(HWND window) {
         game_window = window;
         attach_menu();
         attach_dialogue(window);
+        native_game::attach_native_render();
         attach_modal_input(window);
         timer = SetTimer(window, subclass_id, 16, nullptr);
         const auto menu = GetSystemMenu(window, FALSE);
         AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
         AppendMenuW(menu, MF_STRING, settings_command, L"Enhancements...\tF10");
+        AppendMenuW(menu, MF_STRING, inspector_command, L"Developer tools...\tCtrl+F11");
         std::vector<wchar_t> path(32768);
         const auto length =
             GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
@@ -237,12 +279,15 @@ void attach_controls(HWND window) {
 }
 
 void detach_controls() {
+    saves::release_browser();
+    devtools::release_inspector();
     detach_modal_input();
     release_settings_link();
     release_text_entry();
     release_highlight();
     release_notification();
     clear_inventory_focus();
+    native_game::detach_native_render();
     detach_dialogue();
     if (game_window && IsWindow(game_window)) {
         KillTimer(game_window, timer);

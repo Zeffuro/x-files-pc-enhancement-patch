@@ -7,6 +7,7 @@ enum class FocusHighlight { Automatic, Always, Off };
 
 enum class CaptionMode { Game, On, Off };
 enum class CaptionFont { Modern, Game, Typist, ZonkersHand, Bubbledot };
+enum class CaptionPlacement { Inside, Below };
 
 struct CaptionTypeface {
     const wchar_t* name;
@@ -24,11 +25,17 @@ inline constexpr std::array<CaptionTypeface, 5> caption_fonts{{
 struct CaptionStyle {
     CaptionFont font = CaptionFont::Typist;
     unsigned scale = 100;
+    bool background = false;
+    CaptionPlacement placement = CaptionPlacement::Inside;
+
+    unsigned opacity = 75;
+    unsigned background_color = 0;
 
     bool operator==(const CaptionStyle&) const = default;
 };
 
 struct Settings {
+    bool save_browser = false;
     bool menu_black_background = true;
     bool skip_menu_animation = false;
     bool skip_workstation_login = false;

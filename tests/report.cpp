@@ -11,12 +11,16 @@ int wmain(int argc, wchar_t** argv) {
     }
     const std::filesystem::path root = argv[1];
     std::filesystem::create_directories(root);
-    std::ofstream(root / "quicktime.log", std::ios::binary)
+    const auto logs = diagnostics::prepare_log_directory(root);
+    std::ofstream(logs / "quicktime.log", std::ios::binary)
         << std::string(diagnostics::log_limit + 19, 'x') << "tail";
-    std::ofstream(root / "launcher.log") << "launcher evidence";
+    std::ofstream(logs / "launcher.log") << "launcher evidence";
+    std::filesystem::create_directory(logs / "legacy");
+    std::ofstream(logs / "legacy" / "launcher.log") << "old launcher";
     std::ofstream(root / "desktop.log", std::ios::binary)
         << std::string(diagnostics::log_limit + 9, 'd') << "desktop tail";
-    std::ofstream(root / "crash-desktop.log") << "previous crash desktop";
+    std::ofstream(logs / "crash-desktop.log") << "previous crash desktop";
+    std::ofstream(logs / "cnc-ddraw-XFiles-1.log") << "display evidence";
     std::ofstream(root / "PRIVATE.x") << "save must not be included";
     std::ofstream(root / "preferences.ini") << "private preferences";
     const auto zip = root / "report.zip";

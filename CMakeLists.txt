@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(XFILES_VERSION "0.1.0" CACHE STRING "Release version (major.minor.patch)")
+set(XFILES_VERSION "0.2.0" CACHE STRING "Release version (major.minor.patch)")
 if(NOT XFILES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "XFILES_VERSION must be major.minor.patch")
 endif()
@@ -16,7 +16,14 @@ add_compile_definitions(WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 add_compile_definitions(XFILES_BUILD_VERSION="${PROJECT_VERSION}")
 add_compile_options(/W4 /WX /utf-8)
 
+find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+add_custom_target(native-profile-check
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/src/game/scripts/generate_profiles.py" --check
+    DEPENDS src/game/scripts/generate_profiles.py src/game/profiles/builds.json src/game/profiles/generated.h
+    VERBATIM)
+
 add_library(quicktime SHARED
+    src/diagnostics/game_context.cpp
     src/diagnostics/report_dialog.cpp
     src/diagnostics/report.cpp
     src/diagnostics/log_file.cpp
@@ -27,13 +34,33 @@ add_library(quicktime SHARED
     src/dispatch.cpp
     src/runtime.cpp
     src/settings.cpp
+    src/localization/ui.cpp
+    src/devtools/inspector.cpp
+    src/devtools/inspector_window.cpp
+    src/devtools/library_list.cpp
+    src/devtools/artwork.cpp
+    src/devtools/preview.cpp
+    src/devtools/preview_paint.cpp
+    src/devtools/caption_index.cpp
+    src/devtools/subtitle_editor.cpp
+    src/devtools/dialogs.rc
+    src/devtools/game_state.cpp
+    src/devtools/state_tree.cpp
+    src/devtools/variables.cpp
+    src/devtools/hotspots.cpp
+    src/devtools/clip_catalog.cpp
+    src/devtools/clip_key.cpp
+    src/devtools/clip_defaults.cpp
     src/enhancements/ui/settings_dialog.cpp
     src/enhancements/ui/tools_dialog.cpp
+    src/enhancements/ui/subtitle_dialog.cpp
     src/enhancements/ui/menu_link.cpp
     src/enhancements/ui/notification.cpp
     src/enhancements/controls.cpp
     src/enhancements/controller.cpp
+    src/enhancements/controller_state.cpp
     src/enhancements/dialogue.cpp
+    src/enhancements/game_strings.cpp
     src/enhancements/inventory.cpp
     src/enhancements/menu.cpp
     src/enhancements/quick_save.cpp
@@ -49,6 +76,19 @@ add_library(quicktime SHARED
     src/enhancements/ui/settings.rc
     src/platform/imports.cpp
     src/media/files.cpp
+    src/saves/paths.cpp
+    src/saves/dialogs.cpp
+    src/saves/catalog.cpp
+    src/saves/slots.cpp
+    src/saves/artwork.cpp
+    src/saves/browser.cpp
+    src/saves/browser_paint.cpp
+    src/saves/browser_navigation.cpp
+    src/saves/preview.cpp
+    src/saves/browser_text.cpp
+    src/game/render/native_render.cpp
+    src/game/render/gdi_hooks.cpp
+    src/game/render/caption_surface.cpp
     src/memory.cpp
     src/graphics.cpp
     src/quickdraw/world.cpp
@@ -74,15 +114,25 @@ add_library(quicktime SHARED
     src/log.cpp
     src/quicktime.def
 )
+configure_file(cmake/clip-labels.rc.in "${CMAKE_BINARY_DIR}/generated/clip-labels.rc" @ONLY)
+target_sources(quicktime PRIVATE "${CMAKE_BINARY_DIR}/generated/clip-labels.rc")
 set_target_properties(quicktime PROPERTIES OUTPUT_NAME QuickTime SUFFIX .qts)
+add_library(clip-index STATIC src/game/assets/clip_index.cpp)
+target_include_directories(clip-index PUBLIC src)
+add_library(clip-notes STATIC src/devtools/clip_notes.cpp)
+target_include_directories(clip-notes PUBLIC src)
+target_link_libraries(quicktime PRIVATE clip-index clip-notes uxtheme)
 target_include_directories(quicktime PRIVATE src src/enhancements/ui)
-target_link_libraries(quicktime PRIVATE advapi32 bcrypt comctl32 comdlg32 dxguid gdi32 msimg32 shell32 user32 winmm xaudio2 xinput)
+target_link_libraries(quicktime PRIVATE advapi32 bcrypt comctl32 comdlg32 dxguid gdi32 msimg32 shell32 user32 uuid winmm xaudio2 xinput)
 
 add_library(launcher-common STATIC
+    src/localization/ui.cpp
     src/diagnostics/report.cpp
     src/diagnostics/report_dialog.cpp
     src/diagnostics/log_file.cpp
     src/launcher/application.cpp
+    src/launcher/welcome.cpp
+    src/saves/storage.cpp
     src/launcher/configuration.cpp
     src/identity.cpp
     src/launcher/staging.cpp
@@ -94,13 +144,15 @@ add_library(launcher-common STATIC
 )
 target_include_directories(launcher-common PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(launcher-common PUBLIC advapi32 bcrypt user32 comdlg32)
+add_dependencies(quicktime native-profile-check)
+add_dependencies(launcher-common native-profile-check)
 
-add_executable(xfiles-patch WIN32 src/launcher/main.cpp)
+add_executable(xfiles-patch WIN32 src/launcher/main.cpp src/launcher/welcome.rc)
 set_target_properties(xfiles-patch PROPERTIES OUTPUT_NAME XFilesPlay)
 target_link_libraries(xfiles-patch PRIVATE launcher-common)
 configure_file(cmake/media-catalog.rc.in "${CMAKE_BINARY_DIR}/generated/media-catalog.rc" @ONLY)
 add_executable(xfiles-setup WIN32 src/setup/main.cpp src/setup/dialog.cpp
-    src/setup/dialog.rc src/setup/shortcuts.cpp src/setup/media.cpp src/setup/destination.cpp src/setup/iso.cpp src/setup/catalog.cpp
+    src/setup/dialog.rc src/setup/shortcuts.cpp src/setup/media.cpp src/setup/destination.cpp src/setup/iso.cpp src/setup/disc_image.cpp src/setup/catalog.cpp
     "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
 set_target_properties(xfiles-setup PROPERTIES OUTPUT_NAME XFilesSetup)
 target_link_libraries(xfiles-setup PRIVATE launcher-common ole32 uuid comctl32 shell32)
@@ -108,6 +160,10 @@ add_custom_command(TARGET xfiles-patch POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/config/patch.ini" "$<TARGET_FILE_DIR:xfiles-patch>/patch.ini")
 configure_file(cmake/version.rc.in "${CMAKE_BINARY_DIR}/generated/version.rc" @ONLY)
+configure_file(cmake/icon.rc.in "${CMAKE_BINARY_DIR}/generated/icon.rc" @ONLY)
+foreach(target xfiles-patch xfiles-setup)
+    target_sources(${target} PRIVATE "${CMAKE_BINARY_DIR}/generated/icon.rc")
+endforeach()
 foreach(target quicktime xfiles-patch xfiles-setup)
     target_sources(${target} PRIVATE "${CMAKE_BINARY_DIR}/generated/version.rc")
 endforeach()
@@ -118,17 +174,19 @@ include(cmake/zlib.cmake)
 include(cmake/package.cmake)
 add_library(movie STATIC
     src/media/movie.cpp
+    src/media/subtitles.cpp
+    src/media/subtitle_archive.cpp
     src/media/ima4.cpp
     src/media/compressed_audio.cpp
     src/media/video.cpp)
-target_link_libraries(movie PUBLIC ole32 windowscodecs movie-zlib
+target_link_libraries(movie PUBLIC bcrypt ole32 windowscodecs movie-zlib movie-minizip
     FFmpeg::avcodec FFmpeg::avutil FFmpeg::swresample FFmpeg::swscale)
 add_dependencies(movie codec-files)
 target_link_libraries(quicktime PRIVATE movie)
 target_include_directories(movie PUBLIC src/media)
 option(XFILES_BUILD_TOOLS "Build developer diagnostics (not included in releases)" OFF)
 if(XFILES_BUILD_TOOLS)
-    add_executable(xfiles-checkpoint tools/checkpoint/main.cpp src/preferences/store.cpp)
+    add_executable(xfiles-checkpoint tools/checkpoint/main.cpp src/preferences/store.cpp src/saves/storage.cpp src/saves/catalog.cpp)
     target_include_directories(xfiles-checkpoint PRIVATE src)
     add_executable(xfiles-media src/media/inspect.cpp)
     target_link_libraries(xfiles-media PRIVATE movie)

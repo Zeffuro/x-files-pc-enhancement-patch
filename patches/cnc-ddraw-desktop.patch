@@ -1,3 +1,17 @@
+diff --git a/inc/winapi_hooks.h b/inc/winapi_hooks.h
+index cab3ab6..7a46218 100644
+--- a/inc/winapi_hooks.h
++++ b/inc/winapi_hooks.h
+@@ -5,6 +5,9 @@
+ #include <vfw.h>
+ 
+ 
++void xfiles_set_tool_cursor(unsigned request);
++BOOL xfiles_tool_cursor_active(void);
++
+ BOOL WINAPI fake_GetCursorPos(LPPOINT lpPoint);
+ BOOL WINAPI fake_ClipCursor(const RECT* lpRect);
+ int WINAPI fake_ShowCursor(BOOL bShow);
 diff --git a/src/dd.c b/src/dd.c
 index e69063a..00dac4a 100644
 --- a/src/dd.c
@@ -12,6 +26,19 @@ index e69063a..00dac4a 100644
  
          g_ddraw.mode.dmSize = sizeof(DEVMODE);
          g_ddraw.mode.dmDriverExtra = 0;
+diff --git a/src/mouse.c b/src/mouse.c
+index 46aca13..e2366bb 100644
+--- a/src/mouse.c
++++ b/src/mouse.c
+@@ -13,7 +13,7 @@ HOOKPROC g_mouse_proc;
+ 
+ void mouse_lock()
+ {
+-    if (g_config.devmode || g_ddraw.bnet_active || !g_ddraw.hwnd)
++    if (xfiles_tool_cursor_active() || g_config.devmode || g_ddraw.bnet_active || !g_ddraw.hwnd)
+         return;
+ 
+     if (g_hook_active && !g_mouse_locked && !util_is_minimized(g_ddraw.hwnd))
 diff --git a/src/utils.c b/src/utils.c
 index d96920b..87b0c17 100644
 --- a/src/utils.c
@@ -66,11 +93,73 @@ index d96920b..87b0c17 100644
          util_set_window_rect(
              pos_rc.left,
              pos_rc.top,
+diff --git a/src/winapi_hooks.c b/src/winapi_hooks.c
+index fc6fdbd..7ef3678 100644
+--- a/src/winapi_hooks.c
++++ b/src/winapi_hooks.c
+@@ -144,11 +144,47 @@ BOOL WINAPI fake_ClipCursor(const RECT* lpRect)
+     return TRUE;
+ }
+ 
++static LONG xfiles_tool_cursor;
++static unsigned xfiles_modal_depth;
++static BOOL xfiles_modeless_cursor;
++
++BOOL xfiles_tool_cursor_active(void)
++{
++    return InterlockedExchangeAdd(&xfiles_tool_cursor, 0) != 0;
++}
++
++void xfiles_set_tool_cursor(unsigned request)
++{
++    if (request == 3) ++xfiles_modal_depth;
++    else if (request == 4) { if (xfiles_modal_depth) --xfiles_modal_depth; }
++    else if (request < 2) xfiles_modeless_cursor = request != 0;
++    BOOL enabled = xfiles_modal_depth || xfiles_modeless_cursor;
++    if (enabled)
++    {
++        InterlockedExchange(&xfiles_tool_cursor, TRUE);
++        int count = real_ShowCursor(TRUE);
++        if (count > 0) real_ShowCursor(FALSE);
++        else while (count < 0) count = real_ShowCursor(TRUE);
++        /* Keep the game's requested cursor separate from native tool windows. */
++        real_SetCursor(LoadCursor(NULL, IDC_ARROW));
++    }
++    else if (xfiles_tool_cursor_active())
++    {
++        InterlockedExchange(&xfiles_tool_cursor, FALSE);
++        int target = InterlockedExchangeAdd((LONG*)&g_ddraw.show_cursor_count, 0);
++        int count = real_ShowCursor(TRUE) - 1;
++        real_ShowCursor(FALSE);
++        while (count < target) count = real_ShowCursor(TRUE);
++        while (count > target) count = real_ShowCursor(FALSE);
++        real_SetCursor((HCURSOR)InterlockedExchangeAdd((LONG*)&g_ddraw.old_cursor, 0));
++    }
++}
++
+ int WINAPI fake_ShowCursor(BOOL bShow)
+ {
+     if (g_ddraw.ref && g_ddraw.hwnd)
+     {
+-        if (g_mouse_locked || g_config.devmode)
++        if (!xfiles_tool_cursor_active() && (g_mouse_locked || g_config.devmode))
+         {
+             int count = real_ShowCursor(bShow);
+             InterlockedExchange((LONG*)&g_ddraw.show_cursor_count, count);
+@@ -171,7 +207,7 @@ HCURSOR WINAPI fake_SetCursor(HCURSOR hCursor)
+     {
+         HCURSOR cursor = (HCURSOR)InterlockedExchange((LONG*)&g_ddraw.old_cursor, (LONG)hCursor);
+ 
+-        if (!g_mouse_locked && !g_config.devmode)
++        if (xfiles_tool_cursor_active() || (!g_mouse_locked && !g_config.devmode))
+             return cursor;
+     }
+ 
 diff --git a/src/wndproc.c b/src/wndproc.c
-index 76f3387..6a19efc 100644
+index 76f3387..0475bb7 100644
 --- a/src/wndproc.c
 +++ b/src/wndproc.c
-@@ -40,6 +40,39 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+@@ -40,6 +40,45 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
      static BOOL in_size_move = FALSE;
      static int redraw_count = 0;
  
@@ -107,14 +196,21 @@ index 76f3387..6a19efc 100644
 +        return g_config.d3d9_filter + 1;
 +    }
 +
++    if (uMsg == RegisterWindowMessageA("XFilesEnhancement.ToolCursor"))
++    {
++        xfiles_set_tool_cursor((unsigned)wParam);
++        return TRUE;
++    }
++
      switch (uMsg)
      {
      case WM_NULL:
-@@ -176,7 +209,12 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+@@ -176,7 +215,13 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
                  case HTTOPRIGHT:
                      return real_DefWindowProcA(hWnd, uMsg, wParam, lParam);
                  case HTCLIENT:
 -                    if (!g_mouse_locked && !g_config.devmode)
++                    xfiles_set_tool_cursor(FALSE);
 +                    if (g_config.devmode)
 +                    {
 +                        real_SetCursor((HCURSOR)InterlockedExchangeAdd((LONG*)&g_ddraw.old_cursor, 0));

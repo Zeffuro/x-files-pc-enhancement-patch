@@ -84,6 +84,42 @@ Data fixture() {
     return file;
 }
 
+Data pcm_fixture(const char* codec, unsigned depth, unsigned channels) {
+    Data description(28);
+    description[7] = 1;
+    description[17] = static_cast<std::uint8_t>(channels);
+    description[19] = static_cast<std::uint8_t>(depth);
+    description[24] = 0x56;
+    description[25] = 0x22;
+
+    Data descriptions = words({0, 1});
+    append_atom(descriptions, codec, description);
+    Data table;
+    append_atom(table, "stsd", descriptions);
+    append_atom(table, "stco", words({0, 1, 8}));
+    append_atom(table, "stsc", words({0, 1, 1, 2, 1}));
+    append_atom(table, "stsz", words({0, 1, 2}));
+    append_atom(table, "stts", words({0, 1, 2, 1}));
+
+    Data handler = words({0, 0});
+    append(handler, Data{'s', 'o', 'u', 'n'});
+    Data media;
+    append_atom(media, "mdhd", words({0, 0, 0, 22050, 2}));
+    append_atom(media, "hdlr", handler);
+    append_atom(media, "minf", atom("stbl", table));
+    Data track;
+    append_atom(track, "tkhd", words({15, 0, 0, 1, 0, 2}));
+    append_atom(track, "mdia", media);
+    Data movie;
+    append_atom(movie, "mvhd", words({0, 0, 0, 22050, 2}));
+    append_atom(movie, "trak", track);
+
+    Data file;
+    append_atom(file, "mdat", Data{0, 128, 255, 64});
+    append_atom(file, "moov", movie);
+    return file;
+}
+
 void require(bool value, const char* message) {
     if (!value) {
         throw std::runtime_error(message);
@@ -151,6 +187,21 @@ Data empty_text_track(std::uint32_t duration) {
 
 int main() {
     try {
+        for (const unsigned channels : {1u, 2u}) {
+            const media::Movie raw(pcm_fixture("raw ", 8, channels));
+            const auto& track = raw.tracks.at(0);
+            require(track.descriptions.at(0).packet_bytes == channels &&
+                        track.descriptions.at(0).packet_frames == 1 && track.samples.size() == 2 &&
+                        track.samples.at(1).time == 1 && track.samples.at(1).size == channels &&
+                        raw.packet(track.samples.at(0)).size() == channels &&
+                        raw.packet(track.samples.at(0))[0] == 0 &&
+                        raw.packet(track.samples.at(1))[0] == (channels == 1 ? 128 : 255),
+                    "Unsigned PCM sample indexing is incorrect.");
+        }
+        rejected(pcm_fixture("raw ", 16, 1));
+        rejected(pcm_fixture("raw ", 8, 3));
+        require(media::Movie(pcm_fixture("twos", 8, 1)).tracks.at(0).samples.size() == 2,
+                "Signed PCM sample indexing changed.");
         const media::Movie empty(empty_text_track(0));
         require(empty.tracks.size() == 1 && empty.tracks[0].samples.empty(),
                 "Empty text track was not preserved.");

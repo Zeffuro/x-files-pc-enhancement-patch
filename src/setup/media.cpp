@@ -45,13 +45,24 @@ bool asset(const fs::path& path) {
 }
 
 MediaSource inspect_media(const fs::path& selected) {
-    if (fs::is_regular_file(selected) && lower(selected.extension().wstring()) == L".iso") {
-        return inspect_dvd_iso(selected);
+    if (fs::is_regular_file(selected)) {
+        const auto extension = lower(selected.extension().wstring());
+        if (extension == L".iso" || extension == L".cue") {
+            return inspect_dvd_iso(selected);
+        }
+        if (extension == L".mdf" || extension == L".mds") {
+            throw std::runtime_error(
+                "MDF/MDS images are not supported. Use ISO files or matching BIN/CUE pairs.");
+        }
+        if (extension == L".bin") {
+            throw std::runtime_error(
+                "Select the folder containing all seven BIN/CUE pairs, not a BIN file alone.");
+        }
     }
     if (!fs::is_directory(selected)) {
         throw std::runtime_error(
-            "Choose a DVD ISO or a folder containing your English PC game "
-            "files or all seven CD ISOs. PlayStation discs are not supported.");
+            "Choose an ISO/CUE image or a folder containing your supported PC game "
+            "files or all seven CD images. PlayStation discs are not supported.");
     }
     const auto chosen = fs::canonical(selected);
     MediaSource result;
@@ -107,13 +118,17 @@ MediaSource inspect_media(const fs::path& selected) {
             }
         }
     }
-    const auto catalog =
-        media_catalog(std::string(identify(result.game / L"XFiles.exe").edition) == "DVD");
+    std::vector<MediaFile> candidates;
+    for (const auto& [name, file] : files) {
+        candidates.push_back(file);
+    }
+    result.set = detect_media_set(candidates);
+    const auto catalog = media_catalog(result.set);
     for (const auto& [name, record] : catalog) {
         const auto found = files.find(name);
         if (found == files.end() || found->second.size != record.size) {
             throw std::runtime_error("Missing or incorrect game file: " + fs::path(name).string() +
-                                     ". Use a complete English DVD or extracted seven-CD set.");
+                                     ". Use a complete supported DVD or extracted seven-CD set.");
         }
         auto file = found->second;
         file.checksum = record.sha256;

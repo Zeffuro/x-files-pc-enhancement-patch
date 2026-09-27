@@ -25,4 +25,13 @@ inline std::vector<std::int16_t> decode_signed_pcm(std::span<const std::uint8_t>
     return result;
 }
 
+inline std::vector<std::int16_t> decode_unsigned_pcm(std::span<const std::uint8_t> bytes) {
+    std::vector<std::int16_t> result;
+    result.reserve(bytes.size());
+    for (const auto sample : bytes) {
+        result.push_back(static_cast<std::int16_t>((int(sample) - 128) * 256));
+    }
+    return result;
+}
+
 }

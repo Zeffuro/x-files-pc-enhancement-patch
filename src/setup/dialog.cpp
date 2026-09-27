@@ -1,12 +1,14 @@
 #include "shortcuts.h"
 #include "dialog.h"
 #include "media.h"
+#include "localization/ui.h"
 
 #include <windows.h>
 #include <shobjidl.h>
 #include <commctrl.h>
 #include <atomic>
 #include <filesystem>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -16,6 +18,7 @@ constexpr int source_field = 1101, source_browse = 1102, source_iso = 1110;
 constexpr int destination_field = 1103, destination_browse = 1104, windowed_field = 1105;
 constexpr int status_field = 1106, progress_field = 1107;
 constexpr int desktop_field = 1108, start_menu_field = 1109;
+constexpr int language_field = 1112;
 constexpr UINT progress_message = WM_APP + 1, completed_message = WM_APP + 2;
 
 struct Setup {
@@ -23,6 +26,8 @@ struct Setup {
     std::atomic<bool> cancel{false};
     std::filesystem::path destination;
     std::string error;
+    ui::Language language = ui::system_language();
+    std::optional<ui::DialogTranslator> labels;
     bool busy = false, ready = false;
 };
 
@@ -35,7 +40,7 @@ std::filesystem::path field(HWND window, int id) {
     return text;
 }
 
-std::filesystem::path browse(HWND owner, const wchar_t* title, bool iso = false) {
+std::filesystem::path browse(HWND owner, const wchar_t* title, bool image = false) {
     IFileOpenDialog* dialog = nullptr;
     const auto created = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
                                           IID_PPV_ARGS(&dialog));
@@ -52,14 +57,16 @@ std::filesystem::path browse(HWND owner, const wchar_t* title, bool iso = false)
     } release{dialog};
 
     DWORD options = FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR;
-    options |= iso ? FOS_FILEMUSTEXIST : FOS_PICKFOLDERS;
+    options |= image ? FOS_FILEMUSTEXIST : FOS_PICKFOLDERS;
     if (FAILED(dialog->SetOptions(options)) || FAILED(dialog->SetTitle(title))) {
         throw std::runtime_error("Cannot configure the file picker.");
     }
-    if (iso) {
-        const COMDLG_FILTERSPEC types[] = {{L"DVD images (*.iso)", L"*.iso"}};
-        if (FAILED(dialog->SetFileTypes(1, types))) {
-            throw std::runtime_error("Cannot filter DVD images.");
+    if (image) {
+        const COMDLG_FILTERSPEC types[] = {{L"Disc images (*.iso;*.cue)", L"*.iso;*.cue"},
+                                           {L"ISO images (*.iso)", L"*.iso"},
+                                           {L"CUE sheets (*.cue)", L"*.cue"}};
+        if (FAILED(dialog->SetFileTypes(_countof(types), types))) {
+            throw std::runtime_error("Cannot filter disc images.");
         }
     }
     const auto shown = dialog->Show(owner);
@@ -74,7 +81,7 @@ std::filesystem::path browse(HWND owner, const wchar_t* title, bool iso = false)
     const auto named = item->GetDisplayName(SIGDN_FILESYSPATH, &name);
     item->Release();
     if (FAILED(named)) {
-        throw std::runtime_error("Select a local folder, mounted disc or DVD ISO.");
+        throw std::runtime_error("Select a local folder, mounted disc or ISO/CUE image.");
     }
     const std::filesystem::path result(name);
     CoTaskMemFree(name);
@@ -93,7 +100,7 @@ std::filesystem::path default_destination() {
 
 void enable_fields(HWND window, bool enabled) {
     for (int id : {source_field, source_browse, source_iso, destination_field, destination_browse,
-                   windowed_field, desktop_field, start_menu_field, IDOK}) {
+                   windowed_field, desktop_field, start_menu_field, language_field, IDOK}) {
         EnableWindow(GetDlgItem(window, id), enabled);
     }
 }
@@ -108,9 +115,11 @@ void start(HWND window, Setup& setup) {
     setup.cancel = false;
     setup.busy = true;
     enable_fields(window, false);
-    SetDlgItemTextW(window, status_field, L"Checking game files and free space...");
+    SetDlgItemTextW(window, status_field,
+                    ui::translate(L"Checking game files and free space...", setup.language));
     SendDlgItemMessageW(window, progress_field, PBM_SETPOS, 0, 0);
-    setup.worker = std::thread([window, &setup, source, destination, windowed] {
+    const auto language = setup.language;
+    setup.worker = std::thread([window, &setup, source, destination, windowed, language] {
         try {
             const auto media = inspect_media(source);
             if (setup.cancel) {
@@ -120,6 +129,7 @@ void start(HWND window, Setup& setup) {
                 PostMessageW(window, progress_message, percent, 0);
                 return !setup.cancel;
             });
+            ui::save_language(destination / L"patch.ini", language);
         } catch (const std::exception& error) {
             setup.error = error.what();
         }
@@ -145,6 +155,19 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
     auto setup = reinterpret_cast<Setup*>(GetWindowLongPtrW(window, DWLP_USER));
     if (message == WM_INITDIALOG) {
         SetWindowLongPtrW(window, DWLP_USER, data);
+        setup = reinterpret_cast<Setup*>(data);
+        setup->labels.emplace(window);
+        for (int index = 0; index < 6; ++index) {
+            SendDlgItemMessageW(
+                window, language_field, CB_ADDSTRING, 0,
+                reinterpret_cast<LPARAM>(ui::language_name(static_cast<ui::Language>(index))));
+        }
+        SendDlgItemMessageW(window, language_field, CB_SETCURSEL,
+                            static_cast<WPARAM>(setup->language), 0);
+        setup->labels->apply(setup->language);
+        const auto icon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(101));
+        SendMessageW(window, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
+        SendMessageW(window, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
         SendDlgItemMessageW(window, progress_field, PBM_SETRANGE32, 0, 100);
         try {
             SetDlgItemTextW(window, destination_field, default_destination().c_str());
@@ -157,7 +180,8 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
         return FALSE;
     }
     if (message == progress_message) {
-        SetDlgItemTextW(window, status_field, L"Copying and verifying game files...");
+        SetDlgItemTextW(window, status_field,
+                        ui::translate(L"Copying and verifying game files...", setup->language));
         SendDlgItemMessageW(window, progress_field, PBM_SETPOS, parameter, 0);
         return TRUE;
     }
@@ -174,16 +198,20 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
             } catch (const std::exception& error) {
                 MessageBoxA(window, error.what(), "Game installed", MB_OK | MB_ICONWARNING);
             }
-            SetDlgItemTextW(window, status_field,
-                            L"Ready to play. The source disc or folder is no longer needed.");
-            SetDlgItemTextW(window, IDOK, L"Play");
-            SetDlgItemTextW(window, IDCANCEL, L"Close");
+            SetDlgItemTextW(
+                window, status_field,
+                ui::translate(L"Ready to play. The source disc or folder is no longer needed.",
+                              setup->language));
+            SetDlgItemTextW(window, IDOK, ui::translate(L"Play", setup->language));
+            SetDlgItemTextW(window, IDCANCEL, ui::translate(L"Close", setup->language));
             EnableWindow(GetDlgItem(window, IDOK), TRUE);
             SetFocus(GetDlgItem(window, IDOK));
         } else {
             enable_fields(window, true);
-            SetDlgItemTextW(window, status_field,
-                            L"Setup did not finish. Check the details below before retrying.");
+            SetDlgItemTextW(
+                window, status_field,
+                ui::translate(L"Setup did not finish. Check the details below before retrying.",
+                              setup->language));
             MessageBoxA(window, setup->error.c_str(), "The X-Files Setup", MB_OK | MB_ICONERROR);
         }
         return TRUE;
@@ -196,7 +224,9 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
         if (command == IDCANCEL) {
             if (setup->busy) {
                 setup->cancel = true;
-                SetDlgItemTextW(window, status_field, L"Stopping after the current file...");
+                SetDlgItemTextW(
+                    window, status_field,
+                    ui::translate(L"Stopping after the current file...", setup->language));
                 EnableWindow(GetDlgItem(window, IDCANCEL), FALSE);
             } else {
                 EndDialog(window, IDCANCEL);
@@ -206,12 +236,21 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
         if (setup->busy) {
             return TRUE;
         }
+        if (command == language_field && HIWORD(parameter) == CBN_SELCHANGE && !setup->ready) {
+            const auto selected = SendDlgItemMessageW(window, language_field, CB_GETCURSEL, 0, 0);
+            if (selected >= 0 && selected < 6) {
+                setup->language = static_cast<ui::Language>(selected);
+                setup->labels->apply(setup->language);
+            }
+            return TRUE;
+        }
         if (command == source_browse || command == source_iso || command == destination_browse) {
-            const auto title = command == source_iso ? L"Choose the English PC DVD ISO"
+            const auto title = command == source_iso ? L"Choose a PC disc ISO or CUE sheet"
                                : command == source_browse
-                                   ? L"Choose game files or all seven CD ISOs"
+                                   ? L"Choose game files or all seven CD images"
                                    : L"Choose a parent folder for The X-Files";
-            auto path = browse(window, title, command == source_iso);
+            auto path =
+                browse(window, ui::translate(title, setup->language), command == source_iso);
             if (!path.empty()) {
                 if (command == destination_browse) {
                     path /= L"The X-Files";

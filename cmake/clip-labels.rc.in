@@ -1,0 +1,2 @@
+#include <windows.h>
+2700 RCDATA "@PROJECT_SOURCE_DIR@/data/clip-labels.tsv"

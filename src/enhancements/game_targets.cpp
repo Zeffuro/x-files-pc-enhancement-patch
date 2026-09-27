@@ -49,7 +49,7 @@ RECT scene_bounds() {
     return image ? reinterpret_cast<Rectangle*>(image + edition().viewport)->bounds : RECT{};
 }
 
-std::vector<RECT> world_hotspots(bool navigation_only) {
+std::vector<RECT> world_hotspots(bool navigation_only, bool include_occluded) {
     std::vector<RECT> result;
     if (!world_navigation_available()) {
         return result;
@@ -63,8 +63,12 @@ std::vector<RECT> world_hotspots(bool navigation_only) {
         if (IntersectRect(&clipped, &bounds, &viewport) && clipped.left >= 0 && clipped.top >= 0 &&
             clipped.right <= 640 && clipped.bottom <= 480) {
             RECT exposed{};
-            if ((!navigation_only || navigation) && exposed_target(clipped, occluders, exposed)) {
-                result.push_back(exposed);
+            if (!navigation_only || navigation) {
+                if (include_occluded) {
+                    result.push_back(clipped);
+                } else if (exposed_target(clipped, occluders, exposed)) {
+                    result.push_back(exposed);
+                }
             }
             occluders.push_back(clipped);
         }
@@ -104,7 +108,10 @@ std::vector<RECT> world_hotspots(bool navigation_only) {
         return ax == bx ? a.top + a.bottom < b.top + b.bottom : ax < bx;
     });
     result.erase(std::unique(result.begin(), result.end(),
-                             [](const RECT& a, const RECT& b) {
+                             [include_occluded](const RECT& a, const RECT& b) {
+                                 if (include_occluded) {
+                                     return EqualRect(&a, &b) != FALSE;
+                                 }
                                  return a.left + a.right == b.left + b.right &&
                                         a.top + a.bottom == b.top + b.bottom;
                              }),
@@ -133,7 +140,7 @@ std::vector<RECT> aiming_targets() {
     }
     const auto& viewport =
         reinterpret_cast<Rectangle*>(executable_image() + edition().viewport)->bounds;
-    // Action hit areas move with the movie; use the current native rectangles each time.
+    // Action hit areas move with the movie. Read the current native rectangles.
     visit(app->state, 0x248, [&](std::byte* object) {
         const auto compact = reinterpret_cast<const std::uint16_t*>(object + 0x18);
         RECT bounds{compact[2], compact[3], compact[4], compact[5]};

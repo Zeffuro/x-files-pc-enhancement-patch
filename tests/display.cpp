@@ -21,6 +21,7 @@ using BindSurface = short(__cdecl*)(IUnknown*, unsigned long);
 
 CursorClip initial_clip;
 decltype(&GetClipCursor) read_cursor_clip;
+decltype(&ShowCursor) real_show_cursor;
 
 void require(bool condition, const char* message) {
     if (!condition) {
@@ -247,6 +248,42 @@ void exercise(HWND window, CreateDraw create_draw, const Desktop& before) {
                  MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
     require(GetCursor() == nullptr, "A hidden game cursor was not restored.");
 
+    const auto tool_cursor = RegisterWindowMessageW(L"XFilesEnhancement.ToolCursor");
+    const auto native_count = [] {
+        const auto count = real_show_cursor(TRUE) - 1;
+        real_show_cursor(FALSE);
+        return count;
+    };
+    const auto original_count = native_count();
+    int game_count = ShowCursor(FALSE);
+    while (game_count >= -2) {
+        game_count = ShowCursor(FALSE);
+    }
+    SetCursor(nullptr);
+    SendMessageW(window, tool_cursor, 1, 0);
+    require(native_count() >= 0 && GetCursor() == LoadCursorW(nullptr, IDC_ARROW),
+            "Tool window did not reveal a hidden game cursor.");
+    const auto visible_count = native_count();
+    for (int i = 0; i < 10; ++i) {
+        SendMessageW(window, tool_cursor, 1, 0);
+    }
+    require(native_count() == visible_count, "Tool cursor refresh changed the display count.");
+    SetCursor(game_cursor);
+    --game_count;
+    ShowCursor(FALSE);
+    require(GetCursor() == LoadCursorW(nullptr, IDC_ARROW) && native_count() >= 0,
+            "Game cursor changes leaked into a tool window.");
+    SendMessageW(window, tool_cursor, 3, 0);
+    SendMessageW(window, tool_cursor, 0, 0);
+    require(native_count() >= 0, "Deactivating inspector hid the nested settings cursor.");
+    SendMessageW(window, tool_cursor, 4, 0);
+    require(native_count() == game_count && GetCursor() == game_cursor,
+            "Tool exit did not restore the game's latest cursor state.");
+    while (game_count < original_count) {
+        game_count = ShowCursor(TRUE);
+    }
+    SetCursor(nullptr);
+
     SendMessageW(window, WM_ACTIVATEAPP, FALSE, 0);
     check_desktop(before);
     SendMessageW(window, WM_ACTIVATEAPP, TRUE, 0);
@@ -285,6 +322,11 @@ int wmain(int argc, wchar_t** argv) {
     read_cursor_clip = reinterpret_cast<decltype(read_cursor_clip)>(
         GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetClipCursor"));
     if (!read_cursor_clip) {
+        return 1;
+    }
+    real_show_cursor = reinterpret_cast<decltype(real_show_cursor)>(
+        GetProcAddress(GetModuleHandleW(L"user32.dll"), "ShowCursor"));
+    if (!real_show_cursor) {
         return 1;
     }
     initial_clip = cursor_clip(read_cursor_clip);

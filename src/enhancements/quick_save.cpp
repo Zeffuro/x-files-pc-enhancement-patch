@@ -14,7 +14,7 @@ namespace {
 bool busy = false;
 bool resume_pending = false;
 std::filesystem::path checkpoint_file;
-constexpr char filename[] = "QUICKSAVE.x";
+constexpr char filename[] = "saves\\QUICKSAVE.x";
 
 bool exploration_available() {
     return game::world_navigation_available() && !current_dialogue() &&
@@ -73,7 +73,8 @@ void quick_save(HWND window, bool load) {
                         L"The X-Files", MB_OK | MB_ICONINFORMATION);
             return;
         }
-        constexpr char temporary[] = "QUICKSAVE.pending.x";
+        std::filesystem::create_directory("saves");
+        constexpr char temporary[] = "saves\\QUICKSAVE.pending.x";
         NativeString name(load ? filename : temporary);
         const auto queue = reinterpret_cast<std::byte*>(app) + 0x268;
         if (load) {
@@ -93,7 +94,7 @@ void quick_save(HWND window, bool load) {
             bool saved = saves::supported_header(temporary);
             if (saved) {
                 if (saves::supported_header(filename)) {
-                    std::filesystem::copy_file(filename, "QUICKSAVE.previous.x",
+                    std::filesystem::copy_file(filename, "saves\\QUICKSAVE.previous.x",
                                                std::filesystem::copy_options::overwrite_existing);
                 }
                 saved = MoveFileExA(temporary, filename,
@@ -124,14 +125,15 @@ bool checkpoint_available() {
 
 bool export_save_available() {
     return !busy && !resume_pending && game::executable_image() &&
-           !game::menu_confirmation_active() && exploration_available() &&
+           !game::menu_confirmation_active() &&
+           (exploration_available() || game::input_vtable() == game::edition().main_menu) &&
            game::saving_available() &&
            !*reinterpret_cast<void**>(game::executable_image() + game::edition().pending_load);
 }
 
 void export_save(const std::filesystem::path& path) {
     if (!export_save_available()) {
-        throw std::runtime_error("Return to exploration before saving to a file");
+        throw std::runtime_error("Return to exploration or the paused main menu before saving");
     }
     const auto app = *reinterpret_cast<game::Application**>(game::executable_image() +
                                                             game::edition().application);
@@ -141,7 +143,8 @@ void export_save(const std::filesystem::path& path) {
     if (std::filesystem::exists(path)) {
         throw std::runtime_error("Choose a new filename; existing saves are kept");
     }
-    const auto temporary = "EXPORT." + std::to_string(GetCurrentProcessId()) + "." +
+    std::filesystem::create_directory("saves");
+    const auto temporary = "saves\\EXPORT." + std::to_string(GetCurrentProcessId()) + "." +
                            std::to_string(GetTickCount64()) + ".x";
     if (std::filesystem::exists(temporary)) {
         throw std::runtime_error("Cannot create a temporary save file");
@@ -181,7 +184,8 @@ void load_checkpoint(HWND window, const std::filesystem::path& path) {
     if (!app || !app->state) {
         throw std::runtime_error("The game is not ready to load a saved game");
     }
-    const auto name = "CHECKPOINT.LOAD." + std::to_string(GetCurrentProcessId()) + ".x";
+    std::filesystem::create_directory("saves");
+    const auto name = "saves\\CHECKPOINT.LOAD." + std::to_string(GetCurrentProcessId()) + ".x";
     // A local ASCII name also supports checkpoints selected from Unicode paths.
     std::filesystem::copy_file(path, name);
     checkpoint_file = name;

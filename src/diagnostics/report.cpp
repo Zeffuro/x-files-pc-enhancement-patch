@@ -75,12 +75,23 @@ void create_report(const std::filesystem::path& directory, const std::filesystem
         }
         entries.push_back({"reproduction.x", std::move(data)});
     }
-    for (const auto name :
-         {"launcher.log", "quicktime.log", "quicktime.log.previous", "desktop.log", "crash.log",
-          "crash-quicktime.log", "crash-desktop.log"}) {
-        const auto path = directory / name;
-        if (std::filesystem::is_regular_file(path)) {
-            entries.push_back({name, tail(path)});
+    for (const auto name : {"game-context.log", "crash-game-context.log", "launcher.log",
+                            "quicktime.log", "quicktime.log.previous", "desktop.log", "crash.log",
+                            "crash-quicktime.log", "crash-desktop.log", "cnc-ddraw-XFiles-1.log",
+                            "cnc-ddraw-XFiles-2.log", "cnc-ddraw-XFiles-3.log"}) {
+        const auto current = log_directory(directory) / name;
+        const auto root = directory / name;
+        const auto legacy = log_directory(directory) / "legacy" / name;
+        if (std::filesystem::is_regular_file(current)) {
+            entries.push_back({name, tail(current)});
+        } else if (std::filesystem::is_regular_file(root)) {
+            entries.push_back({name, tail(root)});
+        }
+        if (std::filesystem::is_regular_file(legacy)) {
+            entries.push_back({std::string("legacy/") + name, tail(legacy)});
+        }
+        if (std::filesystem::is_regular_file(current) && std::filesystem::is_regular_file(root)) {
+            entries.push_back({std::string("legacy-root/") + name, tail(root)});
         }
     }
     // Stored ZIP entries keep support archives readable without another runtime dependency.

@@ -2,6 +2,7 @@
 #include "platform/desktop.h"
 #include "platform/cursor.h"
 #include "platform/handle.h"
+#include "diagnostics/log_file.h"
 
 #include <fstream>
 #include <optional>
@@ -48,6 +49,7 @@ RunResult run_game(const std::filesystem::path& directory, bool portable, bool p
         throw std::runtime_error(
             "A patched game is already running. Close it before starting another.");
     }
+    const auto logs = diagnostics::prepare_log_directory(directory);
     const auto preferences = directory / L"preferences.ini";
     if (!SetEnvironmentVariableW(L"XFILES_PATCH_DISPLAY", L"1")) {
         win_error("Setting the logical display mode");
@@ -56,9 +58,12 @@ RunResult run_game(const std::filesystem::path& directory, bool portable, bool p
                                  portable ? preferences.c_str() : nullptr)) {
         win_error("Setting portable preferences");
     }
-    const auto log = directory / L"quicktime.log";
+    const auto log = logs / L"quicktime.log";
     if (!SetEnvironmentVariableW(L"XFILES_PATCH_LOG", log.c_str())) {
         win_error("SetEnvironmentVariable");
+    }
+    if (!SetEnvironmentVariableW(L"XFILES_PATCH_LOG_DIR", logs.c_str())) {
+        win_error("Setting the logs folder");
     }
     const auto display_config = directory / L"ddraw.ini";
     if (!SetEnvironmentVariableW(L"CNC_DDRAW_CONFIG_FILE", display_config.c_str())) {
@@ -76,7 +81,7 @@ RunResult run_game(const std::filesystem::path& directory, bool portable, bool p
         win_error("SetInformationJobObject");
     }
 
-    std::ofstream report(directory / L"desktop.log");
+    std::ofstream report(logs / L"desktop.log");
     report << "patch=" XFILES_BUILD_VERSION "\nprobe=" << probe << '\n';
     const auto before = snapshot(report, "Before launch", probe);
 
@@ -99,6 +104,14 @@ RunResult run_game(const std::filesystem::path& directory, bool portable, bool p
         WaitForSingleObject(child.get(), 5000);
         SetLastError(error);
         win_error("AssignProcessToJobObject");
+    }
+    {
+        std::ofstream context(logs / L"game-context.log", std::ios::trunc);
+        SYSTEMTIME utc{};
+        GetSystemTime(&utc);
+        context << "session pid=" << process.dwProcessId << " UTC=" << utc.wYear << '-'
+                << utc.wMonth << '-' << utc.wDay << 'T' << utc.wHour << ':' << utc.wMinute << ':'
+                << utc.wSecond << "\nNo game-state sample yet.\n";
     }
     if (ResumeThread(thread.get()) == static_cast<DWORD>(-1)) {
         win_error("ResumeThread");

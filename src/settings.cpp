@@ -24,6 +24,8 @@ Settings& current_settings() {
 
 Settings read_settings(const std::filesystem::path& path) {
     Settings result;
+    result.save_browser =
+        GetPrivateProfileIntW(L"Enhancements", L"SaveBrowser", 0, path.c_str()) != 0;
     result.menu_black_background =
         GetPrivateProfileIntW(L"Enhancements", L"MenuBlackBackground", 1, path.c_str()) != 0;
     result.skip_workstation_login =
@@ -53,6 +55,16 @@ Settings read_settings(const std::filesystem::path& path) {
     if (scale >= 75 && scale <= 200) {
         result.caption_style.scale = scale;
     }
+    result.caption_style.background =
+        GetPrivateProfileIntW(L"Accessibility", L"CaptionBackground", 0, path.c_str()) != 0;
+    const auto opacity =
+        GetPrivateProfileIntW(L"Accessibility", L"CaptionOpacity", 75, path.c_str());
+    if (opacity <= 100) {
+        result.caption_style.opacity = opacity;
+    }
+    result.caption_style.background_color =
+        GetPrivateProfileIntW(L"Accessibility", L"CaptionBackgroundColor", 0, path.c_str()) &
+        0xffffff;
     return result;
 }
 
@@ -66,7 +78,12 @@ void save_settings(const Settings& value) {
     const auto captions = std::to_wstring(static_cast<int>(value.captions));
     const auto font = std::to_wstring(static_cast<int>(value.caption_style.font));
     const auto scale = std::to_wstring(value.caption_style.scale);
-    if (!WritePrivateProfileStringW(L"Input", L"FocusHighlight", highlight.c_str(), path.c_str()) ||
+    const auto opacity = std::to_wstring(value.caption_style.opacity);
+    const auto color = std::to_wstring(value.caption_style.background_color);
+    const auto placement = std::to_wstring(static_cast<int>(value.caption_style.placement));
+    if (!WritePrivateProfileStringW(L"Enhancements", L"SaveBrowser",
+                                    value.save_browser ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Input", L"FocusHighlight", highlight.c_str(), path.c_str()) ||
         !WritePrivateProfileStringW(L"Audio", L"Device", value.audio_device.c_str(),
                                     path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"Gamepad", value.gamepad ? L"1" : L"0",
@@ -79,6 +96,14 @@ void save_settings(const Settings& value) {
                                     path.c_str()) ||
         !WritePrivateProfileStringW(L"Accessibility", L"CaptionFont", font.c_str(), path.c_str()) ||
         !WritePrivateProfileStringW(L"Accessibility", L"CaptionScale", scale.c_str(),
+                                    path.c_str()) ||
+        !WritePrivateProfileStringW(L"Accessibility", L"CaptionBackground",
+                                    value.caption_style.background ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Accessibility", L"CaptionOpacity", opacity.c_str(),
+                                    path.c_str()) ||
+        !WritePrivateProfileStringW(L"Accessibility", L"CaptionBackgroundColor", color.c_str(),
+                                    path.c_str()) ||
+        !WritePrivateProfileStringW(L"Accessibility", L"CaptionPlacement", placement.c_str(),
                                     path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"MenuBlackBackground",
                                     value.menu_black_background ? L"1" : L"0", path.c_str()) ||

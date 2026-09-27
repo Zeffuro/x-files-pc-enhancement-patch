@@ -1,5 +1,7 @@
 #include "world.h"
 #include "regions.h"
+#include "game/render/caption_surface.h"
+#include "game/render/render_internal.h"
 
 #include <stdexcept>
 
@@ -92,7 +94,7 @@ BOOL blend(HDC source, HDC destination, const Rect& from, const Rect& to) {
 
 void __cdecl copy_bits(const PixMap* source, const PixMap* destination, const Rect* from,
                        const Rect* to, TransferMode mode, RegionHandle mask) {
-    const auto source_dc = pixel_dc(source);
+    const auto source_dc = native_game::presentation_source(pixel_dc(source));
     const auto destination_dc = pixel_dc(destination);
     if (!source_dc || !destination_dc || !from || !to ||
         (mode != TransferMode::Copy && mode != TransferMode::DitherCopy &&
@@ -135,6 +137,10 @@ void __cdecl copy_bits(const PixMap* source, const PixMap* destination, const Re
         if (!copied) {
             unsupported(Selector::CopyBits, "CopyBits: GDI transfer failed", 0);
         }
+        native_game::caption_surface::copy(
+            destination_dc, {to->left, to->top, to->right, to->bottom}, source_dc,
+            {from->left, from->top, from->right, from->bottom},
+            mode == TransferMode::Copy || mode == TransferMode::DitherCopy ? SRCCOPY : 0);
         present_pixels(destination, *to);
         RestoreDC(destination_dc, saved);
     } catch (const std::exception& error) {
@@ -158,7 +164,7 @@ void draw_matte(const PixMap* pixels, const Rect& source, const Rect& destinatio
                   clip);
         return;
     }
-    const auto input_dc = pixel_dc(pixels);
+    const auto input_dc = native_game::presentation_source(pixel_dc(pixels));
     const auto output_dc = pixel_dc(*port.pixels);
     const int width = destination.right - destination.left;
     const int height = destination.bottom - destination.top;
@@ -236,6 +242,8 @@ void draw_matte(const PixMap* pixels, const Rect& source, const Rect& destinatio
     if (!copied) {
         throw std::runtime_error("StdPix: matte transfer failed");
     }
+    native_game::caption_surface::paint(
+        output_dc, {destination.left, destination.top, destination.right, destination.bottom});
     present_pixels(*port.pixels, destination);
 }
 

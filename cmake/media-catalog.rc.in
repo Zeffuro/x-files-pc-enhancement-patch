@@ -1,3 +1,8 @@
 #include <windows.h>
 1201 RCDATA "@CMAKE_SOURCE_DIR@/data/media-cd.tsv"
 1202 RCDATA "@CMAKE_SOURCE_DIR@/data/media-dvd.tsv"
+1203 RCDATA "@CMAKE_SOURCE_DIR@/data/media-cd-de.tsv"
+1204 RCDATA "@CMAKE_SOURCE_DIR@/data/media-cd-fr.tsv"
+1205 RCDATA "@CMAKE_SOURCE_DIR@/data/media-cd-es.tsv"
+1206 RCDATA "@CMAKE_SOURCE_DIR@/data/media-cd-it.tsv"
+1207 RCDATA "@CMAKE_SOURCE_DIR@/data/media-cd-jp.tsv"

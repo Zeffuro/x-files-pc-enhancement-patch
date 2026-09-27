@@ -1,6 +1,7 @@
 #include "movie.h"
 #include "menu_colors.h"
 #include "settings.h"
+#include "devtools/inspector.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -194,6 +195,8 @@ void __cdecl task(MovieHandle handle, std::int32_t) {
         }
     } guard(servicing);
 
+    // Native movie loops only consume input for the game window.
+    devtools::pump_inspector_messages();
     MSG message{};
     const auto deadline = GetTickCount64() + 3;
     for (unsigned count = 0; count < 64 && PeekMessageW(&message, nullptr, 0, 0, PM_NOREMOVE);
@@ -205,6 +208,10 @@ void __cdecl task(MovieHandle handle, std::int32_t) {
         }
         if (!PeekMessageW(&message, nullptr, id, id, PM_REMOVE)) {
             continue;
+        }
+        if (message.message == WM_QUIT) {
+            PostQuitMessage(static_cast<int>(message.wParam));
+            break;
         }
         TranslateMessage(&message);
         DispatchMessageW(&message);
