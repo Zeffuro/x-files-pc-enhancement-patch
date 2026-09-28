@@ -115,6 +115,21 @@
       "field": "canvas_transfer",
       "role": "Copy native canvas to presentation target",
       "abi": "__stdcall(void*, void*, Rectangle*, Rectangle*, void*, int)"
+    },
+    {
+      "field": "select_inventory",
+      "role": "Select the owned inventory resource and queue its action",
+      "abi": "__stdcall(void*, void*)"
+    },
+    {
+      "field": "set_inventory_action",
+      "role": "Set the inventory action mode and queue its cursor",
+      "abi": "__stdcall(int, void*)"
+    },
+    {
+      "field": "queue_mouse_move",
+      "role": "Queue a native pointer update",
+      "abi": "__stdcall(void*, const Point*, const Point*)"
     }
   ]
 }

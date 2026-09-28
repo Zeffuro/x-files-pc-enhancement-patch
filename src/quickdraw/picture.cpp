@@ -2,6 +2,9 @@
 #include "regions.h"
 #include "memory.h"
 #include "picture/pict.h"
+#include "picture/menu_art.h"
+#include "playback/menu_colors.h"
+#include "settings.h"
 #include "compressed.h"
 
 #include <stdexcept>
@@ -57,7 +60,10 @@ void __cdecl draw_picture(std::uint8_t** handle, const Rect* destination) {
         if (!destination) {
             throw std::runtime_error("DrawPicture: missing destination rectangle");
         }
-        const auto decoded = picture::read(handle_bytes(handle));
+        const auto bytes = handle_bytes(handle);
+        auto decoded = picture::read(bytes);
+        const bool clean_menu =
+            settings().menu_black_background && picture::is_menu_return_art(bytes);
         auto& port = drawing_port();
         const auto dc = port_dc(&port);
         if (!dc) {
@@ -65,7 +71,12 @@ void __cdecl draw_picture(std::uint8_t** handle, const Rect* destination) {
         }
         const auto callback =
             port.procedures && port.procedures->bits ? port.procedures->bits : standard_bits;
-        for (const auto& bitmap : decoded.bitmaps) {
+        for (auto& bitmap : decoded.bitmaps) {
+            if (clean_menu && bitmap.compressed.empty()) {
+                playback::clean_menu_colors(
+                    bitmap.pixels, static_cast<unsigned>(bitmap.stride / 4),
+                    static_cast<unsigned>(bitmap.bounds.bottom - bitmap.bounds.top));
+            }
             SavedDC saved(dc);
             const auto clip = transform(bitmap.clip, decoded.frame, *destination);
             if (IntersectClipRect(dc, clip.left, clip.top, clip.right, clip.bottom) == ERROR) {

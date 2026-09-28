@@ -1,5 +1,6 @@
 #include "setup/iso.h"
 #include "identity.h"
+#include "platform/copy_file.h"
 
 #include <algorithm>
 #include <chrono>
@@ -19,7 +20,7 @@ void require(bool value, const char* message) {
 }
 
 void make_image(const fs::path& image) {
-    std::vector<unsigned char> bytes(32 * 2048);
+    std::vector<unsigned char> bytes(33 * 2048);
     const auto put = [&](std::size_t offset, unsigned value) {
         for (unsigned i = 0; i < 4; ++i) {
             bytes[offset + i] = static_cast<unsigned char>(value >> (8 * i));
@@ -52,13 +53,18 @@ void make_image(const fs::path& image) {
     };
     record(20 * 2048, "ENGLISH", 21, 2048, true);
     const auto next = record(21 * 2048, "MININST", 22, 2048, true);
-    record(21 * 2048 + next, "MEDINST", 23, 2048, true);
+    const auto after_medium = record(21 * 2048 + next, "MEDINST", 23, 2048, true);
+    record(21 * 2048 + next + after_medium, "VOB", 29, 2048, true);
     const auto core = record(22 * 2048, "XFILES.EXE;1", 30, 8, false);
     bytes[22 * 2048 + 25] = 4;
     record(22 * 2048 + core, "XFILES.EXE;1", 25, 8, false);
     record(23 * 2048, "XV", 24, 2048, true);
     constexpr unsigned movie_size = 5000;
     record(24 * 2048, "00001.XMV;1", 26, movie_size, false);
+    record(29 * 2048, "TEASER.VOB;1", 30, 7, false);
+    for (unsigned sector = 30; sector <= 32; ++sector) {
+        std::copy_n("dvd vob", 7, bytes.begin() + sector * 2048);
+    }
     std::copy_n("fake exe", 8, bytes.begin() + 25 * 2048);
     for (unsigned i = 0; i < movie_size; ++i) {
         bytes[26 * 2048 + i] = static_cast<unsigned char>((i * 37 + 11) & 0xff);
@@ -121,18 +127,25 @@ int main() {
         const auto image = base / "dvd.iso";
         make_image(image);
         auto files = read_iso(image);
-        require(files.size() == 2 && files[0].relative == L"ENGLISH/MININST/XFILES.EXE" &&
-                    files[1].relative == L"ENGLISH/MEDINST/XV/00001.XMV",
+        require(files.size() == 3 && files[0].relative == L"ENGLISH/MININST/XFILES.EXE" &&
+                    files[1].relative == L"ENGLISH/MEDINST/XV/00001.XMV" &&
+                    files[2].relative == L"ENGLISH/VOB/TEASER.VOB",
                 "Nested DVD directories were not read correctly");
         const std::map<std::wstring, MediaRecord> catalog{
             {L"xfiles.exe", {8, sha256(image, 25 * 2048, 8)}},
-            {L"xv/00001.xmv", {5000, sha256(image, 26 * 2048, 5000)}}};
+            {L"xv/00001.xmv", {5000, sha256(image, 26 * 2048, 5000)}},
+            {L"vob/teaser.vob", {7, sha256(image, 30 * 2048, 7)}}};
         const auto selected = select_iso_files(files, catalog);
-        require(selected.size() == 2 && selected[0].relative == L"xfiles.exe" &&
-                    selected[1].relative == L"xv/00001.xmv" && selected[1].offset == 26 * 2048,
+        require(selected.size() == 3 && selected[0].relative == L"vob/teaser.vob" &&
+                    selected[0].offset == 30 * 2048 && selected[1].relative == L"xfiles.exe" &&
+                    selected[2].relative == L"xv/00001.xmv" && selected[2].offset == 26 * 2048,
                 "DVD catalog mapping lost a path or ISO extent");
+        const auto vob_output = base / "teaser.vob";
+        copy_media_file(selected[0], vob_output, [] { return true; });
+        require(sha256(vob_output) == catalog.at(L"vob/teaser.vob").sha256,
+                "The DVD VOB extent did not copy correctly");
         const auto output = base / "movie.xmv";
-        copy_media_file(selected[1], output, [] { return true; });
+        copy_media_file(selected[2], output, [] { return true; });
         require(sha256(output) == catalog.at(L"xv/00001.xmv").sha256,
                 "The selected multi-sector DVD extent did not copy correctly");
 
@@ -140,15 +153,20 @@ int main() {
         const auto cue = base / "disc.cue";
         make_raw(image, bin, cue);
         const auto raw_files = read_iso(cue);
-        require(raw_files.size() == files.size() && raw_files[1].geometry.sector_size == 2352 &&
-                    raw_files[1].geometry.payload_offset == 16 &&
-                    media_file_sha256(raw_files[1]) == catalog.at(L"xv/00001.xmv").sha256,
+        require(raw_files.size() == files.size() && raw_files[2].geometry.sector_size == 2352 &&
+                    raw_files[2].geometry.payload_offset == 16 &&
+                    media_file_sha256(raw_files[1]) == catalog.at(L"xv/00001.xmv").sha256 &&
+                    media_file_sha256(raw_files[2]) == catalog.at(L"vob/teaser.vob").sha256,
                 "MODE1/2352 payload did not match the cooked ISO file");
         const auto raw_selected = select_iso_files(raw_files, catalog);
         const auto raw_output = base / "raw-movie.xmv";
-        copy_media_file(raw_selected[1], raw_output, [] { return true; });
+        copy_media_file(raw_selected[2], raw_output, [] { return true; });
         require(sha256(raw_output) == catalog.at(L"xv/00001.xmv").sha256,
                 "Multi-sector BIN payload copy included raw sector bytes");
+        const auto raw_vob_output = base / "raw-teaser.vob";
+        copy_media_file(raw_selected[0], raw_vob_output, [] { return true; });
+        require(sha256(raw_vob_output) == catalog.at(L"vob/teaser.vob").sha256,
+                "BIN/CUE VOB extent did not copy correctly");
         std::ofstream(image, std::ios::binary | std::ios::app).put('\0');
         const auto trailing_files = read_iso(image);
         const auto trailing_output = base / "trailing-movie.xmv";
@@ -158,18 +176,32 @@ int main() {
         // The same catalog matching also handles the root and MININST/MEDINST CD layout.
         files[0].relative = L"MININST/XFILES.EXE";
         files[1].relative = L"MEDINST/XV/00001.XMV";
-        require(select_iso_files(files, catalog).size() == 2, "CD install layers stopped matching");
+        require(select_iso_files(files, catalog).size() == 3, "CD install layers stopped matching");
         files[0].relative = L"XFILES.EXE";
         files[1].relative = L"XV/00001.XMV";
-        require(select_iso_files(files, catalog).size() == 2, "Root game files stopped matching");
+        require(select_iso_files(files, catalog).size() == 3, "Root game files stopped matching");
         auto damaged = files[1];
         damaged.offset = 25 * 2048; // Correct size, wrong contents.
         files.insert(files.begin(), damaged);
         const auto repaired = select_iso_files(files, catalog);
-        require(repaired[1].offset == 26 * 2048, "A damaged duplicate hid a verified copy");
+        require(repaired[2].offset == 26 * 2048, "A damaged duplicate hid a verified copy");
         std::reverse(files.begin(), files.end());
-        require(select_iso_files(files, catalog)[1].offset == 26 * 2048,
+        require(select_iso_files(files, catalog)[2].offset == 26 * 2048,
                 "A damaged duplicate replaced a verified copy");
+        auto layered = files;
+        auto medium_vob = files[0];
+        medium_vob.relative = L"ENGLISH/MEDINST/VOB/TEASER.VOB";
+        medium_vob.offset = 31 * 2048;
+        auto minimum_vob = medium_vob;
+        minimum_vob.relative = L"ENGLISH/MININST/VOB/TEASER.VOB";
+        minimum_vob.offset = 32 * 2048;
+        layered.insert(layered.begin(), medium_vob);
+        layered.push_back(minimum_vob);
+        require(select_iso_files(layered, catalog)[0].offset == 32 * 2048,
+                "MININST VOB did not take precedence over root and MEDINST");
+        layered.pop_back();
+        require(select_iso_files(layered, catalog)[0].offset == 30 * 2048,
+                "Root VOB did not take precedence over MEDINST");
         for (int failure = 0; failure < 3; ++failure) {
             auto invalid = read_iso(image);
             if (failure == 0) {
@@ -230,7 +262,7 @@ int main() {
                                     "INDEX 01 00:00:00\n";
         expect_image_error(truncated, "truncated");
         const auto bad_header = base / "bad-header.bin";
-        fs::copy_file(bin, bad_header);
+        platform::copy_file(bin, bad_header);
         {
             std::fstream corrupt(bad_header, std::ios::binary | std::ios::in | std::ios::out);
             corrupt.seekp(16 * 2352 + 15);

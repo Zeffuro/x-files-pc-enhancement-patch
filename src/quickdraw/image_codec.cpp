@@ -1,6 +1,7 @@
 #include "image_codec.h"
 #include "memory.h"
 #include "media/video.h"
+#include "picture/inventory_colors.h"
 #include "regions.h"
 
 #include <wincodec.h>
@@ -177,15 +178,19 @@ short __cdecl decompress(const std::uint8_t* data, ImageDescription** descriptio
             return -50;
         }
         BITMAPINFO info{};
+        const auto corrected =
+            picture::inventory_colors(frame.pixels, packet, frame.width, frame.height);
         info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
         info.bmiHeader.biWidth = d.width;
         info.bmiHeader.biHeight = -d.height;
         info.bmiHeader.biPlanes = 1;
         info.bmiHeader.biBitCount = 32;
-        const auto result = StretchDIBits(
-            dc, target->left, target->top, target->right - target->left,
-            target->bottom - target->top, source->left, source->top, source->right - source->left,
-            source->bottom - source->top, frame.pixels.data(), &info, DIB_RGB_COLORS, SRCCOPY);
+        const auto result =
+            StretchDIBits(dc, target->left, target->top, target->right - target->left,
+                          target->bottom - target->top, source->left, source->top,
+                          source->right - source->left, source->bottom - source->top,
+                          corrected.empty() ? frame.pixels.data() : corrected.data(), &info,
+                          DIB_RGB_COLORS, SRCCOPY);
         GdiFlush();
         return result == GDI_ERROR ? -50 : 0;
     } catch (const std::exception&) {

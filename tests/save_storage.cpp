@@ -2,6 +2,7 @@
 #include "saves/header.h"
 #include "saves/paths.h"
 #include "saves/catalog.h"
+#include "saves/file_date.h"
 #include "dispatch.h"
 
 #include <windows.h>
@@ -47,6 +48,13 @@ int main() {
                           catalog.entries.front().modified.size() == 16 &&
                           catalog.entries.front().modified[4] == L'-',
                       "Save discovery lost names, header status or international dates");
+        bool missing_date = false;
+        try {
+            saves::formatted_modified_date(directory / L"removed.x");
+        } catch (const fs::filesystem_error&) {
+            missing_date = true;
+        }
+        test::require(missing_date, "Missing save date did not report a skippable file error");
         test::require(saves::page(catalog, 0, 1).size() == 1 &&
                           saves::page(catalog, 1, 1).front().name == L"Saved game" &&
                           saves::page(catalog, 2, 1).empty() &&

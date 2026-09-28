@@ -1,8 +1,9 @@
 #include "slots.h"
 #include "header.h"
+#include "file_date.h"
+#include "platform/copy_file.h"
 #include <windows.h>
 #include <array>
-#include <chrono>
 #include <fstream>
 #include <stdexcept>
 
@@ -79,16 +80,6 @@ void durable(const std::filesystem::path& path) {
     }
 }
 
-std::wstring modified(const std::filesystem::path& path) {
-    const auto time = std::chrono::system_clock::to_time_t(
-        std::chrono::clock_cast<std::chrono::system_clock>(std::filesystem::last_write_time(path)));
-    std::tm local{};
-    std::array<wchar_t, 32> text{};
-    if (!localtime_s(&local, &time)) {
-        std::wcsftime(text.data(), text.size(), L"%Y-%m-%d %H:%M", &local);
-    }
-    return text.data();
-}
 }
 
 Slot read_slot(const std::filesystem::path& game, unsigned number) {
@@ -107,7 +98,7 @@ Slot read_slot(const std::filesystem::path& game, unsigned number) {
         result.thumbnail = generation_file(directory, record.generation, L".thumb");
         result.readable = ordinary(result.file, false) && supported_header(result.file);
         if (result.readable) {
-            result.date = modified(result.file);
+            result.date = formatted_modified_date(result.file);
         }
     } catch (const std::exception&) {
         result.readable = false;
@@ -172,7 +163,7 @@ void write_slot(const std::filesystem::path& game, unsigned number, const std::w
         throw std::runtime_error("Try saving again");
     }
     try {
-        std::filesystem::copy_file(prepared_save, file);
+        platform::copy_file(prepared_save, file);
         durable(file);
         if (!thumbnail.pixels.empty()) {
             std::ofstream output(image, std::ios::binary);

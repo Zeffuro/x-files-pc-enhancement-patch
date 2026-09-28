@@ -51,7 +51,14 @@
         "credit_outer": 2463752,
         "canvas_invalidate": 181248,
         "canvas_transfer_call": 37962,
-        "canvas_transfer": 52960
+        "canvas_transfer": 52960,
+        "select_inventory": 722704,
+        "set_inventory_action": 925312,
+        "owned_inventory_item": 2441056,
+        "registered_gun_action": 2824508,
+        "inventory_action_variable": 2853244,
+        "selected_inventory": 2853236,
+        "queue_mouse_move": 310528
       },
       "offsets": {
         "children": 2048,
@@ -111,7 +118,14 @@
         "credit_outer": 2472792,
         "canvas_invalidate": 180640,
         "canvas_transfer_call": 37434,
-        "canvas_transfer": 52432
+        "canvas_transfer": 52432,
+        "select_inventory": 721600,
+        "set_inventory_action": 933120,
+        "owned_inventory_item": 2449272,
+        "registered_gun_action": 2836844,
+        "inventory_action_variable": 2865532,
+        "selected_inventory": 2865524,
+        "queue_mouse_move": 309024
       },
       "offsets": {
         "children": 2052,
@@ -171,7 +185,14 @@
         "credit_outer": 2458240,
         "canvas_invalidate": 180864,
         "canvas_transfer_call": 37434,
-        "canvas_transfer": 52432
+        "canvas_transfer": 52432,
+        "select_inventory": 831888,
+        "set_inventory_action": 1150928,
+        "owned_inventory_item": 2465368,
+        "registered_gun_action": 2843444,
+        "inventory_action_variable": 2881380,
+        "selected_inventory": 2881372,
+        "queue_mouse_move": 309216
       },
       "offsets": {
         "children": 2052,
@@ -231,7 +252,14 @@
         "credit_outer": 2476880,
         "canvas_invalidate": 180896,
         "canvas_transfer_call": 37434,
-        "canvas_transfer": 52464
+        "canvas_transfer": 52464,
+        "select_inventory": 722128,
+        "set_inventory_action": 934128,
+        "owned_inventory_item": 2453360,
+        "registered_gun_action": 2840948,
+        "inventory_action_variable": 2869660,
+        "selected_inventory": 2869652,
+        "queue_mouse_move": 309264
       },
       "offsets": {
         "children": 2052,

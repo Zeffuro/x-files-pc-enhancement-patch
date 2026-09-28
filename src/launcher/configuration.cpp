@@ -1,4 +1,5 @@
 #include "configuration.h"
+#include "platform/copy_file.h"
 
 #include <stdexcept>
 
@@ -17,6 +18,6 @@ void initialize_configuration(const std::filesystem::path& directory) {
             throw std::runtime_error("Missing default settings. Extract the complete release ZIP "
                                      "into the installed game folder.");
         }
-        fs::copy_file(defaults, live, fs::copy_options::skip_existing);
+        platform::copy_file(defaults, live, fs::copy_options::skip_existing);
     }
 }

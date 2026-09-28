@@ -59,6 +59,13 @@ struct Profile {
     std::uint32_t canvas_transfer;
     std::uint32_t credit_position;
     std::uint32_t canvas;
+    std::uint32_t select_inventory;
+    std::uint32_t set_inventory_action;
+    std::uint32_t owned_inventory_item;
+    std::uint32_t registered_gun_action;
+    std::uint32_t inventory_action_variable;
+    std::uint32_t selected_inventory;
+    std::uint32_t queue_mouse_move;
 };
 
 struct Build {
@@ -120,6 +127,13 @@ inline constexpr Profile profile_cd_10012{
     .canvas_transfer = 0xcee0,
     .credit_position = 0xc0,
     .canvas = 0x7d0,
+    .select_inventory = 0xb0710,
+    .set_inventory_action = 0xe1e80,
+    .owned_inventory_item = 0x253f60,
+    .registered_gun_action = 0x2b193c,
+    .inventory_action_variable = 0x2b897c,
+    .selected_inventory = 0x2b8974,
+    .queue_mouse_move = 0x4bd00,
 };
 
 inline constexpr Profile profile_cd_10019{
@@ -173,6 +187,13 @@ inline constexpr Profile profile_cd_10019{
     .canvas_transfer = 0xccd0,
     .credit_position = 0xc4,
     .canvas = 0x7d4,
+    .select_inventory = 0xb02c0,
+    .set_inventory_action = 0xe3d00,
+    .owned_inventory_item = 0x255f78,
+    .registered_gun_action = 0x2b496c,
+    .inventory_action_variable = 0x2bb97c,
+    .selected_inventory = 0x2bb974,
+    .queue_mouse_move = 0x4b720,
 };
 
 inline constexpr Profile profile_dvd_20000{
@@ -226,6 +247,13 @@ inline constexpr Profile profile_dvd_20000{
     .canvas_transfer = 0xccd0,
     .credit_position = 0xc4,
     .canvas = 0x7d4,
+    .select_inventory = 0xcb190,
+    .set_inventory_action = 0x118fd0,
+    .owned_inventory_item = 0x259e58,
+    .registered_gun_action = 0x2b6334,
+    .inventory_action_variable = 0x2bf764,
+    .selected_inventory = 0x2bf75c,
+    .queue_mouse_move = 0x4b7e0,
 };
 
 inline constexpr Profile profile_cd_10020{
@@ -279,6 +307,13 @@ inline constexpr Profile profile_cd_10020{
     .canvas_transfer = 0xccf0,
     .credit_position = 0xc4,
     .canvas = 0x7d4,
+    .select_inventory = 0xb04d0,
+    .set_inventory_action = 0xe40f0,
+    .owned_inventory_item = 0x256f70,
+    .registered_gun_action = 0x2b5974,
+    .inventory_action_variable = 0x2bc99c,
+    .selected_inventory = 0x2bc994,
+    .queue_mouse_move = 0x4b810,
 };
 
 inline constexpr Build build_cd_10012{

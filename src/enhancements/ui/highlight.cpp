@@ -99,8 +99,8 @@ void update_highlight(HWND window, bool focused) {
                     found = true;
                 }
             }
-            if (found && has(resource::options) && target.top >= 135 && target.bottom <= 440 &&
-                target.bottom - target.top <= 24) {
+            if (found && has(resource::options) && !has(resource::options_audio) &&
+                target.top >= 135 && target.bottom <= 440 && target.bottom - target.top <= 24) {
                 target.right = target.left < 160 ? 355 : 622;
             }
         }

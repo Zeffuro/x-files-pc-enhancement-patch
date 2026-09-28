@@ -27,6 +27,7 @@ public:
     void play(std::span<const std::int16_t> samples);
     void stop();
     void volume(std::int16_t level, std::int16_t balance);
+    void speed(unsigned multiplier);
 
 private:
     struct State;

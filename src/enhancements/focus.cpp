@@ -150,12 +150,7 @@ bool point_controller(HWND window, const RECT& target, bool activate, bool right
         return false;
     }
     if (activate) {
-        INPUT events[2]{};
-        events[0].type = events[1].type = INPUT_MOUSE;
-        events[0].mi.dwExtraInfo = events[1].mi.dwExtraInfo = controller_event;
-        events[0].mi.dwFlags = right ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
-        events[1].mi.dwFlags = right ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
-        return SendInput(2, events, sizeof(INPUT)) == 2;
+        return input::injected_input().click(right, controller_event).started();
     }
     return true;
 }

@@ -1,0 +1,3 @@
+effect	low_motor	high_motor	duration_ms	ps1_large	ps1_small	ps1_ticks	timing_basis	overlap
+ps1_short	44975	65535	83	175	1	5	assumed_60_updates_per_second	replace_strength_extend_end
+ps1_long	64250	65535	1000	250	1	60	assumed_60_updates_per_second	replace_strength_extend_end

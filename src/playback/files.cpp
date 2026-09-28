@@ -1,6 +1,7 @@
 #include "movie.h"
 #include "inspection.h"
 #include "media/files.h"
+#include "enhancements/rumble.h"
 
 #include <windows.h>
 #include <algorithm>
@@ -134,6 +135,9 @@ Error __cdecl from_file(MovieHandle* output, short reference, short* resource, s
 }
 
 void __cdecl dispose(MovieHandle handle) {
+    if (const auto found = movies.find(handle); found != movies.end()) {
+        enhancements::cancel_rumble(reinterpret_cast<std::uintptr_t>(found->second.get()));
+    }
     release_callbacks(handle);
     movies.erase(handle);
 }
@@ -233,12 +237,14 @@ std::vector<MovieSnapshot> inspect_movies() {
 }
 
 std::vector<MovieHandle> pause_movies() {
+    enhancements::stop_rumble();
     std::vector<MovieHandle> result;
     for (const auto& [handle, value] : movies) {
         refresh_time(*value);
         if (value->rate) {
             result.push_back(handle);
             value->rate = 0;
+            value->fast_forward.reset();
             sync_audio(*value);
         }
     }
@@ -249,7 +255,9 @@ void resume_movies(const std::vector<MovieHandle>& handles) {
     for (const auto handle : handles) {
         if (movie_exists(handle)) {
             auto& value = movie(handle);
+            value.redraw = true;
             value.rate = unit_rate;
+            value.fast_forward.reset();
             value.started = std::chrono::steady_clock::now();
             sync_audio(value);
         }

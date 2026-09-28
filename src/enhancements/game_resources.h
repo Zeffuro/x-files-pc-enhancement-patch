@@ -2,6 +2,7 @@
 
 namespace enhancements::resource {
 inline constexpr unsigned options = 0xc24a;
+inline constexpr unsigned options_audio = 0xc275;
 inline constexpr unsigned save = 0x14269;
 inline constexpr unsigned load = 0x142ca;
 inline constexpr unsigned help = 0xc51c;

@@ -14,7 +14,9 @@ FIELDS = (
     "string_create string_destroy save_state save_file load_file pending_load choice_viewport "
     "text_draw text_out string_resource asset_reference "
     "credit_group credit_update credit_draw credit_invalidate credit_outer canvas_invalidate "
-    "canvas_transfer_call canvas_transfer credit_position canvas"
+    "canvas_transfer_call canvas_transfer credit_position canvas "
+    "select_inventory set_inventory_action owned_inventory_item registered_gun_action "
+    "inventory_action_variable selected_inventory queue_mouse_move"
 ).split()
 OFFSETS = {"children", "control_rectangle", "choice_viewport", "credit_position", "canvas"}
 BUILD_IDS = ("cd_10012", "cd_10019", "dvd_20000", "cd_10020")

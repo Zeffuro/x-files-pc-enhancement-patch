@@ -138,6 +138,38 @@ void switching_preserves_existing_held_baseline() {
     require(fresh.sample.left_x == 24000);
 }
 
+void focus_and_reconnect_require_neutral() {
+    using namespace enhancements::input;
+    FakeBackend backend;
+    Selection selection;
+    backend.connected[0] = true;
+    selection.poll(backend, true);
+    const Sample held{button::activate | button::right, 255, 255, 25000, -25000};
+    backend.samples[0] = held;
+    require(selection.poll(backend, true).aim_pressed);
+    selection.poll(backend, false);
+    auto frame = selection.poll(backend, true);
+    require(!frame.pressed && !frame.aim_pressed && !frame.sample.buttons);
+    require(!frame.sample.left_trigger && !frame.sample.right_trigger && !frame.sample.left_x &&
+            !frame.sample.left_y);
+    backend.samples[0] = {};
+    selection.poll(backend, true);
+    backend.samples[0] = held;
+    require(selection.poll(backend, true).pressed == held.buttons);
+    backend.connected[0] = false;
+    require(!selection.poll(backend, true).connected);
+    backend.connected[0] = true;
+    frame = selection.poll(backend, true);
+    require(frame.connected && frame.device_changed && !frame.sample.buttons);
+    require(!frame.sample.left_x && !frame.sample.left_trigger);
+    require(!selection.poll(backend, true).pressed);
+    backend.samples[0] = {};
+    selection.poll(backend, true);
+    backend.samples[0] = held;
+    frame = selection.poll(backend, true);
+    require(frame.pressed == held.buttons && frame.aim_pressed && frame.sample.left_x == 25000);
+}
+
 }
 
 int main() {
@@ -145,4 +177,5 @@ int main() {
     active_device_and_hotplug();
     no_phantom_analog_after_switch();
     switching_preserves_existing_held_baseline();
+    focus_and_reconnect_require_neutral();
 }

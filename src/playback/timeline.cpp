@@ -2,20 +2,38 @@
 #include "menu_colors.h"
 #include "settings.h"
 #include "devtools/inspector.h"
+#include "enhancements/game_ui.h"
+#include "enhancements/input_source.h"
+#include "enhancements/rumble.h"
+#include "enhancements/controls.h"
+#include "fast_forward_input.h"
 
 #include <algorithm>
 #include <stdexcept>
 
 namespace playback {
 
+bool supports_fast_forward(const Movie& value) {
+    const bool moving = std::any_of(value.tracks.begin(), value.tracks.end(), [](const auto& t) {
+        return t->enabled && t->media->handler == "vide" && t->media->samples.size() > 1 &&
+               !t->media->descriptions.empty() && t->media->descriptions.front().codec == "cvid";
+    });
+    const bool sound = std::any_of(value.tracks.begin(), value.tracks.end(), [](const auto& t) {
+        return t->enabled && t->media->handler == "soun";
+    });
+    return moving && sound && !is_menu_entrance(value.filename);
+}
+
 void refresh_time(Movie& value) {
     if (!value.rate) {
+        value.fast_forward.clear();
         return;
     }
     if (settings().skip_menu_animation && is_menu_entrance(value.filename)) {
         // Complete through the normal drawing/callback path, preserving menu initialization.
         value.time = static_cast<std::int32_t>(value.media->duration);
         value.rate = 0;
+        value.fast_forward.clear();
         if (value.audio) {
             value.audio->stop();
         }
@@ -23,22 +41,33 @@ void refresh_time(Movie& value) {
     }
     const auto now = std::chrono::steady_clock::now();
     const auto elapsed = std::chrono::duration<double>(now - value.started).count();
-    const auto ticks = static_cast<std::int64_t>(elapsed * value.media->timescale);
-    if (ticks <= 0) {
-        return;
-    }
+    const bool accelerated = value.fast_forward.previously_active();
+    value.fast_forward.context();
+    const auto speed = value.fast_forward.active() ? settings().movie_speed : 1;
+    const auto ticks = static_cast<std::int64_t>(elapsed * value.media->timescale * speed);
     const auto position = std::min<std::int64_t>(value.media->duration, value.time + ticks);
     value.time = static_cast<std::int32_t>(position);
     value.started += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-        std::chrono::duration<double>(static_cast<double>(ticks) / value.media->timescale));
+        std::chrono::duration<double>(static_cast<double>(ticks) / value.media->timescale / speed));
     if (static_cast<std::uint64_t>(position) == value.media->duration) {
         value.rate = 0;
+        value.fast_forward.clear();
+        enhancements::cancel_rumble(reinterpret_cast<std::uintptr_t>(&value));
+    } else {
+        poll_fast_forward(value.fast_forward, enhancements::playback_input_window(),
+                          settings().movie_speed_key, settings().gamepad,
+                          value.active && supports_fast_forward(value));
+    }
+    if (accelerated != value.fast_forward.active()) {
+        enhancements::cancel_rumble(reinterpret_cast<std::uintptr_t>(&value));
+        sync_audio(value);
     }
 }
 
 void sync_audio(Movie& value) {
     try {
-        if (!value.rate || !value.active) {
+        if (!value.rate || !value.active ||
+            (value.fast_forward.active() && settings().movie_speed_mute)) {
             if (value.audio) {
                 value.audio->stop();
             }
@@ -60,7 +89,8 @@ void sync_audio(Movie& value) {
             value.audio = std::make_unique<Audio>(*value.media, *selected->media);
             value.audio->balance(selected->balance);
         }
-        value.audio->play(value.time, value.media->timescale, value.volume);
+        value.audio->play(value.time, value.media->timescale, value.volume,
+                          value.fast_forward.active() ? settings().movie_speed : 1);
     } catch (const std::exception& error) {
         unsupported(Selector::StartMovie, error.what(), 0);
     }
@@ -69,7 +99,8 @@ void sync_audio(Movie& value) {
 void task_movie(MovieHandle handle) {
     auto& value = movie(handle);
     refresh_time(value);
-    if (value.active && value.rate && value.audio) {
+    if (value.active && value.rate && value.audio &&
+        !(value.fast_forward.active() && settings().movie_speed_mute)) {
         try {
             value.audio->refresh(value.time, value.media->timescale);
         } catch (const std::exception& error) {
@@ -111,7 +142,16 @@ void __cdecl set_rate(MovieHandle handle, std::int32_t rate) {
     }
     auto& value = movie(handle);
     refresh_time(value);
+    if (!rate && value.rate && static_cast<std::uint64_t>(value.time) < value.media->duration &&
+        supports_fast_forward(value)) {
+        value.fast_forward.reset();
+    } else {
+        value.fast_forward.clear();
+    }
     value.rate = rate;
+    if (!rate) {
+        enhancements::cancel_rumble(reinterpret_cast<std::uintptr_t>(&value));
+    }
     trace_movie("rate", value, rate);
     value.started = std::chrono::steady_clock::now();
     sync_audio(value);
@@ -125,9 +165,16 @@ std::int32_t __cdecl get_rate(MovieHandle handle) {
 
 void __cdecl start(MovieHandle handle) {
     auto& value = movie(handle);
+    const auto prior_rate = value.rate;
     value.active = true;
     value.redraw = true;
     set_rate(handle, value.preferred_rate);
+    const auto effect =
+        value.rumble.start(value.relative_path.native(), value.time, prior_rate, value.rate);
+    if (settings().gamepad && settings().vibration && enhancements::controller_active &&
+        enhancements::game::executable_image()) {
+        enhancements::play_rumble(effect, reinterpret_cast<std::uintptr_t>(&value));
+    }
 }
 
 void __cdecl stop(MovieHandle handle) {
@@ -146,7 +193,14 @@ std::int32_t __cdecl get_time(MovieHandle handle, TimeRecord* record) {
 
 void __cdecl set_time(MovieHandle handle, std::int32_t time) {
     auto& value = movie(handle);
+    enhancements::cancel_rumble(reinterpret_cast<std::uintptr_t>(&value));
+    if ((value.rate || value.time) && supports_fast_forward(value)) {
+        value.fast_forward.reset();
+    } else {
+        value.fast_forward.clear();
+    }
     value.time = std::clamp(time, 0, static_cast<std::int32_t>(value.media->duration));
+    value.rumble.seek(value.time);
     // Forward seeks must still deliver crossed callbacks on the next MoviesTask.
     value.serviced_time = std::min(value.serviced_time, value.time);
     trace_movie("seek", value, value.time);
@@ -271,4 +325,8 @@ Entry timeline_entry(Selector selector) {
         bind_entry(Selector::SetMoviePreferredRate, set_preferred_rate),
     };
     return find_entry(selector, entries);
+}
+
+extern "C" playback::FastForwardInput* __cdecl XFilesMovieSpeedInputV1() {
+    return &playback::movie_speed_input;
 }

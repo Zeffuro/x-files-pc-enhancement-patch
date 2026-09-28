@@ -15,13 +15,13 @@ class PackageError(ValueError):
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-RUNTIME = {"XFilesPlay.exe", "XFilesSetup.exe", "QuickTime.qts", "ddraw.dll"}
+RUNTIME = {"XFilesPlay.exe", "XFilesSetup.exe", "QuickTime.qts", "ddraw.dll", "XFilesMpeg.dll"}
 REQUIRED = RUNTIME | {
     "LICENSE", "THIRD_PARTY.md", "README.md", "CHANGELOG.md", "cnc-ddraw.LICENSE", "FFmpeg.LICENSE",
-    "zlib.LICENSE", "defaults/ddraw.ini", "defaults/patch.ini", "docs/controls.md", "docs/building.md",
+    "zlib.LICENSE", "defaults/ddraw.ini", "defaults/patch.ini", "docs/controls.md", "docs/building.md", "docs/linux.md",
     "source/ffmpeg/build-ffmpeg.sh", "defaults/clip-labels.tsv", "icons/patch.ico", "icons/patch.svg",
 }
-COMPONENTS = ("avcodec", "avutil", "swresample", "swscale")
+COMPONENTS = ("avformat", "avcodec", "avfilter", "avutil", "swresample", "swscale")
 
 
 def ffmpeg_pin(script: bytes) -> tuple[str, str]:

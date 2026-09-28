@@ -1,4 +1,5 @@
 #include "movie.h"
+#include "enhancements/rumble.h"
 
 namespace playback {
 
@@ -52,6 +53,15 @@ void __cdecl set_active(MovieHandle handle, std::uint8_t active) {
     }
     trace_movie("active", state, active);
     state.active = active != 0;
+    if (!state.active) {
+        if (state.rate && static_cast<std::uint64_t>(state.time) < state.media->duration &&
+            supports_fast_forward(state)) {
+            state.fast_forward.reset();
+        } else {
+            state.fast_forward.clear();
+        }
+        enhancements::cancel_rumble(reinterpret_cast<std::uintptr_t>(&state));
+    }
     sync_audio(state);
 }
 

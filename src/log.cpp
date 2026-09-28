@@ -1,5 +1,6 @@
 #include "runtime.h"
 #include "diagnostics/log_file.h"
+#include "enhancements/rumble.h"
 
 #include <cstdio>
 #include <cstring>
@@ -56,6 +57,7 @@ void trace_value(const char* name, std::uint32_t value) {
 }
 
 [[noreturn]] void unsupported(std::uint32_t selector, const char* name, std::uintptr_t caller) {
+    enhancements::stop_rumble();
     write_line("UNSUPPORTED", selector, name, caller);
     void* frames[24]{};
     const auto count = CaptureStackBackTrace(0, 24, frames, nullptr);

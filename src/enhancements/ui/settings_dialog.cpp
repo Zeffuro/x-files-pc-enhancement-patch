@@ -1,6 +1,8 @@
 #include "settings_dialog.h"
 #include "tools_dialog.h"
+#include "movie_preview.h"
 #include "enhancements/quick_save.h"
+#include "enhancements/edition.h"
 #include "resources.h"
 #include "settings.h"
 #include "playback/output.h"
@@ -9,6 +11,7 @@
 #include "platform/tool_cursor.h"
 #include "platform/tool_theme.h"
 #include "localization/ui.h"
+#include "dvd/tools_pause.h"
 
 #include <shellapi.h>
 #include <commctrl.h>
@@ -27,6 +30,7 @@ struct Dialog {
     unsigned display_mode = 0;
     unsigned window_size = 0;
     unsigned scaling_filter = 0;
+    unsigned original_filter = 0;
     bool inspect = false;
 };
 
@@ -35,6 +39,21 @@ struct WindowSize {
     unsigned width;
     unsigned height;
 };
+
+bool dvd_movies_available() {
+    if (game::edition().application != game::dvd.application) {
+        return false;
+    }
+    std::vector<wchar_t> path(32768);
+    const auto size = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+    if (!size || size >= path.size()) {
+        return false;
+    }
+    const auto root = std::filesystem::path(path.data()).parent_path();
+    std::error_code error;
+    return std::filesystem::is_regular_file(root / L"vob" / L"teaser.vob", error) ||
+           std::filesystem::is_regular_file(root / L"vob" / L"ddigital1.vob", error);
+}
 
 constexpr std::array window_sizes{
     WindowSize{L"Keep current size", 0, 0},
@@ -120,6 +139,7 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             state->scaling_filter = static_cast<unsigned>(
                 SendMessageW(GetParent(window),
                              RegisterWindowMessageW(L"XFilesEnhancement.ScalingFilter"), 0, 0));
+            state->original_filter = state->scaling_filter;
             for (const auto label : {L"Nearest neighbour", L"Bilinear (soft)", L"Bicubic (default)",
                                      L"Lanczos (sharp)"}) {
                 SendDlgItemMessageW(window, IDC_SCALING_FILTER, CB_ADDSTRING, 0,
@@ -174,11 +194,38 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                                                            : 0,
                                 0);
             CheckDlgButton(window, IDC_GAMEPAD, settings().gamepad ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(window, IDC_VIBRATION,
+                           settings().vibration ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(window, IDC_CONTROLLER_HINTS,
+                           settings().controller_hints ? BST_CHECKED : BST_UNCHECKED);
+            EnableWindow(GetDlgItem(window, IDC_VIBRATION), settings().gamepad);
             CheckDlgButton(window, IDC_ANALOG_CURSOR,
                            settings().analog_cursor ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_SPRING_CURSOR,
                            settings().spring_cursor ? BST_CHECKED : BST_UNCHECKED);
             EnableWindow(GetDlgItem(window, IDC_SPRING_CURSOR), settings().analog_cursor);
+            CheckDlgButton(window, IDC_DVD_DEINTERLACE,
+                           settings().dvd_deinterlace ? BST_CHECKED : BST_UNCHECKED);
+            const bool dvd = dvd_movies_available();
+            CheckDlgButton(window, IDC_DVD_MOVIES,
+                           settings().dvd_movies ? BST_CHECKED : BST_UNCHECKED);
+            EnableWindow(GetDlgItem(window, IDC_DVD_MOVIES), dvd);
+            EnableWindow(GetDlgItem(window, IDC_DVD_DEINTERLACE), dvd && settings().dvd_movies);
+            for (const auto label : {L"Original (off)", L"Reviewed scene grades",
+                                     L"Contrast +15% (Cinepak)", L"Contrast +25% (Cinepak)"}) {
+                SendDlgItemMessageW(window, IDC_MOVIE_CONTRAST, CB_ADDSTRING, 0,
+                                    reinterpret_cast<LPARAM>(ui::translate(label)));
+            }
+            SendDlgItemMessageW(window, IDC_MOVIE_CONTRAST, CB_SETCURSEL,
+                                static_cast<WPARAM>(settings().movie_contrast), 0);
+            for (const auto label : {L"2x", L"3x", L"4x"}) {
+                SendDlgItemMessageW(window, IDC_MOVIE_SPEED, CB_ADDSTRING, 0,
+                                    reinterpret_cast<LPARAM>(label));
+            }
+            SendDlgItemMessageW(window, IDC_MOVIE_SPEED, CB_SETCURSEL, settings().movie_speed - 2,
+                                0);
+            CheckDlgButton(window, IDC_MOVIE_SPEED_MUTE,
+                           settings().movie_speed_mute ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_MENU_BLACK,
                            settings().menu_black_background ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_SKIP_LOGIN,
@@ -199,9 +246,40 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             }
             return TRUE;
         }
+        if (message == WM_COMMAND && LOWORD(parameter) == IDC_DVD_MOVIES) {
+            EnableWindow(GetDlgItem(window, IDC_DVD_DEINTERLACE),
+                         dvd_movies_available() &&
+                             IsDlgButtonChecked(window, IDC_DVD_MOVIES) == BST_CHECKED);
+            return TRUE;
+        }
+        if (message == WM_COMMAND && LOWORD(parameter) == IDC_SCALING_FILTER &&
+            HIWORD(parameter) == CBN_SELCHANGE && state && state->scaling_filter) {
+            const auto filter = SendDlgItemMessageW(window, IDC_SCALING_FILTER, CB_GETCURSEL, 0, 0);
+            if (filter >= 0 && filter <= 3) {
+                SendMessageW(GetParent(window),
+                             RegisterWindowMessageW(L"XFilesEnhancement.ScalingFilter"), filter + 1,
+                             0);
+            }
+            return TRUE;
+        }
+        if (message == WM_COMMAND && LOWORD(parameter) == IDC_MOVIE_PREVIEW) {
+            const auto selected =
+                SendDlgItemMessageW(window, IDC_MOVIE_CONTRAST, CB_GETCURSEL, 0, 0);
+            const auto mode = show_movie_preview(
+                window, reinterpret_cast<HMODULE>(GetWindowLongPtrW(window, GWLP_HINSTANCE)),
+                static_cast<MovieContrast>(selected));
+            SendDlgItemMessageW(window, IDC_MOVIE_CONTRAST, CB_SETCURSEL, static_cast<WPARAM>(mode),
+                                0);
+            return TRUE;
+        }
         if (message == WM_COMMAND && LOWORD(parameter) == IDC_ANALOG_CURSOR) {
             EnableWindow(GetDlgItem(window, IDC_SPRING_CURSOR),
                          IsDlgButtonChecked(window, IDC_ANALOG_CURSOR) == BST_CHECKED);
+            return TRUE;
+        }
+        if (message == WM_COMMAND && LOWORD(parameter) == IDC_GAMEPAD) {
+            EnableWindow(GetDlgItem(window, IDC_VIBRATION),
+                         IsDlgButtonChecked(window, IDC_GAMEPAD) == BST_CHECKED);
             return TRUE;
         }
         if (message == WM_COMMAND && LOWORD(parameter) == IDC_TOOLS && state) {
@@ -232,6 +310,9 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             value.focus_highlight = static_cast<FocusHighlight>(highlight);
             value.audio_device = state->devices[index].id;
             value.gamepad = IsDlgButtonChecked(window, IDC_GAMEPAD) == BST_CHECKED;
+            value.vibration = IsDlgButtonChecked(window, IDC_VIBRATION) == BST_CHECKED;
+            value.controller_hints =
+                IsDlgButtonChecked(window, IDC_CONTROLLER_HINTS) == BST_CHECKED;
             value.analog_cursor = IsDlgButtonChecked(window, IDC_ANALOG_CURSOR) == BST_CHECKED;
             value.spring_cursor = IsDlgButtonChecked(window, IDC_SPRING_CURSOR) == BST_CHECKED;
             const auto captions = SendDlgItemMessageW(window, IDC_CAPTIONS, CB_GETCURSEL, 0, 0);
@@ -257,6 +338,19 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             value.caption_style.background_color = color == 1   ? RGB(40, 40, 40)
                                                    : color == 2 ? RGB(12, 24, 48)
                                                                 : RGB(0, 0, 0);
+            value.dvd_deinterlace = IsDlgButtonChecked(window, IDC_DVD_DEINTERLACE) == BST_CHECKED;
+            value.dvd_movies = IsDlgButtonChecked(window, IDC_DVD_MOVIES) == BST_CHECKED;
+            const auto speed = SendDlgItemMessageW(window, IDC_MOVIE_SPEED, CB_GETCURSEL, 0, 0);
+            if (speed >= 0 && speed <= 2) {
+                value.movie_speed = static_cast<unsigned>(speed) + 2;
+            }
+            value.movie_speed_mute =
+                IsDlgButtonChecked(window, IDC_MOVIE_SPEED_MUTE) == BST_CHECKED;
+            const auto contrast =
+                SendDlgItemMessageW(window, IDC_MOVIE_CONTRAST, CB_GETCURSEL, 0, 0);
+            if (contrast >= 0 && contrast <= static_cast<LRESULT>(MovieContrast::Medium)) {
+                value.movie_contrast = static_cast<MovieContrast>(contrast);
+            }
             value.menu_black_background = IsDlgButtonChecked(window, IDC_MENU_BLACK) == BST_CHECKED;
             value.skip_workstation_login =
                 IsDlgButtonChecked(window, IDC_SKIP_LOGIN) == BST_CHECKED;
@@ -344,6 +438,7 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
 }
 
 void show_settings_dialog(HWND window) {
+    dvd::ToolPause dvd_pause;
     platform::ToolCursor cursor(window);
 
     std::vector<playback::MovieHandle> paused;
@@ -370,6 +465,10 @@ void show_settings_dialog(HWND window) {
         }
         if (result == IDC_LOAD_CHECKPOINT) {
             checkpoint = state.checkpoint;
+        }
+        if (result != IDOK && state.original_filter) {
+            SendMessageW(window, RegisterWindowMessageW(L"XFilesEnhancement.ScalingFilter"),
+                         state.original_filter, 0);
         }
         if (result == IDOK && state.display_mode) {
             if (state.window_size) {

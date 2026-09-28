@@ -22,6 +22,10 @@ MainView* current_view() {
     return nullptr;
 }
 
+bool world_navigation_available() {
+    return false;
+}
+
 RECT scene_bounds() {
     return {20, 90, 620, 330};
 }
@@ -56,6 +60,10 @@ int main() {
             const auto close = choices.close_for(*profile);
             require(close.left == 462 && close.top == 302,
                     "Conversation close box must follow the panel origin.");
+            const auto panel = choices.panel_for(*profile);
+            const RECT expected_panel{230, 296, 473, 405};
+            require(EqualRect(&panel, &expected_panel),
+                    "Conversation hints must follow the frame across edition layouts.");
             game::MainView view{};
             auto& children = *reinterpret_cast<game::List<game::ChildView>*>(
                 reinterpret_cast<std::byte*>(&view) + profile->children);

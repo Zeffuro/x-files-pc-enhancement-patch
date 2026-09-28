@@ -12,6 +12,7 @@ struct Dialogue {
     std::size_t count = 0;
     RECT talk{};
     RECT history{};
+    RECT panel{};
     bool is_history = false;
 };
 

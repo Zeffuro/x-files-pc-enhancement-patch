@@ -6,5 +6,6 @@ namespace enhancements {
 inline constexpr RECT settings_link{470, 432, 638, 475};
 bool settings_link_visible();
 void update_settings_link(HWND owner, bool visible);
+void position_settings_link(HWND owner);
 void release_settings_link();
 }

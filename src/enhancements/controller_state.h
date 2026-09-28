@@ -24,6 +24,7 @@ inline constexpr std::uint16_t up = 1 << 9;
 inline constexpr std::uint16_t down = 1 << 10;
 inline constexpr std::uint16_t left = 1 << 11;
 inline constexpr std::uint16_t right = 1 << 12;
+inline constexpr std::uint16_t speed = 1 << 13;
 }
 
 struct Sample {

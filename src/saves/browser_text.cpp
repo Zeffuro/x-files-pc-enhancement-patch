@@ -1,7 +1,5 @@
 #include "browser_text.h"
-
-#include <mutex>
-#include <set>
+#include "platform/game_fonts.h"
 
 namespace saves {
 namespace {
@@ -35,34 +33,6 @@ struct NativeStrings {
         return size > 0 ? std::wstring(buffer, size) : std::wstring{};
     }
 };
-
-struct FontFiles {
-    std::mutex mutex;
-    std::set<std::filesystem::path> loaded;
-
-    ~FontFiles() {
-        for (const auto& path : loaded) {
-            RemoveFontResourceExW(path.c_str(), FR_PRIVATE, nullptr);
-        }
-    }
-
-    bool register_file(const std::filesystem::path& path) {
-        std::lock_guard lock(mutex);
-        if (loaded.contains(path)) {
-            return true;
-        }
-        if (!AddFontResourceExW(path.c_str(), FR_PRIVATE, nullptr)) {
-            return false;
-        }
-        loaded.insert(path);
-        return true;
-    }
-};
-
-FontFiles& font_files() {
-    static FontFiles files;
-    return files;
-}
 
 BrowserText english() {
     return {L"Previous",
@@ -265,7 +235,7 @@ BrowserText load_browser_text(const std::filesystem::path& game) {
 HFONT create_browser_font(const std::filesystem::path& game, int height) {
     const NativeStrings native(game);
     const bool japanese = PRIMARYLANGID(native.language) == LANG_JAPANESE;
-    const bool custom = !japanese && font_files().register_file(game / L"DLG.TTR");
+    const bool custom = !japanese && platform::register_private_font(game / L"DLG.TTR");
     const wchar_t* face = japanese ? L"MS Gothic" : custom ? L"Schmutz ICG Cleaned" : L"Arial";
     return CreateFontW(height, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                        japanese ? SHIFTJIS_CHARSET : DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,

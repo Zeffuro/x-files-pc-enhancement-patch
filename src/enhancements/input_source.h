@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include "input_delivery.h"
 
 namespace enhancements {
 inline constexpr ULONG_PTR controller_event = 0x58464354;
@@ -20,6 +21,9 @@ inline void observe_pointer() {
 }
 
 inline BOOL move_controller_pointer(int x, int y) {
+    if (input::injected_input().pending()) {
+        return FALSE;
+    }
     const auto moved = SetCursorPos(x, y);
     pointer_known = GetCursorPos(&last_pointer) != FALSE;
     return moved;

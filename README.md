@@ -9,6 +9,8 @@ You need your own copy of the game.
 [Download](https://github.com/Zeffuro/x-files-pc-enhancement-patch/releases) ·
 [Controls and settings](docs/controls.md) · [What's new](CHANGELOG.md) · [Building](docs/building.md)
 
+Trying Wine, Steam Proton or Lutris? See [Linux instructions](docs/linux.md).
+
 **Early release. A full playthrough hasn't been tested.**
 
 ## Install
@@ -20,7 +22,7 @@ You need your own copy of the game.
    or the shortcut created by setup.
 
 Setup's language can be changed independently of the game's language.
-On first launch, choose **Recommended** or pick your own enhancements.
+On first launch, the **Recommended** choices are already selected. Adjust them to suit how you play.
 You can change these later with **F10**.
 
 The discs aren't needed after installation. If setup cannot open a DVD image,

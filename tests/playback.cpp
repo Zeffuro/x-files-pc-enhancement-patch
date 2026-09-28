@@ -19,9 +19,9 @@ using namespace test;
 using Data = std::vector<std::uint8_t>;
 
 void verify_menu_black() {
-    Data pixels{2, 2, 2, 255, 7, 7, 7, 255, 8, 8, 8, 255, 3, 2, 2, 255};
+    Data pixels{2, 2, 2, 255, 16, 14, 15, 128, 17, 17, 17, 255, 8, 5, 5, 255};
     playback::restore_menu_black(pixels);
-    require(pixels == Data{0, 0, 0, 255, 0, 0, 0, 255, 8, 8, 8, 255, 3, 2, 2, 255},
+    require(pixels == Data{0, 0, 0, 255, 0, 0, 0, 128, 17, 17, 17, 255, 8, 5, 5, 255},
             "Menu black correction changed the glow or alpha channel.");
     require(playback::is_menu_animation("49587.xmv") && playback::is_menu_animation("49587.XMV") &&
                 !playback::is_menu_animation("49583.xmv"),
@@ -528,6 +528,21 @@ int wmain(int argc, wchar_t** argv) {
         }
         require(audio_output || argc == 3, "External movie fixtures require audio-output mode.");
         const auto settings_path = directory / L"patch.ini";
+        require(read_settings(settings_path).dvd_movies &&
+                    read_settings(settings_path).movie_contrast == MovieContrast::Off,
+                "Movie option defaults changed");
+        std::ofstream(settings_path) << "[Video]\nDVDMovies=0\nMovieContrast=1\n";
+        require(!read_settings(settings_path).dvd_movies &&
+                    read_settings(settings_path).movie_contrast == MovieContrast::Scene,
+                "Movie options were not loaded");
+        std::ofstream(settings_path) << "[Video]\nMovieContrast=99\n";
+        require(read_settings(settings_path).movie_contrast == MovieContrast::Off,
+                "Invalid contrast did not fall back to off");
+        require(read_settings(settings_path).dvd_deinterlace,
+                "DVD deinterlacing should default to enabled.");
+        std::ofstream(settings_path) << "[Video]\nDVDDeinterlace=0\n";
+        require(!read_settings(settings_path).dvd_deinterlace,
+                "Original DVD fields cannot be selected.");
         require(read_settings(settings_path).menu_black_background,
                 "Menu black enhancement should default to enabled.");
         require(!read_settings(settings_path).skip_workstation_login,
@@ -536,6 +551,9 @@ int wmain(int argc, wchar_t** argv) {
                 "Manual analog pointer control must default to enabled.");
         require(!read_settings(settings_path).spring_cursor,
                 "Spring-centred pointer must be opt-in.");
+        require(read_settings(settings_path).vibration, "Vibration must default on.");
+        std::ofstream(settings_path) << "[Input]\nVibration=0\n";
+        require(!read_settings(settings_path).vibration, "Explicit vibration off was lost.");
         std::ofstream(settings_path) << "[Input]\nSpringCursor=1\n";
         require(read_settings(settings_path).spring_cursor,
                 "Spring-centred pointer cannot be selected.");

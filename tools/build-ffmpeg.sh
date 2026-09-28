@@ -33,10 +33,11 @@ cd "$build/ffmpeg-$version"
 
 ./configure --toolchain=msvc --arch=x86 --target-os=win32 \
     --disable-asm --disable-autodetect --disable-programs --disable-doc --disable-debug \
-    --disable-everything --disable-avdevice --disable-avfilter --disable-network \
+    --disable-everything --disable-avdevice --disable-network \
     --disable-static --enable-shared --disable-gpl --disable-nonfree \
     --enable-decoder=qdmc,qdm2,pcm_s8,pcm_u8,pcm_s16be,pcm_s16le,pcm_dvd,adpcm_ima_qt,cinepak,mjpeg,mpeg2video,rpza \
-    --enable-demuxer=mov,mpegps --enable-parser=mpegvideo,mpegaudio --enable-protocol=file \
+    --enable-demuxer=mov,mpegps,mpegvideo --enable-parser=mpegvideo,mpegaudio --enable-protocol=file \
+    --enable-avfilter --enable-filter=buffer,buffersink,bwdif \
     --prefix="$prefix"
 "${MAKE:-make}" -r -j8
 "${MAKE:-make}" -r install

@@ -1,6 +1,6 @@
 option(XFILES_CODE_ANALYSIS "Run MSVC static analysis on patch sources" OFF)
 if(XFILES_CODE_ANALYSIS)
-    foreach(target quicktime launcher-common movie xfiles-patch xfiles-setup)
+    foreach(target quicktime controller-input launcher-common movie dvd-player dvd-mpeg xfiles-patch xfiles-setup)
         target_compile_options(${target} PRIVATE /analyze)
     endforeach()
     if(TARGET xfiles-checkpoint)

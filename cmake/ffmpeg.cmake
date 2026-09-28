@@ -1,7 +1,10 @@
 set(FFMPEG_ROOT "" CACHE PATH "Prefix of the x86 shared FFmpeg build")
 find_path(ffmpeg_include libavcodec/avcodec.h PATHS "${FFMPEG_ROOT}/include" NO_DEFAULT_PATH REQUIRED)
 
-foreach(component avcodec avutil swresample swscale)
+foreach(component avformat avcodec avfilter avutil swresample swscale)
+    if(NOT EXISTS "${ffmpeg_include}/lib${component}/${component}.h")
+        message(FATAL_ERROR "Missing ${component} headers in ${FFMPEG_ROOT}/include")
+    endif()
     find_library(ffmpeg_${component}_library NAMES ${component}
         PATHS "${FFMPEG_ROOT}/lib" "${FFMPEG_ROOT}/bin" NO_DEFAULT_PATH REQUIRED)
     file(GLOB component_dll "${FFMPEG_ROOT}/bin/${component}-*.dll")

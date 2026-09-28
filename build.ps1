@@ -39,7 +39,12 @@ function Test-FFmpeg {
         return $false
     }
     if (Test-Path -LiteralPath "$Path/build-incomplete") { return $false }
-    foreach ($component in @('avcodec', 'avutil', 'swresample', 'swscale')) {
+    foreach ($component in @('avformat', 'avcodec', 'avfilter', 'avutil', 'swresample', 'swscale')) {
+        if (-not (Test-Path -LiteralPath "$Path/include/lib$component/$component.h") -or
+            (-not (Test-Path -LiteralPath "$Path/lib/$component.lib") -and
+             -not (Test-Path -LiteralPath "$Path/bin/$component.lib"))) {
+            return $false
+        }
         if (@(Get-ChildItem "$Path/bin/$component-*.dll" -ErrorAction SilentlyContinue).Count -ne 1) {
             return $false
         }

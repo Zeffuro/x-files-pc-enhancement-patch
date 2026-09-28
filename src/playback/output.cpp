@@ -79,7 +79,7 @@ struct Output::State {
 };
 
 Output::Output(const WAVEFORMATEX& format) : state_(std::make_unique<State>()) {
-    check(state_->engine->audio->CreateSourceVoice(&state_->voice, &format));
+    check(state_->engine->audio->CreateSourceVoice(&state_->voice, &format, 0, 4.0f));
 }
 
 Output::~Output() = default;
@@ -111,6 +111,10 @@ void Output::volume(std::int16_t level, std::int16_t balance) {
     const float channels[]{static_cast<float>(gains & 0xffff) / 65535,
                            static_cast<float>(gains >> 16) / 65535};
     check(state_->voice->SetChannelVolumes(2, channels));
+}
+
+void Output::speed(unsigned multiplier) {
+    check(state_->voice->SetFrequencyRatio(static_cast<float>(multiplier)));
 }
 
 std::vector<OutputDevice> output_devices() {

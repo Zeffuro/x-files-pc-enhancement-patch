@@ -9,6 +9,9 @@ namespace {
 
 thread_local bool focused = false;
 thread_local POINT return_point{};
+thread_local game::MainView* revealing = nullptr;
+thread_local POINT reveal_pointer{};
+thread_local ULONGLONG reveal_deadline = 0;
 
 template <class T> bool read(const void* address, T& value) {
     SIZE_T bytes = 0;
@@ -149,19 +152,66 @@ bool focus_inventory_item(HWND window, unsigned resource) {
     return focused;
 }
 
+bool reveal_inventory(HWND window) {
+    const auto* view = game::current_view();
+    if (revealing || !view || visible_inventory(view) || !game::world_navigation_available()) {
+        return false;
+    }
+    if (!GetCursorPos(&return_point) || !ScreenToClient(window, &return_point)) {
+        return false;
+    }
+    if (!move_cursor(window, {20, 440}) || !GetCursorPos(&reveal_pointer)) {
+        return false;
+    }
+    // Native pointer movement into the bottom band populates hidden inventory.
+    revealing = game::current_view();
+    reveal_deadline = GetTickCount64() + 750;
+    return revealing == view;
+}
+
+bool inventory_reveal_pending() {
+    return revealing != nullptr;
+}
+
 bool focus_inventory(HWND window) {
-    if (inventory_focused(window)) {
+    if (revealing || inventory_focused(window)) {
         return leave_inventory(window);
     }
     const auto items = inventory_bounds(game::current_view());
-    if (items.empty() || !GetCursorPos(&return_point) || !ScreenToClient(window, &return_point)) {
+    if (items.empty()) {
+        return reveal_inventory(window);
+    }
+    if (!GetCursorPos(&return_point) || !ScreenToClient(window, &return_point)) {
         return false;
     }
     focused = point_at(window, items.front());
     return focused;
 }
 
+void update_inventory_focus(HWND window, bool enabled) {
+    if (!revealing) {
+        return;
+    }
+    POINT cursor{};
+    if (!enabled || revealing != game::current_view() || !game::world_navigation_available() ||
+        GetTickCount64() >= reveal_deadline || !GetCursorPos(&cursor) ||
+        cursor.x != reveal_pointer.x || cursor.y != reveal_pointer.y) {
+        revealing = nullptr;
+        return;
+    }
+    const auto items = inventory_bounds(revealing);
+    if (!items.empty()) {
+        revealing = nullptr;
+        focused = point_at(window, items.front());
+    }
+}
+
 bool leave_inventory(HWND window) {
+    if (revealing) {
+        revealing = nullptr;
+        move_cursor(window, return_point);
+        return true;
+    }
     if (!inventory_focused(window)) {
         return false;
     }
@@ -192,6 +242,7 @@ bool navigate_inventory(HWND window, int direction) {
 
 void clear_inventory_focus() {
     focused = false;
+    revealing = nullptr;
 }
 
 }

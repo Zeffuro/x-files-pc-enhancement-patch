@@ -1,11 +1,9 @@
 #include "catalog.h"
 #include "header.h"
+#include "file_date.h"
 
 #include <windows.h>
 #include <algorithm>
-#include <array>
-#include <chrono>
-#include <cwchar>
 #include <stdexcept>
 
 namespace saves {
@@ -16,17 +14,6 @@ bool ordinary(const std::filesystem::path& path, bool directory) {
            bool(flags & FILE_ATTRIBUTE_DIRECTORY) == directory;
 }
 
-std::wstring date(std::filesystem::file_time_type time) {
-    const auto system = std::chrono::clock_cast<std::chrono::system_clock>(time);
-    const auto seconds = std::chrono::system_clock::to_time_t(system);
-    std::tm local{};
-    if (localtime_s(&local, &seconds)) {
-        return {};
-    }
-    std::array<wchar_t, 32> text{};
-    std::wcsftime(text.data(), text.size(), L"%Y-%m-%d %H:%M", &local);
-    return text.data();
-}
 }
 
 Catalog read_catalog(const std::filesystem::path& game) {
@@ -56,7 +43,7 @@ Catalog read_catalog(const std::filesystem::path& game) {
             entry.path = file.path();
             entry.name = file.path().stem().wstring();
             entry.timestamp = file.last_write_time();
-            entry.modified = date(entry.timestamp);
+            entry.modified = formatted_modified_date(entry.path);
             entry.bytes = file.file_size();
             entry.header_supported = supported_header(entry.path);
             result.entries.push_back(std::move(entry));

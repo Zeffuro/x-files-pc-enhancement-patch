@@ -1,5 +1,6 @@
 #include "preferences.h"
 #include "preferences/store.h"
+#include "platform/copy_file.h"
 
 #include <cstring>
 #include <stdexcept>
@@ -60,7 +61,7 @@ void stage_preferences(const std::filesystem::path& source,
                        const std::filesystem::path& destination, bool import_existing) {
     const auto path = destination / L"preferences.ini";
     if (import_existing && std::filesystem::is_regular_file(source / L"preferences.ini")) {
-        std::filesystem::copy_file(source / L"preferences.ini", path);
+        platform::copy_file(source / L"preferences.ini", path);
     }
     const bool imported = std::filesystem::exists(path);
     preferences::Store store(path);

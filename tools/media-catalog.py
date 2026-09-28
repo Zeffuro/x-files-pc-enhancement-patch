@@ -10,7 +10,7 @@ parser.add_argument("output", type=Path)
 args = parser.parse_args()
 root = args.source.resolve()
 game = root if (root / "XFILES.EXE").exists() else root / "MININST"
-extensions = {".amv", ".dmv", ".hot", ".mus", ".nmv", ".pff", ".xmv", ".xtx"}
+extensions = {".amv", ".dmv", ".hot", ".mus", ".nmv", ".pff", ".xmv", ".xtx", ".vob"}
 core = {'xfilesc.dll', 'xfiles.exe', 'jrn.ttr', 'dlg.ttr', 'xfiles.gam', 'xfilest.dll', 'phn.ttr', 'xfilese.dll', 'xfiless.dll', 'hcd.ttr', 'xfiles.hdb'}
 files = {}
 for layer in (game, root, root / "MEDINST"):
@@ -19,7 +19,7 @@ for layer in (game, root, root / "MEDINST"):
     for path in layer.iterdir():
         if path.is_file() and (path.suffix.lower() in extensions or path.name.lower() in core):
             files.setdefault(path.name.lower(), path)
-    for folder in ("XG", "XN", "XS", "XT", "XV"):
+    for folder in ("XG", "XN", "XS", "XT", "XV", "vob"):
         for path in (layer / folder).rglob("*"):
             if path.is_file() and path.suffix.lower() in extensions:
                 files.setdefault(path.relative_to(layer).as_posix().lower(), path)

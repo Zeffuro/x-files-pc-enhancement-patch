@@ -4,6 +4,7 @@
 #include "dispatch.h"
 
 #include <windows.h>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 
@@ -29,6 +30,13 @@ int wmain(int argc, wchar_t** argv) {
         }
         require(media_catalog(false).size() > 3000 && media_catalog(true).size() > 3000,
                 "Packaged catalogs incomplete");
+        const auto dvd_catalog = media_catalog(true);
+        require(dvd_catalog.contains(L"vob/ddigital1.vob") &&
+                    dvd_catalog.contains(L"vob/teaser.vob") &&
+                    dvd_catalog.contains(L"vob/23412.vob") && !dvd_catalog.contains(L"dlmpg.ini") &&
+                    !dvd_catalog.contains(L"dlmpgmci.dll") &&
+                    !media_catalog(false).contains(L"vob/teaser.vob"),
+                "DVD VOB catalog or native fallback selection is wrong");
         const auto italian = media_catalog(MediaSetId::cd_it);
         const auto japanese = media_catalog(MediaSetId::cd_jp);
         require(italian.size() == 3038 && japanese.size() == 3041,
@@ -100,6 +108,15 @@ int wmain(int argc, wchar_t** argv) {
         fs::remove(base);
         if (argc >= 3) {
             const auto source = inspect_media(argv[1]);
+            if (source.set == MediaSetId::dvd_en) {
+                const auto has_file = [&](const std::filesystem::path& name) {
+                    return std::ranges::any_of(
+                        source.files, [&](const MediaFile& file) { return file.relative == name; });
+                };
+                require(has_file(L"vob/teaser.vob") && has_file(L"vob/23412.vob") &&
+                            !has_file(L"dlmpg.ini") && !has_file(L"dlmpgmci.dll"),
+                        "DVD import did not preserve VOB assets and native fallback");
+            }
             const auto destination = fs::absolute(argv[2]);
             const bool parent_existed = fs::is_directory(destination.parent_path());
             const auto cancelled = fs::path(destination.wstring() + L"-cancelled");
@@ -151,7 +168,7 @@ int wmain(int argc, wchar_t** argv) {
             for (const auto* notice :
                  {L"LICENSE", L"THIRD_PARTY.md", L"cnc-ddraw.LICENSE", L"FFmpeg.LICENSE",
                   L"zlib.LICENSE", L"README.md", L"docs/controls.md", L"docs/building.md",
-                  L"defaults/ddraw.ini", L"defaults/patch.ini"}) {
+                  L"docs/linux.md", L"defaults/ddraw.ini", L"defaults/patch.ini"}) {
                 require(fs::is_regular_file(destination / notice) &&
                             fs::file_size(destination / notice) != 0,
                         "Installed game is missing a notice, guide or default settings");

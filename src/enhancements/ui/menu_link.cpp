@@ -50,6 +50,34 @@ bool settings_link_visible() {
     return game::input_vtable() == game::edition().main_menu && !game::menu_confirmation_active();
 }
 
+void position_settings_link(HWND owner) {
+    WINDOWINFO info{sizeof(info)};
+    if (!overlay || !GetWindowInfo(owner, &info)) {
+        return;
+    }
+    const auto& client = info.rcClient;
+    const auto scale =
+        std::min((client.right - client.left) / 640.0, (client.bottom - client.top) / 480.0);
+    const auto x = client.left + (client.right - client.left - 640 * scale) / 2;
+    const auto y = client.top + (client.bottom - client.top - 480 * scale) / 2;
+    RECT bounds{static_cast<LONG>(x + artwork_bounds.left * scale),
+                static_cast<LONG>(y + artwork_bounds.top * scale),
+                static_cast<LONG>(x + artwork_bounds.right * scale),
+                static_cast<LONG>(y + artwork_bounds.bottom * scale)};
+    if (!EqualRect(&bounds, &previous)) {
+        // Follow owner messages during dragging without waiting for the polling timer.
+        if (auto positions = BeginDeferWindowPos(1)) {
+            positions = DeferWindowPos(positions, overlay, nullptr, bounds.left, bounds.top,
+                                       bounds.right - bounds.left, bounds.bottom - bounds.top,
+                                       SWP_NOZORDER | SWP_NOACTIVATE);
+            if (positions && EndDeferWindowPos(positions)) {
+                previous = bounds;
+            }
+        }
+        InvalidateRect(overlay, nullptr, FALSE);
+    }
+}
+
 void update_settings_link(HWND owner, bool visible) {
     if (!visible || !settings_link_visible()) {
         if (overlay) {
@@ -57,10 +85,6 @@ void update_settings_link(HWND owner, bool visible) {
         }
         frame = 0;
         last_frame = GetTickCount64();
-        return;
-    }
-    WINDOWINFO info{sizeof(info)};
-    if (!GetWindowInfo(owner, &info)) {
         return;
     }
     if (!overlay) {
@@ -101,30 +125,13 @@ void update_settings_link(HWND owner, bool visible) {
             }
         }
     }
-    const auto& client = info.rcClient;
-    const auto scale =
-        std::min((client.right - client.left) / 640.0, (client.bottom - client.top) / 480.0);
-    const auto x = client.left + (client.right - client.left - 640 * scale) / 2;
-    const auto y = client.top + (client.bottom - client.top - 480 * scale) / 2;
-    RECT bounds{static_cast<LONG>(x + artwork_bounds.left * scale),
-                static_cast<LONG>(y + artwork_bounds.top * scale),
-                static_cast<LONG>(x + artwork_bounds.right * scale),
-                static_cast<LONG>(y + artwork_bounds.bottom * scale)};
+    position_settings_link(owner);
+    if (!IsWindowVisible(overlay)) {
+        ShowWindow(overlay, SW_SHOWNOACTIVATE);
+    }
     POINT cursor{};
     const bool hot = game_is_foreground(owner) && GetCursorPos(&cursor) &&
                      ScreenToClient(owner, &cursor) && PtInRect(&settings_link, cursor);
-    if (!EqualRect(&bounds, &previous) || !IsWindowVisible(overlay)) {
-        previous = bounds;
-        if (auto positions = BeginDeferWindowPos(1)) {
-            positions = DeferWindowPos(positions, overlay, nullptr, bounds.left, bounds.top,
-                                       bounds.right - bounds.left, bounds.bottom - bounds.top,
-                                       SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
-            if (positions) {
-                EndDeferWindowPos(positions);
-            }
-        }
-        InvalidateRect(overlay, nullptr, FALSE);
-    }
     const auto now = GetTickCount64();
     const auto elapsed = now - last_frame;
     const auto steps = static_cast<int>(std::min<ULONGLONG>(elapsed / 20, last));
@@ -142,6 +149,7 @@ void release_settings_link() {
     if (overlay) {
         DestroyWindow(overlay);
         overlay = nullptr;
+        previous = {};
         UnregisterClassW(class_name, module);
     }
     if (artwork) {

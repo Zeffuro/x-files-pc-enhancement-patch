@@ -2,6 +2,7 @@
 #include "configuration.h"
 #include "ddraw_version.h"
 #include "ffmpeg_files.h"
+#include "platform/copy_file.h"
 
 #include <stdexcept>
 #include <vector>
@@ -82,35 +83,35 @@ StagedGame stage_game(const fs::path& source, const fs::path& destination, const
         }
     } stage{output};
 
-    fs::copy_file(executable, output / L"XFiles.exe");
+    platform::copy_file(executable, output / L"XFiles.exe");
     if (sha256(output / L"XFiles.exe") != identity.sha256) {
         throw std::runtime_error("Staged executable hash differs from source.");
     }
 
     for (const auto& asset : assets) {
-        fs::copy_file(asset, output / asset.filename());
+        platform::copy_file(asset, output / asset.filename());
     }
     for (const wchar_t* name :
-         {L"XFilesPlay.exe", L"QuickTime.qts", L"ddraw.dll", L"cnc-ddraw.LICENSE", L"LICENSE",
-          L"THIRD_PARTY.md", L"zlib.LICENSE", L"README.md"}) {
-        fs::copy_file(package / name, output / name);
+         {L"XFilesPlay.exe", L"QuickTime.qts", L"XFilesMpeg.dll", L"ddraw.dll",
+          L"cnc-ddraw.LICENSE", L"LICENSE", L"THIRD_PARTY.md", L"zlib.LICENSE", L"README.md"}) {
+        platform::copy_file(package / name, output / name);
     }
     for (const auto* name : ffmpeg_files) {
-        fs::copy_file(package / name, output / name);
+        platform::copy_file(package / name, output / name);
     }
     if (sha256(output / L"ddraw.dll") != ddraw_sha256) {
         throw std::runtime_error("Staged DirectDraw hash differs from this build.");
     }
     fs::create_directory(output / L"docs");
-    for (const auto* name : {L"controls.md", L"building.md"}) {
-        fs::copy_file(package / L"docs" / name, output / L"docs" / name);
+    for (const auto* name : {L"controls.md", L"building.md", L"linux.md"}) {
+        platform::copy_file(package / L"docs" / name, output / L"docs" / name);
     }
     fs::create_directory(output / L"defaults");
     for (const auto* name : {L"ddraw.ini", L"patch.ini"}) {
-        fs::copy_file(package / L"defaults" / name, output / L"defaults" / name);
+        platform::copy_file(package / L"defaults" / name, output / L"defaults" / name);
     }
     if (preserve_settings && fs::is_regular_file(game / L"patch.ini")) {
-        fs::copy_file(game / L"patch.ini", output / L"patch.ini");
+        platform::copy_file(game / L"patch.ini", output / L"patch.ini");
     }
     initialize_configuration(output);
     if (mode == DisplayMode::Windowed &&

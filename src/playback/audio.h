@@ -15,7 +15,7 @@ public:
     Audio(const Audio&) = delete;
     Audio& operator=(const Audio&) = delete;
 
-    void play(std::uint32_t time, std::uint32_t scale, std::int16_t volume);
+    void play(std::uint32_t time, std::uint32_t scale, std::int16_t volume, unsigned speed = 1);
     void stop();
     void volume(std::int16_t value);
     void balance(std::int16_t value);
@@ -27,6 +27,7 @@ private:
     std::unique_ptr<Output> output_;
     std::int16_t volume_ = 256;
     std::int16_t balance_ = 0;
+    unsigned speed_ = 1;
 };
 
 }

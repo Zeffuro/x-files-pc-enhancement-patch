@@ -1,6 +1,9 @@
 #include "input_source.h"
 #include "controller_state.h"
-#include "enhancements/game_resources.h"
+#include "gun.h"
+#include "controller_navigation.h"
+#include "controller_context.h"
+#include "rumble.h"
 #include "controls.h"
 #include "dialogue.h"
 #include "inventory.h"
@@ -13,52 +16,93 @@
 #include "saves/browser.h"
 
 #include <algorithm>
-#include <cmath>
 
 namespace enhancements {
 namespace {
 
 thread_local SpringCursor spring_cursor;
+thread_local input::MotionAccumulator analog_motion;
+thread_local input::MotionAccumulator motion;
+thread_local input::NavigationRepeat navigation;
+thread_local input::ContextBarrier context_barrier;
+thread_local std::uint64_t last = 0;
 
-float axis(SHORT value) {
-    const int magnitude = std::abs(static_cast<int>(value));
-    constexpr int deadzone = input::left_deadzone;
-    if (magnitude <= deadzone) {
-        return 0;
+void reset_navigation() {
+    spring_cursor.suspend();
+    analog_motion.reset();
+    motion.reset();
+    navigation.reset();
+}
+
+bool scene_cursor(HWND window, POINT& point) {
+    const auto scene = game::scene_bounds();
+    if (IsRectEmpty(&scene) || !GetCursorPos(&point) || !ScreenToClient(window, &point)) {
+        return false;
     }
-    const auto normalized = std::min(1.0f, float(magnitude - deadzone) / (32767 - deadzone));
-    return std::copysign(normalized * normalized, static_cast<float>(value));
+    if (!PtInRect(&scene, point)) {
+        point = {(scene.left + scene.right) / 2, (scene.top + scene.bottom) / 2};
+    }
+    return ClientToScreen(window, &point) != FALSE;
 }
 
-void click(DWORD down, DWORD up) {
-    INPUT events[2]{};
-    events[0].type = events[1].type = INPUT_MOUSE;
-    events[0].mi.dwExtraInfo = events[1].mi.dwExtraInfo = controller_event;
-    events[0].mi.dwFlags = down;
-    events[1].mi.dwFlags = up;
-    SendInput(2, events, sizeof(INPUT));
-}
-
-void press_key(WORD key) {
-    INPUT events[2]{};
-    events[0].type = events[1].type = INPUT_KEYBOARD;
-    events[0].ki.wVk = events[1].ki.wVk = key;
-    events[1].ki.dwFlags = KEYEVENTF_KEYUP;
-    SendInput(2, events, sizeof(INPUT));
+input::Context controller_context(HWND window) {
+    input::Context context;
+    context.native = reinterpret_cast<std::uintptr_t>(game::current_input());
+    if (saves::browser_active()) {
+        context.kind = input::ContextKind::browser;
+    } else if (game::menu_confirmation_active()) {
+        context.kind = input::ContextKind::modal;
+    } else if (game::input_vtable() == game::edition().main_menu) {
+        context.kind = input::ContextKind::menu;
+    } else if (inventory_focused(window)) {
+        context.kind = input::ContextKind::inventory;
+    } else if (const auto dialogue = current_dialogue()) {
+        context.kind = input::ContextKind::dialogue;
+        context.history = dialogue->is_history;
+    } else if (context.native) {
+        context.kind = input::ContextKind::native;
+    } else {
+        auto script = game::script_controls();
+        if (!script.buttons.empty() || script.script_dialog || !script.dialog_buttons.empty() ||
+            !script.acknowledgement_buttons.empty()) {
+            context.kind = script.script_dialog || !script.acknowledgement_buttons.empty()
+                               ? input::ContextKind::script_dialog
+                               : input::ContextKind::script;
+            context.resources = std::move(script.resources);
+            std::sort(context.resources.begin(), context.resources.end());
+            context.resources.erase(std::unique(context.resources.begin(), context.resources.end()),
+                                    context.resources.end());
+        } else if (!game::emotion_targets().empty()) {
+            context.kind = input::ContextKind::emotions;
+        }
+    }
+    return context;
 }
 
 }
 
 void suspend_analog_cursor() {
     spring_cursor.suspend();
+    analog_motion.reset();
+}
+
+void suspend_controller() {
+    input::poll(false);
+    input::injected_input().recover();
+    cancel_controller_inventory_click();
+    clear_inventory_focus();
+    stop_rumble();
+    reset_navigation();
+    context_barrier.reset();
+    controller_active = false;
+    last = 0;
 }
 
 void move_analog_cursor(HWND window, SHORT horizontal, SHORT vertical, float elapsed) {
-    static float remainder_x = 0, remainder_y = 0;
     if (settings().spring_cursor) {
         RECT bounds{};
         POINT position{};
-        remainder_x = remainder_y = 0;
+        analog_motion.reset();
         if (GetClientRect(window, &bounds) &&
             spring_cursor.update(horizontal, vertical, bounds, position) &&
             ClientToScreen(window, &position)) {
@@ -67,11 +111,9 @@ void move_analog_cursor(HWND window, SHORT horizontal, SHORT vertical, float ela
         return;
     }
     spring_cursor.suspend();
-    remainder_x += axis(horizontal) * 450 * elapsed;
-    remainder_y -= axis(vertical) * 450 * elapsed;
-    const auto dx = static_cast<LONG>(remainder_x), dy = static_cast<LONG>(remainder_y);
-    remainder_x -= dx;
-    remainder_y -= dy;
+    const auto movement = analog_motion.advance(input::cursor_axis(horizontal) * 450,
+                                                -input::cursor_axis(vertical) * 450, elapsed);
+    const auto dx = movement.x, dy = movement.y;
     RECT client{};
     POINT cursor{};
     if ((dx || dy) && GetClientRect(window, &client) && client.right > 0 && client.bottom > 0 &&
@@ -85,53 +127,66 @@ void move_analog_cursor(HWND window, SHORT horizontal, SHORT vertical, float ela
 }
 
 void poll_controller(HWND window) {
-    static thread_local ULONGLONG last = 0;
-    static thread_local float remainder_x = 0;
-    static thread_local float remainder_y = 0;
-    static thread_local bool return_to_scene = false;
-    static thread_local int previous_horizontal = 0, previous_vertical = 0;
-    static thread_local ULONGLONG repeat_at = 0;
-    static thread_local void* previous_input = nullptr;
+    if (controller_gun_busy()) {
+        return;
+    }
     const auto now = GetTickCount64();
-    const auto elapsed = last ? std::min(0.05f, (now - last) / 1000.0f) : 0.0f;
-    last = now;
+    const auto elapsed = input::capped_elapsed(now, last);
+    const bool delivery_ready = input::injected_input().recover();
     observe_pointer();
     const bool focused = game_is_foreground(window);
     const bool busy = text_entry_busy();
-    const auto frame = busy ? input::Frame{} : input::poll(settings().gamepad && focused);
+    auto frame = busy ? input::Frame{} : input::poll(settings().gamepad && focused);
     if (frame.device_changed) {
-        spring_cursor.suspend();
-        previous_input = nullptr;
-        remainder_x = remainder_y = 0;
-        return_to_scene = false;
-        previous_horizontal = previous_vertical = 0;
-        repeat_at = 0;
+        cancel_controller_inventory_click();
+        stop_rumble();
+        controller_active = false;
+        reset_navigation();
+        context_barrier.reset();
     }
     if (!frame.connected || !settings().gamepad || !focused || busy) {
+        cancel_controller_inventory_click();
+        stop_rumble();
         if (!busy || !focused) {
             spring_cursor.suspend();
         }
+        analog_motion.reset();
         if ((!frame.connected && !busy) || !focused || !settings().gamepad) {
             controller_active = false;
         }
-        remainder_x = remainder_y = 0;
-        return_to_scene = false;
-        previous_horizontal = previous_vertical = 0;
-        repeat_at = 0;
+        motion.reset();
+        navigation.reset();
+        context_barrier.reset();
         return;
+    }
+    if (!delivery_ready) {
+        input::poll(false);
+        stop_rumble();
+        reset_navigation();
+        return;
+    }
+    const bool pending_click = controller_inventory_click_pending();
+    if (!pending_click && context_barrier.filter(controller_context(window), frame)) {
+        reset_navigation();
     }
     const auto& state = frame.sample;
     const auto buttons = state.buttons;
     const bool aim = state.left_trigger > input::trigger_threshold;
     const bool aim_pressed = frame.aim_pressed;
-    if (buttons || aim || state.right_trigger > input::trigger_threshold || axis(state.left_x) ||
-        axis(state.left_y)) {
+    if (buttons || aim || state.right_trigger > input::trigger_threshold ||
+        input::cursor_axis(state.left_x) || input::cursor_axis(state.left_y)) {
         controller_active = true;
     }
+    update_rumble(frame.player, settings().vibration && controller_active &&
+                                    !saves::browser_active() && !game::menu_confirmation_active() &&
+                                    game::input_vtable() != game::edition().main_menu);
     const WORD pressed = frame.pressed;
     if (saves::browser_active()) {
+        cancel_controller_inventory_click();
         spring_cursor.suspend();
-        return_to_scene = false;
+        analog_motion.reset();
+        motion.reset();
+        navigation.reset();
         const WORD key =
             (pressed & (input::button::inventory | input::button::back | input::button::menu))
                 ? VK_ESCAPE
@@ -149,21 +204,22 @@ void poll_controller(HWND window) {
         }
         return;
     }
-    if (return_to_scene) {
-        // Let the queued inventory click finish before restoring the aim position.
-        leave_inventory(window);
-        return_to_scene = false;
-        return;
-    }
     if (pressed & input::button::menu) {
-        spring_cursor.suspend();
-        press_key(VK_ESCAPE);
+        suspend_controller();
+        input::injected_input().key(VK_ESCAPE, 0, controller_event);
         return;
     }
     if (pressed & input::button::skip) {
+        stop_rumble();
+        analog_motion.reset();
+        motion.reset();
+        navigation.reset();
         if (game::movie_skippable()) {
-            press_key(VK_SPACE);
+            input::injected_input().key(VK_SPACE, 0, controller_event);
         }
+        return;
+    }
+    if (pending_click) {
         return;
     }
     const bool all_hotspots = state.right_trigger > input::trigger_threshold;
@@ -176,11 +232,6 @@ void poll_controller(HWND window) {
         ((all_hotspots || (buttons & (input::button::previous | input::button::next))) &&
          !current_dialogue() && !inventory_focused(window) && game::world_navigation_available());
     const bool analog_cursor = settings().analog_cursor;
-    const auto input = game::current_input();
-    if (input != previous_input) {
-        spring_cursor.suspend();
-        previous_input = input;
-    }
     constexpr WORD focus_buttons = input::button::up | input::button::down | input::button::left |
                                    input::button::right | input::button::previous |
                                    input::button::next | input::button::inventory |
@@ -193,43 +244,44 @@ void poll_controller(HWND window) {
         move_analog_cursor(window, state.left_x, state.left_y, elapsed);
     }
     if (pressed & input::button::examine) {
-        click(MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP);
+        input::injected_input().click(true, controller_event);
         return;
     }
     if ((pressed & input::button::evidence) && focus_conversation_evidence(window)) {
         return;
     }
-    const auto horizontal_input =
-        (buttons & input::button::right ? 1 : 0) - (buttons & input::button::left ? 1 : 0) +
-        ((!analog_cursor || (jump_mode && !aim_mode)) && state.left_x > 18000 ? 1 : 0) -
-        ((!analog_cursor || (jump_mode && !aim_mode)) && state.left_x < -18000 ? 1 : 0);
-    const auto vertical_input = (buttons & input::button::down ? 1 : 0) -
-                                (buttons & input::button::up ? 1 : 0) +
-                                (!analog_cursor && state.left_y < -18000 ? 1 : 0) -
-                                (!analog_cursor && state.left_y > 18000 ? 1 : 0);
-    const int horizontal_direction = std::clamp(horizontal_input, -1, 1);
-    const int vertical_direction = std::clamp(vertical_input, -1, 1);
-    const bool changed =
-        horizontal_direction != previous_horizontal || vertical_direction != previous_vertical;
-    const bool step = changed || now >= repeat_at;
-    if (step) {
-        repeat_at = now + (changed ? 350 : 140);
-    }
-    previous_horizontal = horizontal_direction;
-    previous_vertical = vertical_direction;
+    const auto nav = navigation.update(state, analog_cursor, jump_mode, aim_mode, now);
+    const int horizontal_direction = nav.horizontal;
+    const int vertical_direction = nav.vertical;
+    const bool step = nav.step;
     if (navigate_screen(window, step ? horizontal_direction : 0, step ? vertical_direction : 0,
                         (pressed & input::button::activate) != 0,
                         (pressed & input::button::back) != 0,
                         (pressed & input::button::inventory) != 0)) {
-        remainder_x = remainder_y = 0;
-        return_to_scene = false;
+        motion.reset();
         return;
     }
+    POINT return_cursor{}, original_cursor{};
     if (aim_pressed && !current_dialogue() && (game::world_navigation_available() || aim_mode) &&
-        focus_inventory_item(window, resource::inventory_gun)) {
+        GetCursorPos(&original_cursor) && scene_cursor(window, return_cursor)) {
+        const auto* view = game::current_view();
         spring_cursor.suspend();
-        click(MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP);
-        return_to_scene = true;
+        if (equip_controller_gun()) {
+            clear_inventory_focus();
+            POINT current{};
+            if (game_is_foreground(window) && game::current_view() == view &&
+                GetCursorPos(&current) && current.x == original_cursor.x &&
+                current.y == original_cursor.y) {
+                const bool stationary =
+                    return_cursor.x == current.x && return_cursor.y == current.y;
+                if ((stationary || move_controller_pointer(return_cursor.x, return_cursor.y)) &&
+                    game_is_foreground(window) && game::current_view() == view &&
+                    GetCursorPos(&current) && current.x == return_cursor.x &&
+                    current.y == return_cursor.y && ScreenToClient(window, &current)) {
+                    refresh_controller_gun_cursor(current);
+                }
+            }
+        }
         return;
     }
     if (pressed & input::button::inventory) {
@@ -245,7 +297,7 @@ void poll_controller(HWND window) {
     if (step &&
         navigate_emotions(window, horizontal_direction ? horizontal_direction : vertical_direction,
                           false)) {
-        remainder_x = remainder_y = 0;
+        motion.reset();
         return;
     }
     const bool dialogue = !inventory && current_dialogue() != nullptr;
@@ -272,6 +324,7 @@ void poll_controller(HWND window) {
                             (directional_buttons & input::button::left ? 1 : 0);
     const auto vertical = (directional_buttons & input::button::down ? 1 : 0) -
                           (directional_buttons & input::button::up ? 1 : 0);
+    input::Motion movement{};
     if (jump_mode) {
         if (step && horizontal_direction) {
             const auto targets = aim_mode ? aiming : game::world_hotspots(!all_hotspots);
@@ -283,36 +336,42 @@ void poll_controller(HWND window) {
                 }
             }
         }
-        remainder_x = remainder_y = 0;
+        motion.reset();
     } else if (selecting) {
-        remainder_x = remainder_y = 0;
+        motion.reset();
     } else {
-        remainder_x +=
-            ((analog_cursor ? 0 : axis(state.left_x)) * speed + horizontal * fine_speed) * elapsed;
-        remainder_y +=
-            (-(analog_cursor ? 0 : axis(state.left_y)) * speed + vertical * fine_speed) * elapsed;
+        movement = motion.advance((analog_cursor ? 0 : input::cursor_axis(state.left_x)) * speed +
+                                      horizontal * fine_speed,
+                                  -(analog_cursor ? 0 : input::cursor_axis(state.left_y)) * speed +
+                                      vertical * fine_speed,
+                                  elapsed);
     }
-    const auto dx = static_cast<LONG>(remainder_x);
-    const auto dy = static_cast<LONG>(remainder_y);
-    remainder_x -= dx;
-    remainder_y -= dy;
     const bool clicking = (pressed & (input::button::activate | input::button::examine)) != 0;
-    if (dx || dy || clicking) {
+    if (movement.x || movement.y || clicking) {
         RECT client{};
         POINT cursor{};
         if (!GetClientRect(window, &client) || client.right <= 0 || client.bottom <= 0 ||
             !GetCursorPos(&cursor) || !ScreenToClient(window, &cursor)) {
             return;
         }
-        cursor.x = std::clamp(cursor.x + dx, client.left, client.right - 1);
-        cursor.y = std::clamp(cursor.y + dy, client.top, client.bottom - 1);
+        cursor.x = std::clamp(cursor.x + movement.x, client.left, client.right - 1);
+        cursor.y = std::clamp(cursor.y + movement.y, client.top, client.bottom - 1);
         if (!ClientToScreen(window, &cursor) || !move_controller_pointer(cursor.x, cursor.y)) {
             return;
         }
     }
     if (pressed & input::button::activate) {
-        click(MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP);
-        return_to_scene = inventory;
+        if (inventory) {
+            POINT item_cursor{};
+            if (GetCursorPos(&item_cursor)) {
+                begin_controller_inventory_click(window, item_cursor);
+            }
+        }
+        const auto result = input::injected_input().click(false, controller_event);
+        if (inventory && !result.started()) {
+            leave_inventory(window);
+            cancel_controller_inventory_click();
+        }
     }
     if (pressed & input::button::back) {
         if (!leave_inventory(window)) {

@@ -26,7 +26,7 @@ A checksum file is written beside the ZIP. Nothing is installed or published.
 Useful options:
 
 ```powershell
-.\build.ps1 -Version 0.2.0
+.\build.ps1 -Version 0.3.0
 .\build.ps1 -BuildDirectory build-release -Jobs 4
 .\build.ps1 -FFmpegRoot C:/dependencies/ffmpeg -Clean
 ```
@@ -58,13 +58,74 @@ To check installation with your own game files, choose a new test folder:
 Before releasing, test the ZIP as both a new installation and an update. Check
 that existing settings and saves are kept, then try saving, loading and playing.
 
+To fuzz the movie, picture and save parsers on Ubuntu with Clang sanitizers:
+
+```sh
+sudo dpkg --add-architecture i386
+sudo apt-get update
+sudo apt-get install clang libclang-rt-dev g++-multilib zlib1g-dev:i386 cmake
+cmake -S tests/fuzz -B build/fuzz -DCMAKE_CXX_COMPILER=clang++ \
+  -DCMAKE_CXX_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32 \
+  -DZLIB_LIBRARY=/usr/lib/i386-linux-gnu/libz.so -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build/fuzz --parallel
+python3 tests/fuzz/seeds.py build/fuzz/corpus
+UBSAN_OPTIONS=halt_on_error=1 build/fuzz/movie build/fuzz/corpus/movie \
+  -max_total_time=60 -timeout=5 -rss_limit_mb=1024 -max_len=65536
+```
+
+Repeat the last command with `picture` and `save` in place of `movie`.
+The 32-bit build matches the game's data layouts. Keep generated corpora and
+crash files outside tracked source. The seed generator uses synthetic data.
+
+To inspect extracted DVD MPEG files, install FFmpeg's `ffprobe` command and run:
+
+```powershell
+python tools/probe-dvd-media.py "D:\XFiles-media\English" "build/dvd-media.json"
+```
+
+The report contains file hashes and media properties. It does not copy the
+movies. A failed probe is recorded in the report and returns a failing exit code.
+Use `--extension xmv` to inspect QuickTime assets instead.
+
+To run the synthetic Windows checks under Wine on Linux, build on Windows first,
+then make `build/Release` available to Linux. Install Wine with 32-bit program
+support and Xvfb, then run from the source folder:
+
+```sh
+xvfb-run -a python3 tools/wine-smoke.py build/Release build/wine-smoke
+```
+
+The output folder must be new. The script copies test binaries and dependencies,
+creates a separate prefix, and saves results and file hashes in `summary.json`.
+Use `--wine` and `--wineserver` together to select a different Wine build.
+No original game files are needed. These checks do not verify Proton, game
+progression, physical controllers, sound output or display pacing.
+
+For release testing on Linux, also try setup, launch, saving and loading, L2 with
+inventory shown and hidden, held L3 across movies, Alt+Tab and normal exit in an
+isolated installation. Repeat through Steam Proton and Lutris's managed runner
+on a real Linux desktop. Record the runner version and patch ZIP checksum.
+See [Linux instructions](linux.md) for launch settings and bug reports.
+
+To try experimental DVD playback in a separate test installation:
+
+```powershell
+python tools/dvd-mpeg.py "C:\Games\XFiles-test"
+python tools/dvd-mpeg.py "C:\Games\XFiles-test" --disable
+```
+
+Close the game first. The second command restores the previous configuration.
+This selects the DVD Dolby sequence, teaser and one English game-over scene
+when subtitles are set to On or Off. The warehouse binocular scene and other
+scenes keep QuickTime playback.
+
 ## Release
 
 Pushing code runs the GitHub checks. After local testing, tag the release:
 
 ```sh
-git tag -a v0.2.0 -m "v0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "v0.3.0"
+git push origin v0.3.0
 ```
 
 The tag sets the release version. If all checks pass, GitHub creates a draft

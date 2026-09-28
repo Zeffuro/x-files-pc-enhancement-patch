@@ -1,19 +1,33 @@
 #include <windows.h>
 
-115 DIALOGEX 0, 0, 370, 252
+115 DIALOGEX 0, 0, 390, 374
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "The X-Files enhancements"
 FONT 9, "Segoe UI"
 BEGIN
-    LTEXT "Make yourself at home", -1, 16, 14, 338, 16
-    LTEXT "Choose how you want to play. You can change these options later with F10.", -1, 16, 36, 338, 30
-    PUSHBUTTON "Recommended", 2106, 16, 72, 162, 22
-    PUSHBUTTON "Original game", 2107, 192, 72, 162, 22
-    AUTOCHECKBOX "Enable gamepad", 2101, 20, 108, 334, 16
-    AUTOCHECKBOX "Analog stick moves pointer (D-pad selects controls)", 2102, 20, 130, 334, 16
-    AUTOCHECKBOX "Restore black menu backgrounds", 2103, 20, 152, 334, 16
-    AUTOCHECKBOX "Skip menu logo and entrance animations", 2104, 20, 174, 334, 16
-    AUTOCHECKBOX "Save browser with thumbnails", 2105, 20, 196, 334, 16
-    PUSHBUTTON "Not now", IDCANCEL, 166, 226, 90, 22
-    DEFPUSHBUTTON "Start game", IDOK, 264, 226, 90, 22
+    LTEXT "Make yourself at home", -1, 16, 10, 358, 16
+    LTEXT "Choose how you want to play. You can change these options later with F10.", -1, 16, 29, 358, 22
+    PUSHBUTTON "Recommended", 2106, 16, 56, 170, 20
+    PUSHBUTTON "Original game", 2107, 204, 56, 170, 20
+    LTEXT "Controller", -1, 16, 84, 358, 13
+    AUTOCHECKBOX "Enable gamepad", 2101, 20, 98, 170, 16
+    AUTOCHECKBOX "Controller vibration", 2108, 204, 98, 170, 16
+    AUTOCHECKBOX "Analog stick moves pointer (D-pad selects controls)", 2102, 20, 116, 354, 16
+    AUTOCHECKBOX "Controller hints (button positions)", 2109, 20, 134, 354, 16
+    LTEXT "Display and audio", -1, 16, 157, 358, 13
+    AUTOCHECKBOX "Use DVD movies", 2110, 20, 171, 170, 16
+    AUTOCHECKBOX "Deinterlace DVD video", 2111, 204, 171, 170, 16
+    AUTOCHECKBOX "Mute fast-forward", 2112, 20, 189, 354, 16
+    LTEXT "Fast-forward", -1, 20, 213, 105, 14
+    COMBOBOX 2113, 130, 210, 244, 65, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT "Closed captions", -1, 20, 234, 105, 14
+    COMBOBOX 2114, 130, 231, 244, 65, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT "Movie colors", -1, 20, 255, 105, 14
+    COMBOBOX 2115, 130, 252, 244, 90, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT "Game", -1, 16, 277, 358, 13
+    AUTOCHECKBOX "Restore black menu backgrounds", 2103, 20, 291, 354, 16
+    AUTOCHECKBOX "Skip menu logo and entrance animations", 2104, 20, 308, 354, 16
+    AUTOCHECKBOX "Save browser with thumbnails", 2105, 20, 325, 354, 16
+    PUSHBUTTON "Not now", IDCANCEL, 186, 349, 90, 20
+    DEFPUSHBUTTON "Start game", IDOK, 284, 349, 90, 20
 END

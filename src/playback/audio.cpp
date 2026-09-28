@@ -79,8 +79,9 @@ Audio::Audio(const media::Movie& movie, const media::Track& track) {
 
 Audio::~Audio() = default;
 
-void Audio::play(std::uint32_t time, std::uint32_t scale, std::int16_t level) {
+void Audio::play(std::uint32_t time, std::uint32_t scale, std::int16_t level, unsigned speed) {
     stop();
+    speed_ = speed;
     if (pcm_.empty() || !scale) {
         return;
     }
@@ -93,6 +94,7 @@ void Audio::play(std::uint32_t time, std::uint32_t scale, std::int16_t level) {
         output_ = std::make_unique<Output>(format_);
     }
     volume(level);
+    output_->speed(speed_);
     output_->play(std::span(pcm_).subspan(static_cast<std::size_t>(offset)));
 }
 
@@ -116,7 +118,7 @@ void Audio::balance(std::int16_t value) {
 
 void Audio::refresh(std::uint32_t time, std::uint32_t scale) {
     if (output_ && !output_->current_device()) {
-        play(time, scale, volume_);
+        play(time, scale, volume_, speed_);
     }
 }
 

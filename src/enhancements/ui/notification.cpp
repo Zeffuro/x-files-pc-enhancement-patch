@@ -1,4 +1,5 @@
 #include "notification.h"
+#include "game_style.h"
 #include <algorithm>
 #include <string>
 
@@ -20,14 +21,12 @@ LRESULT CALLBACK paint(HWND window, UINT message, WPARAM value, LPARAM data) {
         RECT area{};
         GetClientRect(window, &area);
         FillRect(dc, &area, static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
-        const auto font =
-            CreateFontW(-std::max(12L, area.bottom * 3 / 5), 0, 0, 0, FW_NORMAL, FALSE, FALSE,
-                        FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                        ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Typist");
+        const auto font = create_game_font(-std::max(10L, area.bottom * 3 / 4));
         const auto previous = SelectObject(dc, font);
-        SetTextColor(dc, RGB(155, 210, 225));
+        SetTextColor(dc, game_highlight);
         SetBkMode(dc, TRANSPARENT);
-        DrawTextW(dc, text.c_str(), -1, &area, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        DrawTextW(dc, text.c_str(), -1, &area,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
         SelectObject(dc, previous);
         DeleteObject(font);
         EndPaint(window, &state);
@@ -80,11 +79,19 @@ void update_notification(HWND owner) {
     const auto& client = info.rcClient;
     const auto scale =
         std::min((client.right - client.left) / 640.0, (client.bottom - client.top) / 480.0);
-    const auto width = static_cast<int>(260 * scale);
-    const auto height = static_cast<int>(22 * scale);
+    const auto height = std::max(14, static_cast<int>(16 * scale));
+    const auto dc = GetDC(overlay);
+    const auto font = create_game_font(-std::max(10, height * 3 / 4));
+    const auto previous = SelectObject(dc, font);
+    SIZE extent{};
+    GetTextExtentPoint32W(dc, text.c_str(), static_cast<int>(text.size()), &extent);
+    SelectObject(dc, previous);
+    DeleteObject(font);
+    ReleaseDC(overlay, dc);
+    const auto width = std::min(client.right - client.left, extent.cx + height);
     if (auto batch = BeginDeferWindowPos(1)) {
         batch = DeferWindowPos(batch, overlay, HWND_TOP, (client.left + client.right - width) / 2,
-                               client.bottom - height - static_cast<int>(4 * scale), width, height,
+                               client.top + static_cast<int>(10 * scale), width, height,
                                SWP_NOACTIVATE | SWP_SHOWWINDOW);
         if (batch) {
             EndDeferWindowPos(batch);

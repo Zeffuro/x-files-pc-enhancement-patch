@@ -8,7 +8,7 @@ constexpr std::wstring_view inventory_selection_name(std::int32_t value) {
     switch (value) {
         case 0:
             return L"None";
-        case 2:
+        case 9:
             return L"Gun";
         case 3:
             return L"PDA";
@@ -20,6 +20,8 @@ constexpr std::wstring_view inventory_selection_name(std::int32_t value) {
             return L"Crowbar";
         case 11:
             return L"Jose Chung";
+        case 12:
+            return L"Lockpick";
         case 17:
             return L"Photo of NSA car";
         case 20:

@@ -1,6 +1,7 @@
 #include "enhancements/game_resources.h"
 #include "text_entry.h"
 #include "controller_state.h"
+#include "input_delivery.h"
 #include "controls.h"
 #include "focus.h"
 #include "ui/highlight.h"
@@ -90,9 +91,14 @@ void poll() {
     if (frame.device_changed) {
         keyboard.horizontal = keyboard.vertical = 0;
         keyboard.repeat = 0;
+        keyboard.last = now;
+        pending.clear();
         suspend_analog_cursor();
     }
-    if (!settings().gamepad) {
+    if (!settings().gamepad || !frame.connected) {
+        keyboard.horizontal = keyboard.vertical = 0;
+        keyboard.repeat = 0;
+        keyboard.last = 0;
         return;
     }
     if (pressed & (input::button::back | input::button::menu)) {
@@ -136,27 +142,8 @@ void send_character() {
         return;
     }
     const auto key = VkKeyScanA(pending.front());
-    pending.pop_front();
-    if (key != -1) {
-        INPUT events[4]{};
-        unsigned count = 0;
-        const auto add = [&](WORD code, DWORD flags) {
-            auto& event = events[count++];
-            event.type = INPUT_KEYBOARD;
-            event.ki.wVk = code;
-            event.ki.dwFlags = flags;
-            event.ki.dwExtraInfo = input_tag;
-        };
-        const bool shift = (key & 0x100) != 0;
-        if (shift) {
-            add(VK_SHIFT, 0);
-        }
-        add(LOBYTE(key), 0);
-        add(LOBYTE(key), KEYEVENTF_KEYUP);
-        if (shift) {
-            add(VK_SHIFT, KEYEVENTF_KEYUP);
-        }
-        SendInput(count, events, sizeof(INPUT));
+    if (key == -1 || input::injected_input().key(LOBYTE(key), HIBYTE(key), input_tag).started()) {
+        pending.pop_front();
     }
     send_at = GetTickCount64() + 35;
     if (!keyboard.opened) {
@@ -182,14 +169,7 @@ void open_text_entry(HWND owner, const RECT& field, unsigned resource) {
     if (!point_controller(owner, field)) {
         return;
     }
-    INPUT events[2]{};
-    for (auto& event : events) {
-        event.type = INPUT_MOUSE;
-        event.mi.dwExtraInfo = input_tag;
-    }
-    events[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-    events[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-    if (SendInput(2, events, sizeof(INPUT)) != 2) {
+    if (!input::injected_input().click(false, input_tag).started()) {
         return;
     }
     keyboard.opened = true;
@@ -242,6 +222,7 @@ bool text_entry_message(UINT message, WPARAM value, LPARAM) {
 }
 
 void update_text_entry(HWND owner, bool focused) {
+    const bool delivery_ready = input::injected_input().recover();
     if (!keyboard.opened && pending.empty()) {
         return;
     }
@@ -258,6 +239,16 @@ void update_text_entry(HWND owner, bool focused) {
         }
         pending.clear();
         input::poll(false);
+        keyboard.horizontal = keyboard.vertical = 0;
+        keyboard.repeat = 0;
+        keyboard.last = 0;
+        suspend_analog_cursor();
+        return;
+    }
+    if (!delivery_ready) {
+        input::poll(false);
+        keyboard.horizontal = keyboard.vertical = 0;
+        keyboard.repeat = 0;
         keyboard.last = 0;
         return;
     }
@@ -272,6 +263,7 @@ void update_text_entry(HWND owner, bool focused) {
 
 void release_text_entry() {
     input::poll(false);
+    input::injected_input().recover();
     keyboard = {};
     pending.clear();
     release_keyboard();

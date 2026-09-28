@@ -57,8 +57,76 @@ void check_desktop(const Desktop& expected) {
     }
 }
 
-void draw_frame(IDirectDraw* draw, DWORD width, DWORD height, DWORD bits) {
+void dvd_frame(HWND window, IDirectDrawSurface* primary, DWORD width, DWORD height) {
+    const auto message = RegisterWindowMessageW(L"XFilesEnhancement.DvdFrame");
+    const auto dimensions = MAKELONG(width, height);
+    require(SendMessageW(window, message, 0, 0) == dimensions,
+            "DVD output did not report the primary surface size.");
+
+    struct Canvas {
+        HDC dc = nullptr;
+        HBITMAP bitmap = nullptr;
+        HGDIOBJ previous = nullptr;
+
+        ~Canvas() {
+            if (previous) {
+                SelectObject(dc, previous);
+            }
+            if (bitmap) {
+                DeleteObject(bitmap);
+            }
+            if (dc) {
+                DeleteDC(dc);
+            }
+        }
+    } canvas;
+
+    canvas.dc = CreateCompatibleDC(nullptr);
+    BITMAPINFO info{};
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = static_cast<LONG>(width);
+    info.bmiHeader.biHeight = -static_cast<LONG>(height);
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    void* pixels = nullptr;
+    canvas.bitmap = CreateDIBSection(canvas.dc, &info, DIB_RGB_COLORS, &pixels, nullptr, 0);
+    require(canvas.dc && canvas.bitmap && pixels, "Cannot create the DVD frame buffer.");
+    canvas.previous = SelectObject(canvas.dc, canvas.bitmap);
+    require(canvas.previous && canvas.previous != HGDI_ERROR, "Cannot select the DVD bitmap.");
+    RECT bounds{0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
+    require(FillRect(canvas.dc, &bounds, static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH))),
+            "Cannot clear the DVD frame buffer.");
+    RECT image{8, 8, static_cast<LONG>(width) - 8, static_cast<LONG>(height) - 8};
+    const auto source = reinterpret_cast<WPARAM>(canvas.dc);
+    require(SendMessageW(window, message, 0, dimensions) == 0 &&
+                SendMessageW(window, message, source, MAKELONG(width - 1, height)) == 0 &&
+                SendMessageW(window, message, reinterpret_cast<WPARAM>(window), dimensions) == 0,
+            "DVD output accepted an invalid source or size.");
+
+    for (const auto color : {RGB(255, 0, 255), RGB(0, 255, 0)}) {
+        SetDCBrushColor(canvas.dc, color);
+        require(FillRect(canvas.dc, &image, static_cast<HBRUSH>(GetStockObject(DC_BRUSH))),
+                "Cannot compose the DVD frame.");
+        require(SendMessageW(window, message, source, dimensions) != 0,
+                "DVD output did not present the composed frame.");
+        for (int sample = 0; sample < 4; ++sample) {
+            pump();
+            HDC dc = nullptr;
+            require(SUCCEEDED(primary->GetDC(&dc)), "Cannot inspect the DVD primary surface.");
+            const bool retained = GetPixel(dc, 0, 0) == RGB(0, 0, 0) &&
+                                  GetPixel(dc, width / 2, height / 2) == color &&
+                                  GetPixel(dc, width - 1, height - 1) == RGB(0, 0, 0);
+            primary->ReleaseDC(dc);
+            require(retained, "Concurrent display rendering replaced the DVD frame.");
+        }
+    }
+}
+
+void draw_frame(HWND window, IDirectDraw* draw, DWORD width, DWORD height, DWORD bits) {
     require(SUCCEEDED(draw->SetDisplayMode(width, height, bits)), "SetDisplayMode failed.");
+    require(SendMessageW(window, RegisterWindowMessageW(L"XFilesEnhancement.DvdFrame"), 0, 0) == 0,
+            "DVD output accepted a missing primary surface.");
 
     DDSURFACEDESC mode{};
     mode.dwSize = sizeof(mode);
@@ -127,6 +195,7 @@ void draw_frame(IDirectDraw* draw, DWORD width, DWORD height, DWORD bits) {
     require(SUCCEEDED(primary->Unlock(nullptr)), "Unlock failed.");
     require(has_color, "The primary surface did not receive the frame.");
     pump();
+    dvd_frame(window, primary.Get(), width, height);
     release_graphics();
 }
 
@@ -137,9 +206,9 @@ void exercise(HWND window, CreateDraw create_draw, const Desktop& before) {
             "SetCooperativeLevel failed.");
 
     for (const DWORD bits : {16UL, 32UL}) {
-        draw_frame(draw.Get(), 640, 480, bits);
+        draw_frame(window, draw.Get(), 640, 480, bits);
         check_desktop(before);
-        draw_frame(draw.Get(), 800, 600, bits);
+        draw_frame(window, draw.Get(), 800, 600, bits);
         check_desktop(before);
     }
 
@@ -153,7 +222,7 @@ void exercise(HWND window, CreateDraw create_draw, const Desktop& before) {
     SendMessageW(window, toggle_fullscreen, 2, 0);
     check_desktop(before);
     require(GetWindowLongW(window, GWL_STYLE) & WS_CAPTION, "Windowed mode has no border.");
-    draw_frame(draw.Get(), 640, 480, 16);
+    draw_frame(window, draw.Get(), 640, 480, 16);
 
     const auto display_message = RegisterWindowMessageW(L"XFilesEnhancement.DisplayMode");
     require(SendMessageW(window, display_message, 0, 0) == 1,
@@ -225,7 +294,7 @@ void exercise(HWND window, CreateDraw create_draw, const Desktop& before) {
         for (WPARAM filter = 1; filter <= 4; ++filter) {
             require(SendMessageW(window, filter_message, filter, 0) == static_cast<LRESULT>(filter),
                     "Scaling filter selection failed.");
-            draw_frame(draw.Get(), 640, 480, 16);
+            draw_frame(window, draw.Get(), 640, 480, 16);
             check_desktop(before);
         }
         SendMessageW(window, filter_message, 3, 0);

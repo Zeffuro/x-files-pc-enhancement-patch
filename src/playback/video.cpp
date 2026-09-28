@@ -1,5 +1,6 @@
 #include "movie.h"
 #include "menu_colors.h"
+#include "grading.h"
 #include "settings.h"
 #include "quickdraw/world.h"
 #include "game/render/caption_surface.h"
@@ -31,6 +32,8 @@ bool draw_movie(Movie& value) {
                                     value.caption_layout->below != layout.below;
         const bool caption_changed =
             caption != value.caption || value.caption_style != style || layout_changed;
+        const auto mode = settings().movie_contrast;
+        const bool grade_changed = value.displayed_contrast != mode;
         for (auto& track : value.tracks) {
             if (!track->enabled || track->media->handler != "vide") {
                 continue;
@@ -40,7 +43,8 @@ bool draw_movie(Movie& value) {
                                   ? duration - 1
                                   : static_cast<std::uint64_t>(value.time);
             const auto sample = track->media->sample_at(time, value.media->timescale);
-            if (!sample || (!value.redraw && !caption_changed && track->displayed == sample)) {
+            if (!sample || (!value.redraw && !caption_changed && !grade_changed &&
+                            track->displayed == sample)) {
                 continue;
             }
             if (!track->video) {
@@ -51,7 +55,24 @@ bool draw_movie(Movie& value) {
             std::vector<std::uint8_t> corrected;
             if (settings().menu_black_background && is_menu_animation(value.filename)) {
                 corrected = frame.pixels;
-                restore_menu_black(corrected);
+                clean_menu_colors(corrected, frame.width, frame.height);
+                pixels = corrected.data();
+            }
+            const auto& format_description =
+                track->media->descriptions.at(track->media->samples.at(*sample).description);
+            const auto relative = value.relative_path.generic_string();
+            if (settings().menu_black_background &&
+                is_credit_pages(relative, format_description.codec, frame.width, frame.height,
+                                track->media->samples.size())) {
+                corrected = frame.pixels;
+                clean_credit_colors(corrected);
+                pixels = corrected.data();
+            }
+            const auto grade =
+                movie_grade(mode, relative, format_description.codec, track->media->samples.size());
+            if (grade != Grade{}) {
+                corrected = frame.pixels;
+                apply_grade(corrected, grade);
                 pixels = corrected.data();
             }
             if (!dc) {
@@ -95,6 +116,7 @@ bool draw_movie(Movie& value) {
             quickdraw::present_port(value.port, value.box);
         }
         value.caption_layout = layout;
+        value.displayed_contrast = mode;
         value.redraw = false;
     } catch (const std::exception& error) {
         unsupported(Selector::MoviesTask, error.what(), 0);

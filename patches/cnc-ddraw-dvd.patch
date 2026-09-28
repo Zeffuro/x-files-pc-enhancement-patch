@@ -1,0 +1,58 @@
+diff --git a/src/wndproc.c b/src/wndproc.c
+--- a/src/wndproc.c
++++ b/src/wndproc.c
+@@ -3,6 +3,7 @@
+ #include <math.h>
+ #include "dllmain.h"
+ #include "dd.h"
++#include "ddsurface.h"
+ #include "hook.h"
+ #include "mouse.h"
+ #include "render_d3d9.h"
+@@ -16,8 +17,46 @@
+ #include "versionhelpers.h"
+ 
+ 
++static LRESULT xfiles_dvd_frame(WPARAM source, LPARAM size)
++{
++    LRESULT result = 0;
++    EnterCriticalSection(&g_ddraw.cs);
++    IDirectDrawSurfaceImpl* primary = g_ddraw.primary;
++    if (g_ddraw.ref && g_ddraw.render.run && primary && primary->hdc &&
++        g_ddraw.width > 0 && g_ddraw.width <= 65535 &&
++        g_ddraw.height > 0 && g_ddraw.height <= 65535 &&
++        primary->width == g_ddraw.width && primary->height == g_ddraw.height &&
++        (primary->bpp == 16 || primary->bpp == 32 || (primary->bpp == 8 && primary->palette)))
++    {
++        LPARAM dimensions = MAKELONG(g_ddraw.width, g_ddraw.height);
++        if (!source && !size)
++        {
++            result = dimensions;
++        }
++        else if (source && size == dimensions && GetObjectType((HGDIOBJ)source) == OBJ_MEMDC)
++        {
++            HDC destination = NULL;
++            if (SUCCEEDED(dds_GetDC(primary, &destination)) && destination)
++            {
++                result = real_BitBlt(destination, 0, 0, g_ddraw.width, g_ddraw.height,
++                    (HDC)source, 0, 0, SRCCOPY);
++                /* Complete GDI writes before the renderer reads the primary pixels. */
++                if (!GdiFlush())
++                    result = FALSE;
++                dds_ReleaseDC(primary, destination);
++            }
++        }
++    }
++    LeaveCriticalSection(&g_ddraw.cs);
++    return result;
++}
++
++
+ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+ {
++    if (uMsg == RegisterWindowMessageA("XFilesEnhancement.DvdFrame"))
++        return xfiles_dvd_frame(wParam, lParam);
++
+ #ifdef _DEBUG
+     if (uMsg != WM_MOUSEMOVE && uMsg != WM_NCMOUSEMOVE && uMsg != WM_NCHITTEST && uMsg != WM_SETCURSOR &&
+         uMsg != WM_KEYUP && uMsg != WM_KEYDOWN && uMsg != WM_CHAR && uMsg != WM_DEADCHAR && uMsg != WM_INPUT &&

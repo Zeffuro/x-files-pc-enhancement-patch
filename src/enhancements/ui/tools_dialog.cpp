@@ -29,7 +29,7 @@ std::string summary(const std::filesystem::path& directory) {
          << "\nBuild: " << (identity.build ? identity.build->label : "unknown")
          << "\nExecutable SHA256: " << identity.sha256 << "\nGamepad: " << value.gamepad
          << "\nAnalog pointer: " << value.analog_cursor
-         << "\nSpring pointer: " << value.spring_cursor
+         << "\nSpring pointer: " << value.spring_cursor << "\nVibration: " << value.vibration
          << "\nFocus highlight: " << static_cast<int>(value.focus_highlight)
          << "\nCaptions: " << static_cast<int>(value.captions)
          << "\nCaption font: " << static_cast<int>(value.caption_style.font)

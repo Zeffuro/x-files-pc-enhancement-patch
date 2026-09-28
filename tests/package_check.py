@@ -151,6 +151,11 @@ class PackageTests(unittest.TestCase):
         with self.assertRaisesRegex(package.PackageError, "exactly one avcodec"):
             self.check()
 
+    def test_missing_demuxer(self):
+        del self.files["avformat-1.dll"]
+        with self.assertRaisesRegex(package.PackageError, "exactly one avformat"):
+            self.check()
+
     def test_wrong_package_version(self):
         self.check()
         with self.assertRaisesRegex(package.PackageError, "Expected package name"):

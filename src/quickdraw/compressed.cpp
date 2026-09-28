@@ -2,6 +2,7 @@
 #include "matrix.h"
 #include "world.h"
 #include "media/video.h"
+#include "picture/inventory_colors.h"
 
 #include <stdexcept>
 #include <intrin.h>
@@ -104,8 +105,11 @@ void __cdecl standard_pixels(const PixMap* pixels, const Rect* source, const Mat
     format.depth = 24;
     media::Video decoder;
     const auto& frame = decoder.image(format, bitmap.compressed);
+    auto corrected =
+        picture::inventory_colors(frame.pixels, bitmap.compressed, frame.width, frame.height);
     PixMap decoded = *pixels;
-    decoded.base = const_cast<std::uint8_t*>(frame.pixels.data());
+    decoded.base =
+        corrected.empty() ? const_cast<std::uint8_t*>(frame.pixels.data()) : corrected.data();
     const auto destination = transform_rectangle(*source, *matrix);
     standard_bits(&decoded, source, &destination, mode, nullptr);
 }

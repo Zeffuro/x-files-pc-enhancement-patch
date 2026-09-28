@@ -121,6 +121,13 @@ struct ChoiceList {
             reinterpret_cast<const std::byte*>(this) + profile.choice_viewport - 12);
         return {origin.x + 234, origin.y + 17, origin.x + 242, origin.y + 25};
     }
+
+    RECT panel_for(const Profile& profile) const {
+        const auto origin = *reinterpret_cast<const POINT*>(
+            reinterpret_cast<const std::byte*>(this) + profile.choice_viewport - 12);
+        // The frame artwork extends beyond the text viewport and tabs.
+        return {origin.x + 2, origin.y + 11, origin.x + 245, origin.y + 120};
+    }
 };
 
 static_assert(offsetof(Container, count) == 8);

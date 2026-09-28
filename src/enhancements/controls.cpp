@@ -1,5 +1,7 @@
 #include "input_source.h"
 #include "controller_state.h"
+#include "controller_click.h"
+#include "rumble.h"
 #include "controls.h"
 #include "ui/settings_dialog.h"
 #include "ui/menu_link.h"
@@ -11,6 +13,7 @@
 #include "game_ui.h"
 #include "login.h"
 #include "ui/highlight.h"
+#include "ui/controller_hints.h"
 #include "text_entry.h"
 #include "quick_save.h"
 #include "ui/notification.h"
@@ -19,10 +22,13 @@
 #include "diagnostics/game_context.h"
 #include "saves/browser.h"
 #include "game/render/native_render.h"
+#include "playback/fast_forward_input.h"
 
 #include <commctrl.h>
 #include <shellapi.h>
+#include <windowsx.h>
 #include <algorithm>
+#include <cstdint>
 
 namespace enhancements {
 namespace {
@@ -43,23 +49,112 @@ thread_local HICON small_icon = nullptr;
 thread_local HICON previous_large_icon = nullptr;
 thread_local HICON previous_small_icon = nullptr;
 
+struct InventoryClick {
+    HWND window = nullptr;
+    POINT scene_cursor{};
+    POINT item_cursor{};
+    ULONGLONG queued_at = 0;
+    std::uint64_t generation = 0;
+    bool scene_known = false;
+    input::ClickDispatch dispatch;
+};
+
+thread_local InventoryClick inventory_click;
+thread_local std::uint64_t next_inventory_click_generation = 0;
+
+void begin_inventory_mouse_dispatch(HWND window, UINT message, bool injected,
+                                    std::uint64_t generation) {
+    if (inventory_click.window == window && inventory_click.generation == generation && injected &&
+        (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK)) {
+        inventory_click.dispatch.begin_down();
+    }
+    if (inventory_click.window == window && inventory_click.generation == generation && injected &&
+        message == WM_LBUTTONUP) {
+        inventory_click.dispatch.begin_up();
+    }
+}
+
+void finish_inventory_click(HWND window, UINT message, bool injected, std::uint64_t generation) {
+    if (inventory_click.window != window || inventory_click.generation != generation ||
+        (message != WM_LBUTTONDOWN && message != WM_LBUTTONDBLCLK && message != WM_LBUTTONUP)) {
+        return;
+    }
+    if (!injected) {
+        cancel_controller_inventory_click();
+        return;
+    }
+    const bool complete = message == WM_LBUTTONUP ? inventory_click.dispatch.end_up()
+                                                  : inventory_click.dispatch.end_down();
+    if (!complete) {
+        if (!inventory_click.dispatch.pending()) {
+            cancel_controller_inventory_click();
+        }
+        return;
+    }
+    const auto click = inventory_click;
+    inventory_click = {};
+    POINT cursor{};
+    if (controller_active && game_is_foreground(window) && GetCursorPos(&cursor) &&
+        cursor.x == click.item_cursor.x && cursor.y == click.item_cursor.y) {
+        if (click.scene_known) {
+            clear_inventory_focus();
+            move_controller_pointer(click.scene_cursor.x, click.scene_cursor.y);
+        } else {
+            leave_inventory(window);
+        }
+    } else {
+        clear_inventory_focus();
+    }
+}
+
 void show_settings(HWND window) {
     if (!dialog_open) {
-        input::poll(false);
+        playback::suspend_fast_forward_input();
+        suspend_controller();
         dialog_open = true;
         update_settings_link(window, !IsIconic(window));
         show_settings_dialog(window);
         dialog_open = false;
-        input::poll(false);
+        suspend_controller();
     }
 }
 
 LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM data, UINT_PTR,
                              DWORD_PTR) {
     static bool settings_clicked = false;
+    if (message == WM_PAINT) {
+        // Native window repaints bypass the normal canvas-transfer hook.
+        const native_game::CanvasPresentation presentation(native_game::canvas_dc());
+        return DefSubclassProc(window, message, value, data);
+    }
+    if (message == WM_WINDOWPOSCHANGED) {
+        const auto result = DefSubclassProc(window, message, value, data);
+        position_settings_link(window);
+        return result;
+    }
     observe_mouse_button(message);
+    const bool injected_left =
+        (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK || message == WM_LBUTTONUP) &&
+        static_cast<ULONG_PTR>(GetMessageExtraInfo()) == controller_event;
+    if ((message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK) && !injected_left) {
+        cancel_controller_inventory_click();
+    }
+    if (message == WM_KILLFOCUS || (message == WM_ACTIVATEAPP && !value)) {
+        playback::suspend_fast_forward_input();
+        suspend_controller();
+        navigation_keys.fill(false);
+        f10_down = escape_consumed = right_click_consumed = settings_clicked = false;
+    }
+    if (message == WM_KEYDOWN && value == VK_ESCAPE) {
+        playback::suspend_fast_forward_input();
+        stop_rumble();
+        cancel_controller_inventory_click();
+    }
     if (!dialog_open && !text_entry_busy() &&
         saves::browser_message(window, message, value, data)) {
+        if (injected_left) {
+            cancel_controller_inventory_click();
+        }
         if (message == WM_KEYDOWN && value < navigation_keys.size()) {
             navigation_keys[value] = true;
         }
@@ -85,6 +180,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             settings_clicked = inside;
         }
         if (settings_clicked) {
+            if (injected_left) {
+                cancel_controller_inventory_click();
+            }
             if (message == WM_LBUTTONUP) {
                 settings_clicked = false;
                 if (inside) {
@@ -95,6 +193,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         }
     }
     if (text_entry_message(message, value, data)) {
+        if (injected_left) {
+            cancel_controller_inventory_click();
+        }
         return 0;
     }
     if (value < navigation_keys.size() && navigation_keys[value]) {
@@ -194,24 +295,29 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         return 0;
     }
     if (message == WM_TIMER && value == timer) {
+        input::injected_input().recover();
         diagnostics::record_game_context();
         attach_modal_input(window);
         update_menu();
         update_quick_load();
         saves::update_browser(window);
         if (saves::browser_active()) {
+            update_inventory_focus(window, false);
             update_settings_link(window, false);
             update_highlight(window, false);
+            update_controller_hints(window, false);
             devtools::update_inspector(window, false);
             poll_controller(window);
             return 0;
         }
         update_notification(window);
         const bool focused = game_is_foreground(window);
+        update_inventory_focus(window, focused && !dialog_open && !text_entry_busy());
         update_settings_link(window, !IsIconic(window));
         update_dialogue(focused && !dialog_open);
         update_login(window, focused && !dialog_open);
         update_highlight(window, focused && !dialog_open && !text_entry_busy());
+        update_controller_hints(window, focused && !dialog_open && !text_entry_busy());
         update_text_entry(window, focused && !dialog_open);
         devtools::update_inspector(window, !dialog_open && !text_entry_busy());
         const bool pressed = focused && (GetAsyncKeyState(VK_F10) & 0x8000);
@@ -231,7 +337,13 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
     if (message == WM_NCDESTROY) {
         detach_controls();
     }
-    return DefSubclassProc(window, message, value, data);
+    const auto click_generation = inventory_click.generation;
+    begin_inventory_mouse_dispatch(window, message, injected_left, click_generation);
+    const auto result = DefSubclassProc(window, message, value, data);
+    if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK || message == WM_LBUTTONUP) {
+        finish_inventory_click(window, message, injected_left, click_generation);
+    }
+    return result;
 }
 
 }
@@ -240,6 +352,42 @@ bool game_is_foreground(HWND window) {
     // cnc-ddraw reports the game as foreground through GetForegroundWindow even when inactive.
     GUITHREADINFO thread{sizeof(GUITHREADINFO)};
     return GetGUIThreadInfo(0, &thread) && thread.hwndActive == window;
+}
+
+HWND playback_input_window() {
+    return !dialog_open && !text_entry_busy() ? game_window : nullptr;
+}
+
+void begin_controller_inventory_click(HWND window, POINT scene_cursor, POINT item_cursor) {
+    inventory_click = {window,
+                       scene_cursor,
+                       item_cursor,
+                       GetTickCount64(),
+                       ++next_inventory_click_generation,
+                       true,
+                       {}};
+    inventory_click.dispatch.queue();
+}
+
+void begin_controller_inventory_click(HWND window, POINT item_cursor) {
+    inventory_click = {window, {}, item_cursor, GetTickCount64(), ++next_inventory_click_generation,
+                       false,  {}};
+    inventory_click.dispatch.queue();
+}
+
+void cancel_controller_inventory_click() {
+    if (inventory_click.window) {
+        clear_inventory_focus();
+    }
+    inventory_click = {};
+}
+
+bool controller_inventory_click_pending() {
+    if (inventory_click.window && !inventory_click.dispatch.in_flight() &&
+        GetTickCount64() - inventory_click.queued_at >= 1000) {
+        cancel_controller_inventory_click();
+    }
+    return inventory_click.window != nullptr;
 }
 
 void request_settings(HWND window) {
@@ -256,6 +404,7 @@ void attach_controls(HWND window) {
     }
     if (SetWindowSubclass(window, window_proc, subclass_id, 0)) {
         game_window = window;
+        attach_rumble(window);
         attach_menu();
         attach_dialogue(window);
         native_game::attach_native_render();
@@ -279,12 +428,15 @@ void attach_controls(HWND window) {
 }
 
 void detach_controls() {
+    suspend_controller();
+    detach_rumble();
     saves::release_browser();
     devtools::release_inspector();
     detach_modal_input();
     release_settings_link();
     release_text_entry();
     release_highlight();
+    release_controller_hints();
     release_notification();
     clear_inventory_focus();
     native_game::detach_native_render();

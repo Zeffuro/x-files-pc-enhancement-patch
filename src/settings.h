@@ -8,6 +8,7 @@ enum class FocusHighlight { Automatic, Always, Off };
 enum class CaptionMode { Game, On, Off };
 enum class CaptionFont { Modern, Game, Typist, ZonkersHand, Bubbledot };
 enum class CaptionPlacement { Inside, Below };
+enum class MovieContrast { Off, Scene, Mild, Medium };
 
 struct CaptionTypeface {
     const wchar_t* name;
@@ -35,12 +36,20 @@ struct CaptionStyle {
 };
 
 struct Settings {
+    bool dvd_movies = true;
+    bool dvd_deinterlace = true;
+    unsigned movie_speed_key = 192;
+    unsigned movie_speed = 2;
+    bool movie_speed_mute = true;
+    MovieContrast movie_contrast = MovieContrast::Off;
     bool save_browser = false;
     bool menu_black_background = true;
     bool skip_menu_animation = false;
     bool skip_workstation_login = false;
     std::wstring audio_device;
     bool gamepad = true;
+    bool vibration = true;
+    bool controller_hints = false;
     bool analog_cursor = true;
     bool spring_cursor = false;
     FocusHighlight focus_highlight = FocusHighlight::Automatic;
@@ -49,5 +58,6 @@ struct Settings {
 };
 
 Settings read_settings(const std::filesystem::path& path);
+Settings load_settings();
 const Settings& settings();
 void save_settings(const Settings& value);

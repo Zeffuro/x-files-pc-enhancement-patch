@@ -1,5 +1,5 @@
 install(FILES "$<TARGET_FILE:xfiles-patch>" "$<TARGET_FILE:xfiles-setup>"
-    "$<TARGET_FILE:quicktime>" DESTINATION .)
+    "$<TARGET_FILE:quicktime>" "$<TARGET_FILE:dvd-mpeg>" DESTINATION .)
 install(FILES
     "${ddraw_package}/ddraw.dll"
     "${ddraw_package}/cnc-ddraw.LICENSE"
@@ -15,6 +15,7 @@ install(FILES "${CMAKE_SOURCE_DIR}/config/ddraw.ini" "${CMAKE_SOURCE_DIR}/config
     DESTINATION defaults)
 
 install(FILES "${CMAKE_SOURCE_DIR}/docs/controls.md" "${CMAKE_SOURCE_DIR}/docs/building.md"
+    "${CMAKE_SOURCE_DIR}/docs/linux.md"
     DESTINATION docs)
 
 install(FILES "${CMAKE_SOURCE_DIR}/data/clip-labels.tsv" DESTINATION defaults)
@@ -42,6 +43,7 @@ add_custom_target(notice-files ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:quicktime>/docs"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/docs/controls.md" "${CMAKE_SOURCE_DIR}/docs/building.md"
+        "${CMAKE_SOURCE_DIR}/docs/linux.md"
         "$<TARGET_FILE_DIR:quicktime>/docs"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_BINARY_DIR}/generated/zlib.LICENSE"
         "$<TARGET_FILE_DIR:quicktime>/zlib.LICENSE"

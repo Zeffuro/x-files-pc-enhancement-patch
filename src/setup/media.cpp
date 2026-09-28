@@ -40,7 +40,7 @@ bool asset(const fs::path& path) {
     }
     return extension == L".amv" || extension == L".dmv" || extension == L".hot" ||
            extension == L".mus" || extension == L".nmv" || extension == L".pff" ||
-           extension == L".xmv" || extension == L".xtx";
+           extension == L".xmv" || extension == L".xtx" || extension == L".vob";
 }
 }
 
@@ -100,7 +100,7 @@ MediaSource inspect_media(const fs::path& selected) {
                 add(entry.path(), entry.path().filename());
             }
         }
-        for (const auto* name : {L"XG", L"XN", L"XS", L"XT", L"XV"}) {
+        for (const auto* name : {L"XG", L"XN", L"XS", L"XT", L"XV", L"vob"}) {
             const auto directory = layer / name;
             if (!fs::is_directory(directory)) {
                 continue;

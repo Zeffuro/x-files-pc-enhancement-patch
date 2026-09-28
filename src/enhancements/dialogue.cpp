@@ -99,6 +99,7 @@ int __stdcall draw_list(game::Container* object, void* context, void* clip) {
     frame.talk = talk_list->tab_for(game::edition());
     frame.history = history_list->tab_for(game::edition());
     frame.is_history = list == history_list;
+    frame.panel = list->panel_for(game::edition());
     int result;
     {
         Capture capture(frame, list->viewport_for(game::edition()).bounds);
@@ -125,12 +126,7 @@ bool point_at(HWND window, const RECT& bounds, bool activate) {
         return false;
     }
     if (activate) {
-        INPUT events[2]{};
-        events[0].type = events[1].type = INPUT_MOUSE;
-        events[0].mi.dwExtraInfo = events[1].mi.dwExtraInfo = controller_event;
-        events[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-        events[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-        SendInput(2, events, sizeof(INPUT));
+        return input::injected_input().click(false, controller_event).started();
     }
     return true;
 }

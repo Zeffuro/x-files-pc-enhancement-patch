@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(XFILES_VERSION "0.2.0" CACHE STRING "Release version (major.minor.patch)")
+set(XFILES_VERSION "0.3.0" CACHE STRING "Release version (major.minor.patch)")
 if(NOT XFILES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "XFILES_VERSION must be major.minor.patch")
 endif()
@@ -17,6 +17,14 @@ add_compile_definitions(XFILES_BUILD_VERSION="${PROJECT_VERSION}")
 add_compile_options(/W4 /WX /utf-8)
 
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+add_library(movie-grading STATIC src/playback/grading.cpp)
+add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/generated/grading_catalog_generated.h"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/grading-catalog.py"
+        "${CMAKE_SOURCE_DIR}/data/movie-grades.tsv" "${CMAKE_BINARY_DIR}/generated/grading_catalog_generated.h"
+    DEPENDS tools/grading-catalog.py data/movie-grades.tsv
+    VERBATIM)
+target_sources(movie-grading PRIVATE "${CMAKE_BINARY_DIR}/generated/grading_catalog_generated.h")
+target_include_directories(movie-grading PUBLIC src PRIVATE "${CMAKE_BINARY_DIR}/generated")
 add_custom_target(native-profile-check
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/src/game/scripts/generate_profiles.py" --check
     DEPENDS src/game/scripts/generate_profiles.py src/game/profiles/builds.json src/game/profiles/generated.h
@@ -52,17 +60,19 @@ add_library(quicktime SHARED
     src/devtools/clip_key.cpp
     src/devtools/clip_defaults.cpp
     src/enhancements/ui/settings_dialog.cpp
+    src/enhancements/ui/movie_preview.cpp
     src/enhancements/ui/tools_dialog.cpp
     src/enhancements/ui/subtitle_dialog.cpp
     src/enhancements/ui/menu_link.cpp
     src/enhancements/ui/notification.cpp
     src/enhancements/controls.cpp
     src/enhancements/controller.cpp
-    src/enhancements/controller_state.cpp
     src/enhancements/dialogue.cpp
     src/enhancements/game_strings.cpp
     src/enhancements/inventory.cpp
+    src/enhancements/gun.cpp
     src/enhancements/menu.cpp
+    src/enhancements/script_controls.cpp
     src/enhancements/quick_save.cpp
     src/enhancements/modal_input.cpp
     src/enhancements/game_targets.cpp
@@ -70,6 +80,7 @@ add_library(quicktime SHARED
     src/enhancements/screens.cpp
     src/enhancements/login.cpp
     src/enhancements/ui/highlight.cpp
+    src/enhancements/ui/controller_hints.cpp
     src/enhancements/text_entry.cpp
     src/enhancements/ui/keyboard_view.cpp
     src/identity.cpp
@@ -117,11 +128,26 @@ add_library(quicktime SHARED
 configure_file(cmake/clip-labels.rc.in "${CMAKE_BINARY_DIR}/generated/clip-labels.rc" @ONLY)
 target_sources(quicktime PRIVATE "${CMAKE_BINARY_DIR}/generated/clip-labels.rc")
 set_target_properties(quicktime PROPERTIES OUTPUT_NAME QuickTime SUFFIX .qts)
+add_library(controller-input STATIC
+    src/enhancements/controller_state.cpp
+    src/enhancements/controller_navigation.cpp
+    src/enhancements/rumble_state.cpp
+    src/enhancements/rumble_catalog.cpp
+    src/enhancements/rumble.cpp)
+add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/generated/rumble_catalog_generated.h"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/rumble-catalog.py"
+        "${CMAKE_SOURCE_DIR}/data" "${CMAKE_BINARY_DIR}/generated/rumble_catalog_generated.h"
+    DEPENDS tools/rumble-catalog.py data/rumble-effects.tsv data/rumble-clips.tsv data/rumble-events.tsv
+    VERBATIM)
+target_sources(controller-input PRIVATE "${CMAKE_BINARY_DIR}/generated/rumble_catalog_generated.h")
+target_include_directories(controller-input PRIVATE "${CMAKE_BINARY_DIR}/generated")
+target_include_directories(controller-input PUBLIC src)
+target_link_libraries(controller-input PUBLIC user32 xinput)
 add_library(clip-index STATIC src/game/assets/clip_index.cpp)
 target_include_directories(clip-index PUBLIC src)
 add_library(clip-notes STATIC src/devtools/clip_notes.cpp)
 target_include_directories(clip-notes PUBLIC src)
-target_link_libraries(quicktime PRIVATE clip-index clip-notes uxtheme)
+target_link_libraries(quicktime PRIVATE clip-index clip-notes controller-input movie-grading uxtheme)
 target_include_directories(quicktime PRIVATE src src/enhancements/ui)
 target_link_libraries(quicktime PRIVATE advapi32 bcrypt comctl32 comdlg32 dxguid gdi32 msimg32 shell32 user32 uuid winmm xaudio2 xinput)
 
@@ -173,6 +199,8 @@ include(cmake/ffmpeg.cmake)
 include(cmake/zlib.cmake)
 include(cmake/package.cmake)
 add_library(movie STATIC
+    src/media/mpeg.cpp
+    src/media/mpeg_filter.cpp
     src/media/movie.cpp
     src/media/subtitles.cpp
     src/media/subtitle_archive.cpp
@@ -180,10 +208,18 @@ add_library(movie STATIC
     src/media/compressed_audio.cpp
     src/media/video.cpp)
 target_link_libraries(movie PUBLIC bcrypt ole32 windowscodecs movie-zlib movie-minizip
-    FFmpeg::avcodec FFmpeg::avutil FFmpeg::swresample FFmpeg::swscale)
+    FFmpeg::avformat FFmpeg::avcodec FFmpeg::avfilter FFmpeg::avutil FFmpeg::swresample FFmpeg::swscale)
 add_dependencies(movie codec-files)
 target_link_libraries(quicktime PRIVATE movie)
 target_include_directories(movie PUBLIC src/media)
+add_library(dvd-player STATIC src/dvd/player.cpp src/dvd/files.cpp src/dvd/captions.cpp
+    src/identity.cpp src/platform/imports.cpp src/diagnostics/log_file.cpp)
+target_include_directories(dvd-player PUBLIC src)
+target_link_libraries(dvd-player PUBLIC movie)
+add_library(dvd-mpeg SHARED src/dvd/adapter.cpp src/dvd/output.cpp src/dvd/input.cpp src/settings.cpp src/dvd/adapter.def)
+target_link_libraries(dvd-mpeg PRIVATE dvd-player user32 comctl32 gdi32 msimg32 ole32 xaudio2 xinput)
+set_target_properties(dvd-mpeg PROPERTIES OUTPUT_NAME XFilesMpeg)
+add_dependencies(xfiles-patch dvd-mpeg)
 option(XFILES_BUILD_TOOLS "Build developer diagnostics (not included in releases)" OFF)
 if(XFILES_BUILD_TOOLS)
     add_executable(xfiles-checkpoint tools/checkpoint/main.cpp src/preferences/store.cpp src/saves/storage.cpp src/saves/catalog.cpp)

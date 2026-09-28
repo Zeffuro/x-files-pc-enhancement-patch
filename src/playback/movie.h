@@ -8,6 +8,8 @@
 #include "media/video.h"
 #include "settings.h"
 #include "caption_layout.h"
+#include "fast_forward.h"
+#include "enhancements/rumble_catalog.h"
 
 #include <memory>
 #include <chrono>
@@ -52,6 +54,7 @@ struct Movie {
     std::string filename;
     std::filesystem::path source_path;
     std::filesystem::path relative_path;
+    MovieContrast displayed_contrast = MovieContrast::Off;
     mutable std::optional<std::filesystem::file_time_type> override_stamp;
     mutable std::uint64_t override_generation = 0;
     mutable std::optional<std::vector<media::subtitles::Cue>> override_cues;
@@ -64,6 +67,8 @@ struct Movie {
     std::int32_t serviced_time = 0;
     std::int32_t rate = 0;
     std::int32_t preferred_rate = unit_rate;
+    HeldFastForward fast_forward{movie_speed_input};
+    enhancements::rumble::PlaybackCue rumble;
     std::int32_t selection_start = 0;
     std::int32_t selection_duration = 0;
     std::chrono::steady_clock::time_point started;
@@ -88,6 +93,7 @@ std::vector<MovieHandle> pause_movies();
 void resume_movies(const std::vector<MovieHandle>& handles);
 void task_movie(MovieHandle handle);
 void refresh_time(Movie& movie);
+bool supports_fast_forward(const Movie& movie);
 void trace_movie(const char* event, const Movie& movie, std::int32_t value);
 void sync_audio(Movie& movie);
 bool draw_movie(Movie& movie);

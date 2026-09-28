@@ -1,5 +1,6 @@
 #pragma once
 #include "settings.h"
+#include "platform/game_fonts.h"
 #include <windows.h>
 #include <algorithm>
 #include <string>
@@ -15,8 +16,7 @@ inline const wchar_t* caption_font(CaptionFont selected) {
         if (length && length < path.size()) {
             const auto folder = std::filesystem::path(path.data()).parent_path();
             for (std::size_t i = 1; i < caption_fonts.size(); ++i) {
-                result[i] = AddFontResourceExW((folder / caption_fonts[i].file).c_str(), FR_PRIVATE,
-                                               nullptr) != 0;
+                result[i] = platform::register_private_font(folder / caption_fonts[i].file);
             }
         }
         return result;

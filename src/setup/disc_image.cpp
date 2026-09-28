@@ -1,5 +1,6 @@
 #include "disc_image.h"
 #include "identity.h"
+#include "platform/copy_file.h"
 
 #include <windows.h>
 #include <algorithm>
@@ -378,7 +379,7 @@ std::string media_file_sha256(const MediaFile& file) {
 void copy_media_file(const MediaFile& file, const fs::path& output,
                      const std::function<bool()>& keep_going) {
     if (!file.offset) {
-        fs::copy_file(file.source, output, fs::copy_options::overwrite_existing);
+        platform::copy_file(file.source, output, fs::copy_options::overwrite_existing);
         return;
     }
     std::ofstream destination(output, std::ios::binary);

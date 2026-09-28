@@ -1,4 +1,5 @@
 #include "keyboard_view.h"
+#include "platform/game_fonts.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -57,9 +58,8 @@ LRESULT CALLBACK paint(HWND window, UINT message, WPARAM wparam, LPARAM lparam) 
             }
             path.resize(length);
             const auto folder = std::filesystem::path(path).parent_path();
-            return std::array<bool, 2>{
-                AddFontResourceExW((folder / L"HCD.TTR").c_str(), FR_PRIVATE, nullptr) != 0,
-                AddFontResourceExW((folder / L"DLG.TTR").c_str(), FR_PRIVATE, nullptr) != 0};
+            return std::array<bool, 2>{platform::register_private_font(folder / L"HCD.TTR"),
+                                       platform::register_private_font(folder / L"DLG.TTR")};
         }();
         const auto face = save_theme && loaded[1]    ? L"Schmutz ICG Cleaned"
                           : !save_theme && loaded[0] ? L"Typist"

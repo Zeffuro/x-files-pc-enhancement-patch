@@ -8,9 +8,19 @@
 | Alt+Enter | Switch between windowed and borderless |
 | F5 | Quick-save during exploration |
 | F9 | Quick-load during exploration or from the main menu |
+| Hold backtick | Fast-forward a movie |
 
 Close movies, conversations and device screens before saving or loading.
 Loading replaces your current progress.
+
+Release backtick to return to normal speed and sound. After pausing, seeking or
+switching windows, release it before pressing again. This applies to moving
+QuickTime scenes with sound and supported DVD movies.
+Keep holding it to continue fast-forwarding into the next movie.
+Choose **Fast-forward** in F10 for **2x**, **3x** or **4x** speed. Sound is muted by
+default. Turn off **Mute fast-forward** to hear accelerated, higher-pitched audio.
+To change the key, set `MovieSpeedKey` under `[Input]` in `patch.ini` to a Windows
+virtual-key number. The default is `192`. Set it to `0` to disable the shortcut.
 
 ## Controller
 
@@ -27,6 +37,7 @@ Xbox-compatible first. The PlayStation names below refer to matching button posi
 | View / Select | Skip a movie, if enabled in the game options |
 | D-pad | Select controls |
 | Left stick | Move the pointer |
+| Hold left stick click / L3 | Fast-forward a movie |
 | Right stick click / R3 | Switch between conversation choices and evidence |
 | LB or RB + left/right | Select exits |
 | RT + left/right | Select hotspots |
@@ -37,6 +48,11 @@ With several controllers connected, using another controller makes it active.
 After reconnecting or leaving settings, release the buttons and centre the stick.
 Combat and some menus still need work.
 
+Optional **Controller hints** in F10 show button positions in a four-button
+diagram. The filled circle is the button to press, regardless of its printed
+letter or symbol. Hints appear while using the controller and hide when using
+the mouse. Controller software can remap these positions.
+
 In conversations, up/down selects a response. Left/right or LB/RB switches
 Talk/History. R3 switches to evidence icons, then A uses the selected item.
 Keyboard Tab also switches groups. Right-click closes the conversation.
@@ -46,6 +62,9 @@ Selecting a text field opens an on-screen keyboard. Use the D-pad to select a
 key, A to type, X to delete, and Y or Start to close it. You can also type normally.
 
 With the gun equipped, A fires. Entering inventory holsters it.
+**Controller vibration** in F10 covers gunfire and supported action scenes.
+It is on by default and uses the active controller. Vibration stops when you
+pause, skip the scene, open a menu or switch away from the game.
 
 ## Settings
 
@@ -53,9 +72,34 @@ Choose **Tweaks** on the main menu or press **F10**. You can change the window
 size, picture sharpness, audio device, controller options and subtitles.
 Wider windows keep the original picture proportions and add side bars.
 
-The first-launch **Recommended** preset enables controller support, the analog
-pointer, black menu backgrounds, shorter menu animations and the save browser.
-You can change each option separately.
+**Deinterlace DVD video** smooths interlaced DVD movies. Turn it off to keep
+the original fields. The change applies to the next DVD movie and does not
+affect QuickTime movies. DVD playback is currently experimental and limited to
+the startup movies and one English game-over scene. The game-over scene requires
+subtitles set to **On** or **Off**. **Game preference** uses QuickTime instead.
+
+Turn off **Use DVD movies** to use the QuickTime versions instead. This option
+is available on the supported DVD edition when DVD movie assets are installed.
+It applies to the next movie when experimental DVD playback is enabled.
+
+**Movie colors** starts at **Original (off)**. **Reviewed scene grades** applies
+fixed adjustments to reviewed movie files. Other files keep their original
+colors. **Contrast +15%** and **Contrast +25%** apply the same contrast increase
+to all moving QuickTime Cinepak movies. Dark scenes may lose shadow detail.
+Menus, still images, subtitles and DVD MPEG movies keep their original colors.
+
+**Movie preview** compares the original and selected colors side by side. Choose
+a named early scene and **Play preview** to loop a short, silent excerpt while
+gameplay stays paused. **Use selection**, then **OK**, applies your choice to the game.
+Scaling filters change the enlarged game picture behind F10 immediately.
+**Cancel** restores the previous filter. At original size their differences
+can be small. The separate color preview uses its own fixed image scaling.
+
+The first-launch screen starts with **Recommended** choices already selected.
+These include controller support, vibration, button hints, the analog pointer,
+black menu backgrounds, shorter menu animations and the save browser. DVD movies,
+deinterlacing and muted fast-forward are also enabled. You can choose fast-forward
+speed, captions and movie colors, or change each checkbox before starting.
 
 For subtitles, choose a font and size, and optionally add a dark background.
 You can adjust the background's colour and opacity.
@@ -86,6 +130,11 @@ to the next control. LB/RB changes pages.
 **Existing save files** on the Load screen lists older saves. **F10 → Tools** also
 lets you load from a file or export a save. Quick-saving keeps a backup of the
 previous quick-save.
+
+On the DVD edition, supported older CD saves can be loaded through experimental
+conversion. A warning explains the limits before loading a separate copy. The
+original file stays unchanged. Some PDA history and password counters use defaults,
+so check your progress and save to a new file after loading.
 
 ## Subtitle packs
 

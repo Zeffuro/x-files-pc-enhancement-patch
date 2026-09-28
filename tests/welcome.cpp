@@ -11,11 +11,21 @@ int main() {
         std::filesystem::create_directories(root);
         const auto path = root / L"patch.ini";
         std::ofstream(path) << "[Accessibility]\nCaptionScale=125\n[Interface]\nLanguage=ja\n";
-        test::require(save_welcome_choices(path, {true, false, true, false, true}),
+        const WelcomeChoices selected{
+            {true, false, true, false, true, false, true, false, true, false}, 4, 2, 3};
+        test::require(save_welcome_choices(path, selected),
                       "First-launch choices could not be saved");
         test::require(
             GetPrivateProfileIntW(L"Input", L"Gamepad", 0, path.c_str()) == 1 &&
                 GetPrivateProfileIntW(L"Input", L"AnalogCursor", 1, path.c_str()) == 0 &&
+                GetPrivateProfileIntW(L"Input", L"Vibration", 1, path.c_str()) == 0 &&
+                GetPrivateProfileIntW(L"Input", L"ControllerHints", 0, path.c_str()) == 1 &&
+                GetPrivateProfileIntW(L"Video", L"DVDMovies", 1, path.c_str()) == 0 &&
+                GetPrivateProfileIntW(L"Video", L"DVDDeinterlace", 0, path.c_str()) == 1 &&
+                GetPrivateProfileIntW(L"Audio", L"MovieSpeedMute", 1, path.c_str()) == 0 &&
+                GetPrivateProfileIntW(L"Video", L"MovieSpeed", 0, path.c_str()) == 4 &&
+                GetPrivateProfileIntW(L"Accessibility", L"Captions", 0, path.c_str()) == 2 &&
+                GetPrivateProfileIntW(L"Video", L"MovieContrast", 0, path.c_str()) == 3 &&
                 GetPrivateProfileIntW(L"Enhancements", L"SaveBrowser", 0, path.c_str()) == 1 &&
                 GetPrivateProfileIntW(L"Interface", L"WelcomeVersion", 0, path.c_str()) == 1,
             "First-launch choices were not applied");
@@ -28,7 +38,7 @@ int main() {
         const auto lock = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
                                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         test::require(lock != INVALID_HANDLE_VALUE, "Cannot lock test settings");
-        const auto changed = save_welcome_choices(path, {false, false, false, false, false});
+        const auto changed = save_welcome_choices(path, {});
         CloseHandle(lock);
         test::require(!changed && GetPrivateProfileIntW(L"Input", L"Gamepad", 0, path.c_str()) == 1,
                       "Failed settings publication damaged prior choices");

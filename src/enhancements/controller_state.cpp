@@ -31,6 +31,7 @@ public:
                             (raw & XINPUT_GAMEPAD_LEFT_SHOULDER ? button::previous : 0) |
                             (raw & XINPUT_GAMEPAD_RIGHT_SHOULDER ? button::next : 0) |
                             (raw & XINPUT_GAMEPAD_RIGHT_THUMB ? button::evidence : 0) |
+                            (raw & XINPUT_GAMEPAD_LEFT_THUMB ? button::speed : 0) |
                             (raw & XINPUT_GAMEPAD_DPAD_UP ? button::up : 0) |
                             (raw & XINPUT_GAMEPAD_DPAD_DOWN ? button::down : 0) |
                             (raw & XINPUT_GAMEPAD_DPAD_LEFT ? button::left : 0) |

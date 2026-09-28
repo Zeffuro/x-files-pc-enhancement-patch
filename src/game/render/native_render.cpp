@@ -145,15 +145,7 @@ int __stdcall draw_group(void* group, void* destination, void* clip) {
 
 int __stdcall transfer_canvas(void* canvas, void* destination, Rectangle* source, Rectangle* target,
                               void* clip, int flags) {
-    struct Restore {
-        HDC previous = presenting;
-
-        ~Restore() {
-            presenting = previous;
-        }
-    } restore;
-
-    presenting = canvas == current_canvas() ? canvas_dc() : nullptr;
+    const CanvasPresentation presentation(canvas == current_canvas() ? canvas_dc() : nullptr);
     return original_transfer(canvas, destination, source, target, clip, flags);
 }
 }
@@ -191,6 +183,14 @@ HDC presentation_source(HDC source) {
 void set_canvas_source(CanvasSource callback) {
     canvas_source = callback;
     source_reported = false;
+}
+
+CanvasPresentation::CanvasPresentation(HDC source) : previous_(presenting) {
+    presenting = source;
+}
+
+CanvasPresentation::~CanvasPresentation() {
+    presenting = previous_;
 }
 
 bool native_render_available() {

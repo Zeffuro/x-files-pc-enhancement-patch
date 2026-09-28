@@ -24,6 +24,23 @@ Settings& current_settings() {
 
 Settings read_settings(const std::filesystem::path& path) {
     Settings result;
+    result.dvd_movies = GetPrivateProfileIntW(L"Video", L"DVDMovies", 1, path.c_str()) != 0;
+    const auto speed_key = GetPrivateProfileIntW(L"Input", L"MovieSpeedKey", 192, path.c_str());
+    if (speed_key <= 254) {
+        result.movie_speed_key = speed_key;
+    }
+    const auto speed = GetPrivateProfileIntW(L"Video", L"MovieSpeed", 2, path.c_str());
+    if (speed >= 2 && speed <= 4) {
+        result.movie_speed = speed;
+    }
+    result.movie_speed_mute =
+        GetPrivateProfileIntW(L"Audio", L"MovieSpeedMute", 1, path.c_str()) != 0;
+    const auto contrast = GetPrivateProfileIntW(L"Video", L"MovieContrast", 0, path.c_str());
+    if (contrast <= static_cast<UINT>(MovieContrast::Medium)) {
+        result.movie_contrast = static_cast<MovieContrast>(contrast);
+    }
+    result.dvd_deinterlace =
+        GetPrivateProfileIntW(L"Video", L"DVDDeinterlace", 1, path.c_str()) != 0;
     result.save_browser =
         GetPrivateProfileIntW(L"Enhancements", L"SaveBrowser", 0, path.c_str()) != 0;
     result.menu_black_background =
@@ -36,6 +53,9 @@ Settings read_settings(const std::filesystem::path& path) {
     GetPrivateProfileStringW(L"Audio", L"Device", L"", device, _countof(device), path.c_str());
     result.audio_device = device;
     result.gamepad = GetPrivateProfileIntW(L"Input", L"Gamepad", 1, path.c_str()) != 0;
+    result.vibration = GetPrivateProfileIntW(L"Input", L"Vibration", 1, path.c_str()) != 0;
+    result.controller_hints =
+        GetPrivateProfileIntW(L"Input", L"ControllerHints", 0, path.c_str()) != 0;
     result.analog_cursor = GetPrivateProfileIntW(L"Input", L"AnalogCursor", 1, path.c_str()) != 0;
     result.spring_cursor = GetPrivateProfileIntW(L"Input", L"SpringCursor", 0, path.c_str()) != 0;
     const auto highlight = GetPrivateProfileIntW(L"Input", L"FocusHighlight", 0, path.c_str());
@@ -72,6 +92,10 @@ const Settings& settings() {
     return current_settings();
 }
 
+Settings load_settings() {
+    return read_settings(settings_path());
+}
+
 void save_settings(const Settings& value) {
     const auto path = settings_path();
     const auto highlight = std::to_wstring(static_cast<int>(value.focus_highlight));
@@ -81,12 +105,28 @@ void save_settings(const Settings& value) {
     const auto opacity = std::to_wstring(value.caption_style.opacity);
     const auto color = std::to_wstring(value.caption_style.background_color);
     const auto placement = std::to_wstring(static_cast<int>(value.caption_style.placement));
-    if (!WritePrivateProfileStringW(L"Enhancements", L"SaveBrowser",
+    const auto contrast = std::to_wstring(static_cast<int>(value.movie_contrast));
+    const auto speed_key = std::to_wstring(value.movie_speed_key);
+    const auto speed = std::to_wstring(value.movie_speed);
+    if (!WritePrivateProfileStringW(L"Video", L"DVDMovies", value.dvd_movies ? L"1" : L"0",
+                                    path.c_str()) ||
+        !WritePrivateProfileStringW(L"Input", L"MovieSpeedKey", speed_key.c_str(), path.c_str()) ||
+        !WritePrivateProfileStringW(L"Video", L"MovieSpeed", speed.c_str(), path.c_str()) ||
+        !WritePrivateProfileStringW(L"Audio", L"MovieSpeedMute",
+                                    value.movie_speed_mute ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Input", L"ControllerHints",
+                                    value.controller_hints ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Video", L"MovieContrast", contrast.c_str(), path.c_str()) ||
+        !WritePrivateProfileStringW(L"Video", L"DVDDeinterlace",
+                                    value.dvd_deinterlace ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"SaveBrowser",
                                     value.save_browser ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"FocusHighlight", highlight.c_str(), path.c_str()) ||
         !WritePrivateProfileStringW(L"Audio", L"Device", value.audio_device.c_str(),
                                     path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"Gamepad", value.gamepad ? L"1" : L"0",
+                                    path.c_str()) ||
+        !WritePrivateProfileStringW(L"Input", L"Vibration", value.vibration ? L"1" : L"0",
                                     path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"AnalogCursor", value.analog_cursor ? L"1" : L"0",
                                     path.c_str()) ||

@@ -201,6 +201,8 @@ void Output::play(std::span<const std::int16_t>) {
 void Output::stop() {}
 
 void Output::volume(std::int16_t, std::int16_t) {}
+
+void Output::speed(unsigned) {}
 }
 
 int main() {
@@ -320,7 +322,7 @@ int main() {
             const auto& selection =
                 native_game::registered_variables[std::size(native_game::registered_variables) - 1];
             std::memcpy(image.data() + selection.rva(*profile), &pointer, sizeof(pointer));
-            variable.raw_value = 2;
+            variable.raw_value = 9;
             variable.type_flags = 0x81;
             require(devtools::inspect_variables(image.data(), *profile).find(L" / 1 - Gun") !=
                         std::wstring::npos,
@@ -332,6 +334,9 @@ int main() {
             variable.raw_value = -7;
         }
         require(native_game::inventory_selection_name(0) == L"None" &&
+                    native_game::inventory_selection_name(9) == L"Gun" &&
+                    native_game::inventory_selection_name(12) == L"Lockpick" &&
+                    native_game::inventory_selection_name(2).empty() &&
                     native_game::inventory_selection_name(3) == L"PDA" &&
                     native_game::inventory_selection_name(1).empty() &&
                     native_game::inventory_selection_name(0x1be8).empty(),

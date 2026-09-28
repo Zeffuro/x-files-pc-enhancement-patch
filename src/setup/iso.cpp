@@ -78,7 +78,21 @@ std::vector<MediaFile> select_iso_files(const std::vector<MediaFile>& files,
                                         const std::map<std::wstring, MediaRecord>& catalog) {
     std::map<std::wstring, MediaFile> found;
     std::set<std::wstring> verified;
-    for (auto file : files) {
+    auto ordered = files;
+    const auto layer = [](const MediaFile& file) {
+        auto path = lower(file.relative.generic_wstring());
+        if (path.starts_with(L"english/")) {
+            path.erase(0, 8);
+        }
+        if (path.starts_with(L"mininst/")) {
+            return 0;
+        }
+        return path.starts_with(L"medinst/") ? 2 : 1;
+    };
+    std::stable_sort(
+        ordered.begin(), ordered.end(),
+        [&](const MediaFile& left, const MediaFile& right) { return layer(left) < layer(right); });
+    for (auto file : ordered) {
         const auto name = media_relative(file.relative);
         const auto record = catalog.find(name);
         if (record == catalog.end() || record->second.size != file.size) {
