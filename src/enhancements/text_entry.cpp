@@ -81,7 +81,7 @@ void move(int horizontal, int vertical) {
 }
 
 void poll() {
-    const auto frame = input::poll(settings().gamepad);
+    const auto frame = input::poll(settings().gamepad, settings().controller_profile);
     const auto& state = frame.sample;
     const auto current = state.buttons;
     const auto pressed = frame.pressed;
@@ -117,14 +117,18 @@ void poll() {
     if (analog && !(selecting && settings().spring_cursor)) {
         move_analog_cursor(keyboard.owner, state.left_x, state.left_y, elapsed);
     }
-    const int horizontal = std::clamp(
-        (current & input::button::right ? 1 : 0) - (current & input::button::left ? 1 : 0) +
-            (!analog && state.left_x > 18000 ? 1 : 0) - (!analog && state.left_x < -18000 ? 1 : 0),
-        -1, 1);
-    const int vertical = std::clamp(
-        (current & input::button::down ? 1 : 0) - (current & input::button::up ? 1 : 0) +
-            (!analog && state.left_y < -18000 ? 1 : 0) - (!analog && state.left_y > 18000 ? 1 : 0),
-        -1, 1);
+    const auto navigation_threshold =
+        std::max(18000, static_cast<int>(settings().controller_profile.deadzone));
+    const int horizontal = std::clamp((current & input::button::right ? 1 : 0) -
+                                          (current & input::button::left ? 1 : 0) +
+                                          (!analog && state.left_x > navigation_threshold ? 1 : 0) -
+                                          (!analog && state.left_x < -navigation_threshold ? 1 : 0),
+                                      -1, 1);
+    const int vertical =
+        std::clamp((current & input::button::down ? 1 : 0) - (current & input::button::up ? 1 : 0) +
+                       (!analog && state.left_y < -navigation_threshold ? 1 : 0) -
+                       (!analog && state.left_y > navigation_threshold ? 1 : 0),
+                   -1, 1);
     const bool changed = horizontal != keyboard.horizontal || vertical != keyboard.vertical;
     if ((horizontal || vertical) && (changed || now >= keyboard.repeat)) {
         move(horizontal, vertical);

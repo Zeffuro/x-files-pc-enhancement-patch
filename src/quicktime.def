@@ -1,7 +1,7 @@
 LIBRARY QuickTime.qts
 EXPORTS
     XFilesTranscriptCaptionV1
-    XFilesMovieSpeedInputV1
+    XFilesMovieSpeedInputV2
     theQuickTimeDispatcher
     _CallComponent=CallComponent
     _CallComponentFunctionWithStorage=CallComponentFunctionWithStorage

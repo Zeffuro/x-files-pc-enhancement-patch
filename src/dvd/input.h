@@ -8,10 +8,11 @@ inline playback::FastForwardInput& speed_input() {
     // The two playback DLLs share release barriers across clip transitions.
     const auto module = GetModuleHandleW(L"QuickTime.qts");
     const auto shared = module ? reinterpret_cast<playback::FastForwardInput*(__cdecl*)()>(
-                                     GetProcAddress(module, "XFilesMovieSpeedInputV1"))
+                                     GetProcAddress(module, "XFilesMovieSpeedInputV2"))
                                : nullptr;
     return shared ? *shared() : playback::movie_speed_input;
 }
 
-bool poll_speed(playback::HeldFastForward& state, HWND owner, unsigned key, bool gamepad);
+bool poll_speed(playback::HeldFastForward& state, HWND owner, unsigned key, bool gamepad,
+                const controller::Profile& profile);
 }

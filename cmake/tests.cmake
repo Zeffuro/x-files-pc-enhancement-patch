@@ -2,6 +2,32 @@ option(XFILES_INTERACTIVE_TESTS "Run tests that change the display or play sound
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(controller-profile-portable-test tests/controller_profile_portable.cpp)
+    target_include_directories(controller-profile-portable-test PRIVATE src)
+    add_test(NAME controller-profile-portable COMMAND controller-profile-portable-test)
+    add_executable(controller-profile-test tests/controller_profile.cpp src/settings.cpp)
+    target_link_libraries(controller-profile-test PRIVATE controller-input)
+    add_test(NAME controller-profile-settings COMMAND controller-profile-test)
+    add_executable(controller-dialog-test tests/controller_dialog.cpp src/settings.cpp
+        src/localization/ui.cpp src/enhancements/ui/controller_dialog.cpp
+        src/enhancements/ui/controller_dialog.rc)
+    target_include_directories(controller-dialog-test PRIVATE src src/enhancements/ui)
+    target_link_libraries(controller-dialog-test PRIVATE user32)
+    add_test(NAME controller-profile-dialog COMMAND controller-dialog-test)
+    add_executable(settings-dialog-test tests/settings_dialog.cpp src/settings.cpp
+        src/enhancements/ui/settings_dialog.cpp src/enhancements/ui/settings_tabs.cpp
+        src/enhancements/ui/controller_dialog.cpp src/enhancements/ui/controller_dialog.rc
+        src/enhancements/ui/quick_menu_dialog.cpp src/localization/ui.cpp
+        src/enhancements/ui/settings.rc)
+    target_include_directories(settings-dialog-test PRIVATE src src/enhancements/ui)
+    target_link_libraries(settings-dialog-test PRIVATE controller-input user32 shell32 comctl32)
+    add_test(NAME settings-dialog-transactions COMMAND settings-dialog-test)
+    add_executable(settings-tabs-test tests/settings_tabs.cpp
+        src/enhancements/ui/settings_tabs.cpp src/localization/ui.cpp
+        src/enhancements/ui/settings.rc)
+    target_include_directories(settings-tabs-test PRIVATE src src/enhancements/ui)
+    target_link_libraries(settings-tabs-test PRIVATE user32 comctl32)
+    add_test(NAME settings-tab-pages COMMAND settings-tabs-test)
     add_executable(quick-menu-dialog-test tests/quick_menu_dialog.cpp src/settings.cpp
         src/localization/ui.cpp src/enhancements/ui/quick_menu_dialog.cpp
         src/enhancements/ui/settings.rc)

@@ -3,10 +3,29 @@
 #include <windows.h>
 #include <vector>
 #include <stdexcept>
+#include <limits>
 
 namespace {
 
 constexpr std::array quick_menu_keys{L"Save", L"Load", L"Transcript", L"Tweaks", L"Menu"};
+
+unsigned read_controller(const wchar_t* key, unsigned fallback, const std::filesystem::path& path) {
+    wchar_t text[32]{};
+    const auto size =
+        GetPrivateProfileStringW(L"Controller", key, L"", text, _countof(text), path.c_str());
+    if (!size || size >= _countof(text) - 1) {
+        return fallback;
+    }
+    unsigned value = 0;
+    for (const auto* digit = text; *digit; ++digit) {
+        if (*digit < L'0' || *digit > L'9' ||
+            value > (std::numeric_limits<unsigned>::max() - (*digit - L'0')) / 10) {
+            return fallback;
+        }
+        value = value * 10 + (*digit - L'0');
+    }
+    return value;
+}
 
 std::filesystem::path settings_path() {
     std::vector<wchar_t> buffer(32768);
@@ -67,6 +86,18 @@ Settings read_settings(const std::filesystem::path& path) {
         GetPrivateProfileIntW(L"Input", L"ControllerHints", 0, path.c_str()) != 0;
     result.analog_cursor = GetPrivateProfileIntW(L"Input", L"AnalogCursor", 1, path.c_str()) != 0;
     result.spring_cursor = GetPrivateProfileIntW(L"Input", L"SpringCursor", 0, path.c_str()) != 0;
+    auto& profile = result.controller_profile;
+    for (std::size_t index = 0; index < controller::action_count; ++index) {
+        profile.bindings[index] = static_cast<controller::Binding>(read_controller(
+            controller::action_keys[index], static_cast<unsigned>(profile.bindings[index]), path));
+    }
+    profile.deadzone = read_controller(L"Deadzone", 7849, path);
+    profile.sensitivity = read_controller(L"Sensitivity", 100, path);
+    profile.curve = static_cast<controller::Curve>(read_controller(L"Curve", 1, path));
+    profile.trigger_threshold = read_controller(L"TriggerThreshold", 30, path);
+    profile.invert_x = read_controller(L"InvertX", 0, path) == 1;
+    profile.invert_y = read_controller(L"InvertY", 0, path) == 1;
+    profile = controller::normalize(profile);
     const auto highlight = GetPrivateProfileIntW(L"Input", L"FocusHighlight", 0, path.c_str());
     if (highlight <= static_cast<UINT>(FocusHighlight::Off)) {
         result.focus_highlight = static_cast<FocusHighlight>(highlight);
@@ -173,5 +204,23 @@ void save_settings(const Settings& value) {
             throw std::runtime_error("Cannot save quick menu settings");
         }
     }
+    const auto profile = controller::normalize(value.controller_profile);
+    const auto write_controller = [&](const wchar_t* key, unsigned setting) {
+        const auto text = std::to_wstring(setting);
+        if (!WritePrivateProfileStringW(L"Controller", key, text.c_str(), path.c_str())) {
+            throw std::runtime_error("Cannot save controller settings");
+        }
+    };
+    for (std::size_t index = 0; index < controller::action_count; ++index) {
+        write_controller(controller::action_keys[index],
+                         static_cast<unsigned>(profile.bindings[index]));
+    }
+    write_controller(L"Deadzone", profile.deadzone);
+    write_controller(L"Sensitivity", profile.sensitivity);
+    write_controller(L"Curve", static_cast<unsigned>(profile.curve));
+    write_controller(L"TriggerThreshold", profile.trigger_threshold);
+    write_controller(L"InvertX", profile.invert_x);
+    write_controller(L"InvertY", profile.invert_y);
     current_settings() = value;
+    current_settings().controller_profile = profile;
 }

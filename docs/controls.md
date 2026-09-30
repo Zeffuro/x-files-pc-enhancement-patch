@@ -18,7 +18,7 @@ Open the top-right menu in game and choose **Transcript** to read dialogue from 
 session. Selected conversation choices appear beside available caption text,
 including captions hidden during playback. Use Previous/Next, the arrow keys
 or the mouse wheel to move through the pages. Escape or Done returns to the game.
-The controller D-pad turns pages and B closes the transcript.
+With the default assignments, the controller D-pad turns pages and B closes the transcript.
 Turn **Dialogue transcript** on or off in F10 or the welcome screen.
 
 Enable **Quick menu** in F10 or the welcome screen to open Save, Load, Transcript,
@@ -49,6 +49,7 @@ virtual-key number. The default is `192`. Set it to `0` to disable the shortcut.
 
 Use an Xbox-compatible controller. PlayStation controllers need to be set up as
 Xbox-compatible first. The PlayStation names below refer to matching button positions.
+The descriptions below use the default assignments.
 
 | Xbox / PlayStation | Action |
 |---|---|
@@ -74,7 +75,18 @@ Combat and some menus still need work.
 Optional **Controller hints** in F10 show button positions in a four-button
 diagram. The filled circle is the button to press, regardless of its printed
 letter or symbol. Hints appear while using the controller and hide when using
-the mouse. Controller software can remap these positions.
+the mouse. Hints follow your assignments. Other buttons appear by name.
+
+Open **F10 → Controller → Configure controller...** to change the controls above.
+Choose an action and select a button, or choose **Capture button**, release all
+controls, and press the button you want. Assignments swap so every action stays
+available. The D-pad keeps its navigation controls.
+
+The live readout helps you adjust stick deadzone, pointer sensitivity, response
+curve and trigger threshold. You can invert either stick axis.
+**Reset recommended** restores the original controls and calibration.
+Choose **OK** in both dialogs to save. **Cancel** in the main settings discards
+changes accepted in the controller dialog.
 
 In conversations, up/down selects a response. Left/right or LB/RB switches
 Talk/History. R3 switches to evidence icons, then A uses the selected item.
@@ -93,6 +105,9 @@ pause, skip the scene, open a menu or switch away from the game.
 
 Choose **Tweaks** on the main menu or press **F10**. You can change the window
 size, picture sharpness, audio device, controller options and subtitles.
+Settings are grouped into **Display and audio**, **Controller**, **Subtitles**
+and **Game** tabs. Use **Ctrl+Page Down** or **Ctrl+Page Up** to switch tabs.
+Changes stay in place while you switch. **OK** saves them and **Cancel** discards them.
 Wider windows keep the original picture proportions and add side bars.
 
 **Deinterlace DVD video** smooths interlaced DVD movies. Turn it off to keep

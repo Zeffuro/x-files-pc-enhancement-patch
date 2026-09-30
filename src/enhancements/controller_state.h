@@ -1,5 +1,7 @@
 #pragma once
 
+#include "controller_profile.h"
+
 #include <array>
 #include <cstdint>
 
@@ -35,6 +37,17 @@ struct Sample {
     std::int16_t left_y = 0;
 };
 
+struct RawState {
+    std::uint16_t buttons = 0;
+    std::uint8_t left_trigger = 0;
+    std::uint8_t right_trigger = 0;
+    std::int16_t left_x = 0;
+    std::int16_t left_y = 0;
+};
+
+bool read_raw(unsigned player, RawState& state);
+Sample map_sample(const RawState& raw, const controller::Profile& profile);
+
 struct Frame {
     Sample sample{};
     std::uint16_t pressed = 0;
@@ -52,7 +65,7 @@ public:
 
 class Selection {
 public:
-    Frame poll(Backend& backend, bool enabled);
+    Frame poll(Backend& backend, bool enabled, const controller::Profile& profile = {});
 
 private:
     std::array<Sample, max_devices> previous_{};
@@ -66,8 +79,10 @@ private:
     bool blocked_right_trigger_ = false;
     bool blocked_left_x_ = false;
     bool blocked_left_y_ = false;
+    controller::Profile profile_;
 };
 
 Frame poll(bool enabled);
+Frame poll(bool enabled, const controller::Profile& profile);
 
 }

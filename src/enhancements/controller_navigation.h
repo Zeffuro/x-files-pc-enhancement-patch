@@ -6,7 +6,7 @@
 
 namespace enhancements::input {
 
-float cursor_axis(std::int16_t value);
+float cursor_axis(std::int16_t value, const controller::Profile& profile = {});
 float capped_elapsed(std::uint64_t now, std::uint64_t& previous);
 
 struct Motion {
@@ -33,7 +33,7 @@ struct NavigationStep {
 class NavigationRepeat {
 public:
     NavigationStep update(const Sample& sample, bool analog_cursor, bool jump_mode, bool aim_mode,
-                          std::uint64_t now);
+                          std::uint64_t now, const controller::Profile& profile = {});
     void reset();
 
 private:

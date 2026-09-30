@@ -92,7 +92,7 @@ struct SettingsGuard {
 void verify_shared_input(void* object, HWND parent, char* file, SettingsGuard& settings,
                          HMODULE quicktime) {
     const auto shared = reinterpret_cast<playback::FastForwardInput*(__cdecl*)()>(
-        GetProcAddress(quicktime, "XFilesMovieSpeedInputV1"));
+        GetProcAddress(quicktime, "XFilesMovieSpeedInputV2"));
     require(shared != nullptr, "QuickTime does not expose shared movie-speed input");
     playback::HeldFastForward previous(*shared()), next(*shared());
     previous.update(false, true);

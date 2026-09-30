@@ -2,6 +2,8 @@
 #include "tools_dialog.h"
 #include "movie_preview.h"
 #include "quick_menu_dialog.h"
+#include "settings_tabs.h"
+#include "controller_dialog.h"
 #include "enhancements/quick_save.h"
 #include "enhancements/edition.h"
 #include "resources.h"
@@ -34,6 +36,7 @@ struct Dialog {
     unsigned scaling_filter = 0;
     unsigned original_filter = 0;
     bool inspect = false;
+    SettingsTabs tabs;
 };
 
 struct WindowSize {
@@ -238,7 +241,16 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                            settings().save_browser ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_DIALOGUE_TRANSCRIPT,
                            settings().dialogue_transcript ? BST_CHECKED : BST_UNCHECKED);
+            state->tabs.initialize(window);
             return TRUE;
+        }
+        if (message == WM_NOTIFY && state) {
+            const auto* notification = reinterpret_cast<NMHDR*>(data);
+            if (notification->idFrom == IDC_SETTINGS_TABS && notification->code == TCN_SELCHANGE) {
+                state->tabs.select(
+                    static_cast<unsigned>(TabCtrl_GetCurSel(notification->hwndFrom)));
+                return TRUE;
+            }
         }
         if (message == WM_COMMAND && LOWORD(parameter) == IDC_GITHUB &&
             HIWORD(parameter) == BN_CLICKED) {
@@ -292,6 +304,12 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                 state->draft);
             return TRUE;
         }
+        if (message == WM_COMMAND && LOWORD(parameter) == IDC_CONFIGURE_CONTROLLER && state) {
+            show_controller_dialog(
+                window, reinterpret_cast<HMODULE>(GetWindowLongPtrW(window, GWLP_HINSTANCE)),
+                state->draft);
+            return TRUE;
+        }
         if (message == WM_COMMAND && LOWORD(parameter) == IDC_TOOLS && state) {
             const auto tools = show_tools_dialog(
                 window, reinterpret_cast<HMODULE>(GetWindowLongPtrW(window, GWLP_HINSTANCE)));
@@ -335,6 +353,11 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             const auto scale = GetDlgItemInt(window, IDC_CAPTION_SCALE, &valid, FALSE);
             if (font < 0 || static_cast<std::size_t>(font) >= caption_fonts.size() || !valid ||
                 scale < 75 || scale > 200) {
+                state->tabs.select(2);
+                SetFocus(GetDlgItem(window, font < 0 || static_cast<std::size_t>(font) >=
+                                                            caption_fonts.size()
+                                                ? IDC_CAPTION_FONT
+                                                : IDC_CAPTION_SCALE));
                 throw std::runtime_error(
                     "Select a caption font and a size between 75 and 200 percent");
             }
@@ -370,6 +393,7 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                 IsDlgButtonChecked(window, IDC_DIALOGUE_TRANSCRIPT) == BST_CHECKED;
             value.quick_menu = state->draft.quick_menu;
             value.quick_menu_items = state->draft.quick_menu_items;
+            value.controller_profile = state->draft.controller_profile;
             const auto selected_language =
                 SendDlgItemMessageW(window, IDC_INTERFACE_LANGUAGE, CB_GETCURSEL, 0, 0);
             if (selected_language < 0 || selected_language >= 6) {
@@ -468,7 +492,7 @@ void show_settings_dialog(HWND window) {
             throw std::runtime_error("Cannot open enhancement settings");
         }
         platform::ToolTheme theme(module);
-        INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_BAR_CLASSES};
+        INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_BAR_CLASSES | ICC_TAB_CLASSES};
         if (!InitCommonControlsEx(&controls)) {
             throw std::runtime_error("Cannot initialize caption settings");
         }

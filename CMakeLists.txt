@@ -60,6 +60,9 @@ add_library(quicktime SHARED
     src/devtools/clip_key.cpp
     src/devtools/clip_defaults.cpp
     src/enhancements/ui/settings_dialog.cpp
+    src/enhancements/ui/settings_tabs.cpp
+    src/enhancements/ui/controller_dialog.cpp
+    src/enhancements/ui/controller_dialog.rc
     src/enhancements/ui/quick_menu_dialog.cpp
     src/enhancements/ui/movie_preview.cpp
     src/enhancements/ui/tools_dialog.cpp

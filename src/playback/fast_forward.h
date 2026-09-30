@@ -1,5 +1,7 @@
 #pragma once
 
+#include "controller_profile.h"
+
 #include <array>
 
 namespace playback {
@@ -9,6 +11,7 @@ struct FastForwardInput {
     unsigned epoch = 0;
     unsigned generation = 0;
     std::array<bool, 4> controllers{};
+    controller::Profile profile;
 };
 
 inline thread_local FastForwardInput movie_speed_input;
@@ -70,6 +73,14 @@ public:
         if (epoch != input().epoch) {
             reset();
             input().epoch = epoch;
+        }
+    }
+
+    void profile(const controller::Profile& requested) {
+        const auto profile = controller::normalize(requested);
+        if (profile != input().profile) {
+            reset();
+            input().profile = profile;
         }
     }
 

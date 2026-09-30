@@ -57,7 +57,8 @@ void refresh_time(Movie& value) {
     } else {
         poll_fast_forward(value.fast_forward, enhancements::playback_input_window(),
                           settings().movie_speed_key, settings().gamepad,
-                          value.active && supports_fast_forward(value));
+                          value.active && supports_fast_forward(value),
+                          settings().controller_profile);
     }
     if (accelerated != value.fast_forward.active()) {
         enhancements::cancel_rumble(reinterpret_cast<std::uintptr_t>(&value));
@@ -329,6 +330,6 @@ Entry timeline_entry(Selector selector) {
     return find_entry(selector, entries);
 }
 
-extern "C" playback::FastForwardInput* __cdecl XFilesMovieSpeedInputV1() {
+extern "C" playback::FastForwardInput* __cdecl XFilesMovieSpeedInputV2() {
     return &playback::movie_speed_input;
 }

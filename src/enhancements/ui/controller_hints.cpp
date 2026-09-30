@@ -14,7 +14,14 @@ namespace {
 constexpr wchar_t class_name[] = L"XFilesControllerHints";
 thread_local HWND overlay = nullptr;
 thread_local HMODULE module = nullptr;
-thread_local std::array<const wchar_t*, 4> labels{};
+
+struct Hint {
+    const wchar_t* label = nullptr;
+    controller::Binding binding = controller::Binding::A;
+    bool operator==(const Hint&) const = default;
+};
+
+thread_local std::array<Hint, 6> labels{};
 
 LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM data) {
     if (message == WM_NCHITTEST) {
@@ -36,10 +43,10 @@ LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
         const auto old_pen = SelectObject(dc, outline);
         const auto old_brush = SelectObject(dc, GetStockObject(HOLLOW_BRUSH));
         const int count = static_cast<int>(std::count_if(
-            labels.begin(), labels.end(), [](const auto* s) { return s != nullptr; }));
+            labels.begin(), labels.end(), [](const auto& hint) { return hint.label != nullptr; }));
         int index = 0;
         for (unsigned selected = 0; selected < labels.size(); ++selected) {
-            if (!labels[selected]) {
+            if (!labels[selected].label) {
                 continue;
             }
             const int x = 2 + index++ * bounds.right / std::max(1, count);
@@ -49,14 +56,23 @@ LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
                                                {center + step, height / 2},
                                                {center - step, height / 2},
                                                {center, height / 2 - step}}};
-            for (unsigned button = 0; button < points.size(); ++button) {
+            const auto binding = static_cast<unsigned>(labels[selected].binding);
+            for (unsigned button = 0; binding < points.size() && button < points.size(); ++button) {
                 const auto point = points[button];
-                SelectObject(dc, button == selected ? accent : GetStockObject(HOLLOW_BRUSH));
+                SelectObject(dc, button == binding ? accent : GetStockObject(HOLLOW_BRUSH));
                 Ellipse(dc, point.x - radius, point.y - radius, point.x + radius + 1,
                         point.y + radius + 1);
             }
-            RECT text{x + height + 3, 0, x + bounds.right / std::max(1, count) - 4, height};
-            DrawTextW(dc, labels[selected], -1, &text,
+            if (binding >= points.size()) {
+                RECT badge{x, 0, x + height * 2, height};
+                SetTextColor(dc, game_highlight);
+                DrawTextW(dc, controller::binding_names[binding], -1, &badge,
+                          DT_SINGLELINE | DT_VCENTER | DT_CENTER | DT_NOPREFIX);
+                SetTextColor(dc, game_blue);
+            }
+            RECT text{x + height * (binding < points.size() ? 1 : 2) + 3, 0,
+                      x + bounds.right / std::max(1, count) - 4, height};
+            DrawTextW(dc, labels[selected].label, -1, &text,
                       DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
         }
         SelectObject(dc, old_font);
@@ -73,26 +89,35 @@ LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
 }
 
 void update_controller_hints(HWND window, bool enabled) {
-    std::array<const wchar_t*, 4> next{};
+    std::array<const wchar_t*, 6> actions{};
     RECT dialogue_panel{};
     if (enabled && settings().controller_hints && settings().gamepad && controller_active) {
         if (const auto buttons = game::modal_buttons(); !buttons.empty()) {
-            next = {L"Select", nullptr, nullptr, buttons.size() == 1 ? L"Close" : nullptr};
+            actions = {L"Select", nullptr, nullptr, buttons.size() == 1 ? L"Close" : nullptr};
         } else if (game::input_vtable() == game::edition().main_menu) {
-            next = {L"Select", nullptr, nullptr, nullptr};
+            actions = {L"Select", nullptr, nullptr, nullptr};
         } else if (quick_menu::expanded()) {
-            next = {L"Select", nullptr, nullptr, L"Close"};
+            actions = {L"Select", nullptr, nullptr, L"Close"};
         } else if (inventory_focused(window)) {
-            next = {L"Use item", nullptr, L"Examine", L"Back"};
+            actions = {L"Use item", nullptr, L"Examine", L"Back"};
         } else if (const auto dialogue = current_dialogue()) {
-            next = {L"Select", L"Close", nullptr, L"Back"};
+            actions = {L"Select", L"Close", nullptr, L"Back"};
             dialogue_panel = dialogue->panel;
         } else if (game::world_navigation_available() && game::emotion_targets().empty() &&
                    game::script_controls().buttons.empty()) {
-            next = {L"Interact", L"Inventory", L"Examine", nullptr};
+            actions = {L"Interact", L"Inventory", L"Examine", nullptr, L"Aim", L"Targets"};
         }
     }
-    if (next == std::array<const wchar_t*, 4>{}) {
+    std::array<Hint, 6> next{};
+    constexpr std::array hint_actions{controller::Action::Activate, controller::Action::Inventory,
+                                      controller::Action::Examine,  controller::Action::Back,
+                                      controller::Action::Aim,      controller::Action::Targets};
+    for (std::size_t index = 0; index < next.size(); ++index) {
+        next[index] = {
+            actions[index],
+            settings().controller_profile.bindings[static_cast<std::size_t>(hint_actions[index])]};
+    }
+    if (actions == std::array<const wchar_t*, 6>{}) {
         if (overlay) {
             ShowWindow(overlay, SW_HIDE);
         }
@@ -127,8 +152,8 @@ void update_controller_hints(HWND window, bool enabled) {
     const auto& client = info.rcClient;
     const auto scale =
         std::min((client.right - client.left) / 640.0, (client.bottom - client.top) / 480.0);
-    const auto count =
-        std::count_if(next.begin(), next.end(), [](const auto* label) { return label != nullptr; });
+    const auto count = std::count_if(next.begin(), next.end(),
+                                     [](const auto& hint) { return hint.label != nullptr; });
     const auto height = std::max(14, static_cast<int>(14 * scale));
     auto width = std::min(client.right - client.left, static_cast<LONG>(count * height * 7));
     int x = client.left + (client.right - client.left - width) / 2;

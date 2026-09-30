@@ -5,14 +5,8 @@
 
 namespace enhancements::input {
 
-float cursor_axis(std::int16_t value) {
-    const int magnitude = std::abs(static_cast<int>(value));
-    if (magnitude <= left_deadzone) {
-        return 0;
-    }
-    const auto normalized =
-        std::min(1.0f, float(magnitude - left_deadzone) / (32767 - left_deadzone));
-    return std::copysign(normalized * normalized, static_cast<float>(value));
+float cursor_axis(std::int16_t value, const controller::Profile& profile) {
+    return controller::axis(value, profile);
 }
 
 float capped_elapsed(std::uint64_t now, std::uint64_t& previous) {
@@ -36,16 +30,18 @@ void MotionAccumulator::reset() {
 }
 
 NavigationStep NavigationRepeat::update(const Sample& sample, bool analog_cursor, bool jump_mode,
-                                        bool aim_mode, std::uint64_t now) {
+                                        bool aim_mode, std::uint64_t now,
+                                        const controller::Profile& profile) {
     const auto buttons = sample.buttons;
     const bool stick_navigation = !analog_cursor || (jump_mode && !aim_mode);
+    const auto threshold = std::max(18000, static_cast<int>(profile.deadzone));
     const auto horizontal_input = (buttons & button::right ? 1 : 0) -
                                   (buttons & button::left ? 1 : 0) +
-                                  (stick_navigation && sample.left_x > 18000 ? 1 : 0) -
-                                  (stick_navigation && sample.left_x < -18000 ? 1 : 0);
+                                  (stick_navigation && sample.left_x > threshold ? 1 : 0) -
+                                  (stick_navigation && sample.left_x < -threshold ? 1 : 0);
     const auto vertical_input = (buttons & button::down ? 1 : 0) - (buttons & button::up ? 1 : 0) +
-                                (!analog_cursor && sample.left_y < -18000 ? 1 : 0) -
-                                (!analog_cursor && sample.left_y > 18000 ? 1 : 0);
+                                (!analog_cursor && sample.left_y < -threshold ? 1 : 0) -
+                                (!analog_cursor && sample.left_y > threshold ? 1 : 0);
     const int horizontal = std::clamp(horizontal_input, -1, 1);
     const int vertical = std::clamp(vertical_input, -1, 1);
     const bool changed = horizontal != previous_horizontal_ || vertical != previous_vertical_;

@@ -21,7 +21,8 @@ CHECKS = (
     "ui-colors", "movie", "audio", "compressed-audio", "video", "canvas-presentation",
     "transcript-history", "transcript-page", "transcript-capture", "transcript-view",
     "browser-session", "scene-overlay", "menu-control", "quick-menu", "quick-menu-navigation",
-    "quick-menu-dialog",
+    "quick-menu-dialog", "settings-tabs", "settings-dialog", "controller-profile", "controller-dialog",
+    "controller-profile-portable",
 )
 
 

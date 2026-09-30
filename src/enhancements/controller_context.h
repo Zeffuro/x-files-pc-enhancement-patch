@@ -30,7 +30,7 @@ struct Context {
 
 class ContextBarrier {
 public:
-    bool filter(const Context& context, Frame& frame) {
+    bool filter(const Context& context, Frame& frame, const controller::Profile& profile = {}) {
         if (frame.device_changed) {
             blocked_ = {};
         }
@@ -46,8 +46,8 @@ public:
         frame.pressed &= sample.buttons;
         filter_trigger(blocked_.left_trigger, sample.left_trigger);
         filter_trigger(blocked_.right_trigger, sample.right_trigger);
-        filter_axis(blocked_.left_x, sample.left_x);
-        filter_axis(blocked_.left_y, sample.left_y);
+        filter_axis(blocked_.left_x, sample.left_x, profile.deadzone);
+        filter_axis(blocked_.left_y, sample.left_y, profile.deadzone);
         frame.aim_pressed &= sample.left_trigger > trigger_threshold;
         return changed;
     }
@@ -65,8 +65,8 @@ private:
         }
     }
 
-    static void filter_axis(std::int16_t& blocked, std::int16_t& value) {
-        if (std::abs(static_cast<int>(blocked)) > left_deadzone) {
+    static void filter_axis(std::int16_t& blocked, std::int16_t& value, unsigned deadzone) {
+        if (std::abs(static_cast<int>(blocked)) > static_cast<int>(deadzone)) {
             blocked = value;
             value = 0;
         }

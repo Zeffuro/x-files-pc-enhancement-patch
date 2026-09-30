@@ -1,5 +1,7 @@
 #pragma once
 
+#include "controller_profile.h"
+
 #include <filesystem>
 #include <array>
 
@@ -55,6 +57,7 @@ struct Settings {
     bool controller_hints = false;
     bool analog_cursor = true;
     bool spring_cursor = false;
+    controller::Profile controller_profile;
     FocusHighlight focus_highlight = FocusHighlight::Automatic;
     CaptionMode captions = CaptionMode::Game;
     CaptionStyle caption_style;

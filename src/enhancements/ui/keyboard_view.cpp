@@ -1,8 +1,10 @@
 #include "keyboard_view.h"
 #include "platform/game_fonts.h"
+#include "settings.h"
 
 #include <algorithm>
 #include <filesystem>
+#include <string>
 
 namespace enhancements {
 namespace {
@@ -12,6 +14,7 @@ HMODULE module = nullptr;
 unsigned selection = 0;
 bool save_theme = false;
 RECT previous{};
+controller::Profile previous_profile;
 
 void fill(HDC dc, RECT bounds, COLORREF color) {
     const auto brush = CreateSolidBrush(color);
@@ -88,8 +91,19 @@ LRESULT CALLBACK paint(HWND window, UINT message, WPARAM wparam, LPARAM lparam) 
                                        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
                                        DEFAULT_PITCH, L"Arial");
         SelectObject(dc, small);
-        label(dc, {10, 110, 450, 122}, "D-PAD: SELECT    A: TYPE    X: DELETE    Y / START: CLOSE",
-              RGB(149, 185, 196));
+        const auto& profile = settings().controller_profile;
+        const auto name = [&](controller::Action action) {
+            return controller::binding_names[static_cast<std::size_t>(
+                profile.bindings[static_cast<std::size_t>(action)])];
+        };
+        const auto hint = std::wstring(L"D-PAD: SELECT    ") + name(controller::Action::Activate) +
+                          L": TYPE    " + name(controller::Action::Examine) + L": DELETE    " +
+                          name(controller::Action::Back) + L" / " + name(controller::Action::Menu) +
+                          L": CLOSE";
+        RECT hint_bounds{10, 110, 450, 122};
+        SetTextColor(dc, RGB(149, 185, 196));
+        DrawTextW(dc, hint.c_str(), -1, &hint_bounds,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
         SelectObject(dc, old_font);
         DeleteObject(small);
         DeleteObject(font);
@@ -156,10 +170,12 @@ void show_keyboard(HWND owner, bool save_menu, unsigned selected) {
         SetLayeredWindowAttributes(overlay, 0, 255, LWA_ALPHA);
     }
     const bool changed = save_theme != save_menu || selection != selected ||
-                         !EqualRect(&previous, &bounds) || !IsWindowVisible(overlay);
+                         !EqualRect(&previous, &bounds) || !IsWindowVisible(overlay) ||
+                         previous_profile != settings().controller_profile;
     save_theme = save_menu;
     selection = selected;
     previous = bounds;
+    previous_profile = settings().controller_profile;
     if (changed) {
         if (auto placement = BeginDeferWindowPos(1)) {
             placement = DeferWindowPos(placement, overlay, nullptr, bounds.left, bounds.top,

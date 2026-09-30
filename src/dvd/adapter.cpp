@@ -171,6 +171,7 @@ public:
             speed_multiplier_ = options.movie_speed;
             speed_mute_ = options.movie_speed_mute;
             gamepad_ = options.gamepad;
+            controller_profile_ = options.controller_profile;
             if (!options.dvd_movies || !selected(requested)) {
                 throw std::runtime_error("DVD clip uses QuickTime fallback");
             }
@@ -420,6 +421,7 @@ private:
         speed_multiplier_ = options.movie_speed;
         speed_mute_ = options.movie_speed_mute;
         gamepad_ = options.gamepad;
+        controller_profile_ = options.controller_profile;
         if (captions_) {
             if (options.captions != CaptionMode::Game) {
                 caption_enabled_ = options.captions == CaptionMode::On;
@@ -540,7 +542,8 @@ private:
                 cancel_timer();
                 held_speed_.clear();
             } else {
-                set_speed(poll_speed(held_speed_, parent_, speed_key_, gamepad_));
+                set_speed(
+                    poll_speed(held_speed_, parent_, speed_key_, gamepad_, controller_profile_));
             }
         });
     }
@@ -589,6 +592,7 @@ private:
     unsigned speed_ = 1;
     bool speed_mute_ = true;
     bool gamepad_ = true;
+    controller::Profile controller_profile_;
     std::array<char, 256> error_{};
     bool broken_ = false;
     bool failed_ = false;

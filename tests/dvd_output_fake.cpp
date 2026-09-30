@@ -7,7 +7,9 @@ extern "C" {
 }
 
 namespace dvd {
-bool poll_speed(playback::HeldFastForward& state, HWND, unsigned key, bool) {
+bool poll_speed(playback::HeldFastForward& state, HWND, unsigned key, bool,
+                const controller::Profile& profile) {
+    state.profile(profile);
     const bool down = GetEnvironmentVariableW(L"XFILES_DVD_TEST_SPEED_DOWN", nullptr, 0) != 0;
     const bool focus = GetEnvironmentVariableW(L"XFILES_DVD_TEST_SPEED_UNFOCUSED", nullptr, 0) == 0;
     return state.update(down, key && focus);

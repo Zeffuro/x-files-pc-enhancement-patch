@@ -103,20 +103,22 @@ void suspend_controller() {
 }
 
 void move_analog_cursor(HWND window, SHORT horizontal, SHORT vertical, float elapsed) {
+    const auto& profile = settings().controller_profile;
     if (settings().spring_cursor) {
         RECT bounds{};
         POINT position{};
         analog_motion.reset();
         if (GetClientRect(window, &bounds) &&
-            spring_cursor.update(horizontal, vertical, bounds, position) &&
+            spring_cursor.update(horizontal, vertical, bounds, position, profile) &&
             ClientToScreen(window, &position)) {
             move_controller_pointer(position.x, position.y);
         }
         return;
     }
     spring_cursor.suspend();
-    const auto movement = analog_motion.advance(input::cursor_axis(horizontal) * 450,
-                                                -input::cursor_axis(vertical) * 450, elapsed);
+    const auto movement =
+        analog_motion.advance(input::cursor_axis(horizontal, profile) * 450,
+                              -input::cursor_axis(vertical, profile) * 450, elapsed);
     const auto dx = movement.x, dy = movement.y;
     RECT client{};
     POINT cursor{};
@@ -140,7 +142,8 @@ void poll_controller(HWND window) {
     observe_pointer();
     const bool focused = game_is_foreground(window);
     const bool busy = text_entry_busy();
-    auto frame = busy ? input::Frame{} : input::poll(settings().gamepad && focused);
+    const auto& profile = settings().controller_profile;
+    auto frame = busy ? input::Frame{} : input::poll(settings().gamepad && focused, profile);
     if (frame.device_changed) {
         cancel_controller_inventory_click();
         stop_rumble();
@@ -170,7 +173,7 @@ void poll_controller(HWND window) {
         return;
     }
     const bool pending_click = controller_inventory_click_pending();
-    if (!pending_click && context_barrier.filter(controller_context(window), frame)) {
+    if (!pending_click && context_barrier.filter(controller_context(window), frame, profile)) {
         reset_navigation();
     }
     const auto& state = frame.sample;
@@ -178,7 +181,7 @@ void poll_controller(HWND window) {
     const bool aim = state.left_trigger > input::trigger_threshold;
     const bool aim_pressed = frame.aim_pressed;
     if (buttons || aim || state.right_trigger > input::trigger_threshold ||
-        input::cursor_axis(state.left_x) || input::cursor_axis(state.left_y)) {
+        input::cursor_axis(state.left_x, profile) || input::cursor_axis(state.left_y, profile)) {
         controller_active = true;
     }
     update_rumble(frame.player, settings().vibration && controller_active &&
@@ -258,7 +261,7 @@ void poll_controller(HWND window) {
     if ((pressed & input::button::evidence) && focus_conversation_evidence(window)) {
         return;
     }
-    const auto nav = navigation.update(state, analog_cursor, jump_mode, aim_mode, now);
+    const auto nav = navigation.update(state, analog_cursor, jump_mode, aim_mode, now, profile);
     const int horizontal_direction = nav.horizontal;
     const int vertical_direction = nav.vertical;
     const bool step = nav.step;
@@ -348,11 +351,12 @@ void poll_controller(HWND window) {
     } else if (selecting) {
         motion.reset();
     } else {
-        movement = motion.advance((analog_cursor ? 0 : input::cursor_axis(state.left_x)) * speed +
-                                      horizontal * fine_speed,
-                                  -(analog_cursor ? 0 : input::cursor_axis(state.left_y)) * speed +
-                                      vertical * fine_speed,
-                                  elapsed);
+        movement = motion.advance(
+            (analog_cursor ? 0 : input::cursor_axis(state.left_x, profile)) * speed +
+                horizontal * fine_speed,
+            -(analog_cursor ? 0 : input::cursor_axis(state.left_y, profile)) * speed +
+                vertical * fine_speed,
+            elapsed);
     }
     const bool clicking = (pressed & (input::button::activate | input::button::examine)) != 0;
     if (movement.x || movement.y || clicking) {

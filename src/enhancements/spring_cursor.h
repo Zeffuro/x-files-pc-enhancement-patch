@@ -1,5 +1,7 @@
 #pragma once
 
+#include "controller_profile.h"
+
 #include <windows.h>
 #include <algorithm>
 #include <cmath>
@@ -13,8 +15,10 @@ public:
         waiting_ = true;
     }
 
-    bool update(SHORT horizontal, SHORT vertical, const RECT& bounds, POINT& position) {
-        const auto x = axis(horizontal), y = axis(vertical);
+    bool update(SHORT horizontal, SHORT vertical, const RECT& bounds, POINT& position,
+                const controller::Profile& profile = {}) {
+        const auto x = controller::axis(horizontal, profile, true);
+        const auto y = controller::axis(vertical, profile, true);
         const bool displaced = x != 0 || y != 0;
         if (waiting_) {
             waiting_ = displaced;
@@ -37,15 +41,6 @@ public:
     }
 
 private:
-    static float axis(SHORT value) {
-        constexpr int deadzone = 7849;
-        const auto magnitude = std::abs(static_cast<int>(value));
-        return magnitude <= deadzone
-                   ? 0.0f
-                   : std::copysign(std::min(1.0f, float(magnitude - deadzone) / (32767 - deadzone)),
-                                   static_cast<float>(value));
-    }
-
     bool active_ = false;
     bool waiting_ = false;
 };

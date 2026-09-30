@@ -1,4 +1,5 @@
 #include "playback/fast_forward.h"
+#include "playback/fast_forward_input.h"
 #include "dispatch.h"
 #include "settings.h"
 
@@ -6,6 +7,96 @@
 #include <iostream>
 
 namespace {
+std::array<XINPUT_STATE, XUSER_MAX_COUNT> raw_controllers;
+std::array<bool, XUSER_MAX_COUNT> connected_controllers;
+
+DWORD WINAPI read_controller(DWORD index, XINPUT_STATE* state) {
+    *state = raw_controllers.at(index);
+    return connected_controllers.at(index) ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
+}
+
+void verify_speed_mapping() {
+    using namespace controller;
+    for (std::size_t index = 0; index < binding_count; ++index) {
+        playback::FastForwardInput input;
+        playback::HeldFastForward first(input), next(input);
+        Profile profile;
+        bind(profile, Action::Speed, static_cast<Binding>(index));
+        raw_controllers = {};
+        connected_controllers = {};
+        connected_controllers[0] = true;
+        auto& raw = raw_controllers[0].Gamepad;
+        raw.wButtons = binding_masks[index];
+        raw.bLeftTrigger = index == 10 ? 255 : 0;
+        raw.bRightTrigger = index == 11 ? 255 : 0;
+        const auto poll = [&](playback::HeldFastForward& movie) {
+            return playback::poll_controller_speed(movie, true, profile, read_controller);
+        };
+        test::require(!poll(first), "A mapped speed binding inherited held input.");
+        raw = {};
+        first.update(poll(first), true);
+        raw.wButtons = binding_masks[index];
+        raw.bLeftTrigger = index == 10 ? 255 : 0;
+        raw.bRightTrigger = index == 11 ? 255 : 0;
+        test::require(first.update(poll(first), true),
+                      "Mapped raw speed binding did not accelerate.");
+        first.clear();
+        test::require(next.update(poll(next), true),
+                      "Mapped speed hold did not cross a natural clip.");
+        const auto generation = input.generation;
+        next.profile(profile);
+        test::require(input.generation == generation && next.active(),
+                      "Unchanged profile interrupted a natural speed hold.");
+        profile.sensitivity = 150;
+        test::require(!poll(first) && !next.active(),
+                      "Changed calibration retained another clip's held speed.");
+        test::require(!poll(next), "Changed profile rearmed before physical release.");
+        raw = {};
+        first.update(poll(first), true);
+        raw.wButtons = binding_masks[index];
+        raw.bLeftTrigger = index == 10 ? 255 : 0;
+        raw.bRightTrigger = index == 11 ? 255 : 0;
+        test::require(first.update(poll(first), true), "Profile change lost a fresh speed press.");
+        connected_controllers[0] = false;
+        first.update(poll(first), true);
+        connected_controllers[0] = true;
+        test::require(!poll(first), "Reconnect retained a mapped speed hold.");
+    }
+    playback::FastForwardInput input;
+    playback::HeldFastForward state(input);
+    Profile profile;
+    bind(profile, Action::Speed, Binding::LeftTrigger);
+    profile.trigger_threshold = 0;
+    raw_controllers = {};
+    connected_controllers = {};
+    connected_controllers[0] = true;
+    const auto poll = [&] {
+        return playback::poll_controller_speed(state, true, profile, read_controller);
+    };
+    state.update(poll(), true);
+    raw_controllers[0].Gamepad.bLeftTrigger = 1;
+    test::require(state.update(poll(), true), "Mapped speed ignored calibrated trigger threshold.");
+    profile.trigger_threshold = 254;
+    test::require(!poll() && !state.active(), "Threshold change retained accelerated state.");
+    raw_controllers[0].Gamepad.bLeftTrigger = 254;
+    state.update(poll(), true);
+    raw_controllers[0].Gamepad.bLeftTrigger = 255;
+    test::require(state.update(poll(), true), "Maximum calibrated speed trigger did not activate.");
+    raw_controllers[0].Gamepad.bRightTrigger = 255;
+    bind(profile, Action::Speed, Binding::RightTrigger);
+    test::require(!poll(), "Remapping to an already held trigger inherited accelerated input.");
+    raw_controllers[0].Gamepad.bLeftTrigger = 0;
+    test::require(!poll(), "Releasing the old trigger rearmed the still-held new trigger.");
+    raw_controllers[0].Gamepad.bRightTrigger = 0;
+    state.update(poll(), true);
+    raw_controllers[0].Gamepad.bRightTrigger = 255;
+    test::require(state.update(poll(), true), "Remapped speed lost a fresh new trigger press.");
+    state.reset();
+    state.update(false, true);
+    state.profile(profile);
+    test::require(state.update(true, true), "Unchanged controller profile broke keyboard speed.");
+}
+
 void verify_settings() {
     const auto path = std::filesystem::temp_directory_path() /
                       (L"xfiles-speed-" + std::to_wstring(GetCurrentProcessId()) + L".ini");
@@ -107,6 +198,7 @@ void verify_clip_continuity() {
 int main() {
     try {
         verify_settings();
+        verify_speed_mapping();
         verify_clip_continuity();
         playback::HeldFastForward state;
         test::require(!state.update(true, true), "Held input accelerated a new movie.");
