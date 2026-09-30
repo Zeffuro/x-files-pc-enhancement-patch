@@ -16,7 +16,7 @@ FIELDS = (
     "credit_group credit_update credit_draw credit_invalidate credit_outer canvas_invalidate "
     "canvas_transfer_call canvas_transfer credit_position canvas "
     "select_inventory set_inventory_action owned_inventory_item registered_gun_action "
-    "inventory_action_variable selected_inventory queue_mouse_move"
+    "inventory_action_variable selected_inventory queue_mouse_move menu_corner menu_corner_rectangle"
 ).split()
 OFFSETS = {"children", "control_rectangle", "choice_viewport", "credit_position", "canvas"}
 BUILD_IDS = ("cd_10012", "cd_10019", "dvd_20000", "cd_10020")

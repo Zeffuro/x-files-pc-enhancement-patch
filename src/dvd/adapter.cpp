@@ -9,6 +9,7 @@
 #include "media/mpeg_timing.h"
 #include "diagnostics/log_file.h"
 #include "settings.h"
+#include "transcript/dvd_bridge.h"
 
 #include <algorithm>
 #include <array>
@@ -477,6 +478,13 @@ private:
     void update_caption() {
         if (captions_ && device_ && player_) {
             const auto status = player_->status();
+            if (status == Status::playing) {
+                transcript::observe_dvd_caption(
+                    std::filesystem::path(L"XV") /
+                        (std::filesystem::path(clip_).stem().wstring() + L".XMV"),
+                    captions_->cues(), captions_->source_cues(), captions_->source_scale(),
+                    player_->position());
+            }
             const auto visible =
                 caption_enabled_ && (status == Status::playing || status == Status::paused);
             device_->output.caption(visible ? captions_->at(player_->position()) : std::wstring{},

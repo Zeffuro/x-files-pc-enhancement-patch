@@ -1,5 +1,6 @@
 #include "controller_hints.h"
 #include "game_style.h"
+#include "quick_menu.h"
 #include "enhancements/input_source.h"
 #include "enhancements/game_ui.h"
 #include "enhancements/dialogue.h"
@@ -79,6 +80,8 @@ void update_controller_hints(HWND window, bool enabled) {
             next = {L"Select", nullptr, nullptr, buttons.size() == 1 ? L"Close" : nullptr};
         } else if (game::input_vtable() == game::edition().main_menu) {
             next = {L"Select", nullptr, nullptr, nullptr};
+        } else if (quick_menu::expanded()) {
+            next = {L"Select", nullptr, nullptr, L"Close"};
         } else if (inventory_focused(window)) {
             next = {L"Use item", nullptr, L"Examine", L"Back"};
         } else if (const auto dialogue = current_dialogue()) {

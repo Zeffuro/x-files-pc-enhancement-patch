@@ -6,6 +6,8 @@
 
 namespace {
 
+constexpr std::array quick_menu_keys{L"Save", L"Load", L"Transcript", L"Tweaks", L"Menu"};
+
 std::filesystem::path settings_path() {
     std::vector<wchar_t> buffer(32768);
     const auto size = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
@@ -43,6 +45,13 @@ Settings read_settings(const std::filesystem::path& path) {
         GetPrivateProfileIntW(L"Video", L"DVDDeinterlace", 1, path.c_str()) != 0;
     result.save_browser =
         GetPrivateProfileIntW(L"Enhancements", L"SaveBrowser", 0, path.c_str()) != 0;
+    result.dialogue_transcript =
+        GetPrivateProfileIntW(L"Enhancements", L"DialogueTranscript", 1, path.c_str()) != 0;
+    result.quick_menu = GetPrivateProfileIntW(L"Enhancements", L"QuickMenu", 1, path.c_str()) != 0;
+    for (std::size_t index = 0; index < quick_menu_keys.size(); ++index) {
+        result.quick_menu_items[index] =
+            GetPrivateProfileIntW(L"QuickMenu", quick_menu_keys[index], 1, path.c_str()) != 0;
+    }
     result.menu_black_background =
         GetPrivateProfileIntW(L"Enhancements", L"MenuBlackBackground", 1, path.c_str()) != 0;
     result.skip_workstation_login =
@@ -121,6 +130,10 @@ void save_settings(const Settings& value) {
                                     value.dvd_deinterlace ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"SaveBrowser",
                                     value.save_browser ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"DialogueTranscript",
+                                    value.dialogue_transcript ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"QuickMenu", value.quick_menu ? L"1" : L"0",
+                                    path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"FocusHighlight", highlight.c_str(), path.c_str()) ||
         !WritePrivateProfileStringW(L"Audio", L"Device", value.audio_device.c_str(),
                                     path.c_str()) ||
@@ -152,6 +165,13 @@ void save_settings(const Settings& value) {
         !WritePrivateProfileStringW(L"Enhancements", L"SkipMenuAnimation",
                                     value.skip_menu_animation ? L"1" : L"0", path.c_str())) {
         throw std::runtime_error("Cannot save enhancement settings");
+    }
+    for (std::size_t index = 0; index < quick_menu_keys.size(); ++index) {
+        if (!WritePrivateProfileStringW(L"QuickMenu", quick_menu_keys[index],
+                                        value.quick_menu_items[index] ? L"1" : L"0",
+                                        path.c_str())) {
+            throw std::runtime_error("Cannot save quick menu settings");
+        }
     }
     current_settings() = value;
 }

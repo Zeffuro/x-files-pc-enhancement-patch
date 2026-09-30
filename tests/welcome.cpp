@@ -12,7 +12,7 @@ int main() {
         const auto path = root / L"patch.ini";
         std::ofstream(path) << "[Accessibility]\nCaptionScale=125\n[Interface]\nLanguage=ja\n";
         const WelcomeChoices selected{
-            {true, false, true, false, true, false, true, false, true, false}, 4, 2, 3};
+            {true, false, true, false, true, false, true, false, true, false, true, true}, 4, 2, 3};
         test::require(save_welcome_choices(path, selected),
                       "First-launch choices could not be saved");
         test::require(
@@ -27,6 +27,9 @@ int main() {
                 GetPrivateProfileIntW(L"Accessibility", L"Captions", 0, path.c_str()) == 2 &&
                 GetPrivateProfileIntW(L"Video", L"MovieContrast", 0, path.c_str()) == 3 &&
                 GetPrivateProfileIntW(L"Enhancements", L"SaveBrowser", 0, path.c_str()) == 1 &&
+                GetPrivateProfileIntW(L"Enhancements", L"DialogueTranscript", 0, path.c_str()) ==
+                    1 &&
+                GetPrivateProfileIntW(L"Enhancements", L"QuickMenu", 0, path.c_str()) == 1 &&
                 GetPrivateProfileIntW(L"Interface", L"WelcomeVersion", 0, path.c_str()) == 1,
             "First-launch choices were not applied");
         wchar_t language[16]{};
@@ -40,11 +43,27 @@ int main() {
         test::require(lock != INVALID_HANDLE_VALUE, "Cannot lock test settings");
         const auto changed = save_welcome_choices(path, {});
         CloseHandle(lock);
-        test::require(!changed && GetPrivateProfileIntW(L"Input", L"Gamepad", 0, path.c_str()) == 1,
-                      "Failed settings publication damaged prior choices");
+        test::require(
+            !changed && GetPrivateProfileIntW(L"Input", L"Gamepad", 0, path.c_str()) == 1 &&
+                GetPrivateProfileIntW(L"Enhancements", L"QuickMenu", 0, path.c_str()) == 1,
+            "Failed settings publication damaged prior choices");
         test::require(std::distance(std::filesystem::directory_iterator(root),
                                     std::filesystem::directory_iterator{}) == 1,
                       "Failed first-launch save left a temporary file");
+        auto without_menu = selected;
+        without_menu.enabled.back() = false;
+        test::require(
+            save_welcome_choices(path, without_menu) &&
+                GetPrivateProfileIntW(L"Enhancements", L"QuickMenu", 1, path.c_str()) == 0 &&
+                GetPrivateProfileIntW(L"Enhancements", L"SaveBrowser", 0, path.c_str()) == 1 &&
+                GetPrivateProfileIntW(L"Enhancements", L"DialogueTranscript", 0, path.c_str()) == 1,
+            "Disabling the welcome quick menu changed independent enhancements");
+        test::require(
+            save_welcome_choices(path, {}) &&
+                GetPrivateProfileIntW(L"Enhancements", L"DialogueTranscript", 1, path.c_str()) ==
+                    0 &&
+                GetPrivateProfileIntW(L"Enhancements", L"QuickMenu", 1, path.c_str()) == 0,
+            "Original game choices did not disable the transcript and quick menu");
         std::filesystem::remove_all(root);
         std::cout << "First-launch choices preserve unrelated settings and survive publication "
                      "failure.\n";

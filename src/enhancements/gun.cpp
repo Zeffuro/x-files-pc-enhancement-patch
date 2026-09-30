@@ -131,6 +131,10 @@ bool controller_gun_busy() {
 }
 
 void refresh_controller_gun_cursor(POINT position) {
+    refresh_native_cursor(position);
+}
+
+bool refresh_native_cursor(POINT position) {
     const auto image = game::executable_image();
     const auto& profile = game::edition();
     game::Application* application = nullptr;
@@ -146,7 +150,7 @@ void refresh_controller_gun_cursor(POINT position) {
     if (!image || !read(image + profile.application, application) || !read(application, app) ||
         !app.state || !app.view || !read(field(application, 0x280), queue) || !queue.vtable ||
         !queue.storage || queue.capacity > 256 || queue.count >= queue.capacity) {
-        return;
+        return false;
     }
 
     struct Point {
@@ -155,9 +159,10 @@ void refresh_controller_gun_cursor(POINT position) {
     } point{nullptr, position};
 
     static_assert(sizeof(Point) == 12);
-    // Queue native hover processing after equip. WM_MOUSEMOVE ignores unchanged positions.
+    // WM_MOUSEMOVE ignores unchanged positions. Native events also clear an old hover target.
     using Move = void(__stdcall*)(void*, const Point*, const Point*);
     reinterpret_cast<Move>(image + profile.queue_mouse_move)(application, &point, &point);
+    return true;
 }
 
 bool equip_controller_gun() {

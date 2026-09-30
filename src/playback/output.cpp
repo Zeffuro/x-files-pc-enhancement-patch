@@ -2,6 +2,7 @@
 #include "volume.h"
 #include "settings.h"
 #include "runtime.h"
+#include "platform/test_environment.h"
 
 #include <xaudio2.h>
 #include <mmdeviceapi.h>
@@ -46,6 +47,10 @@ struct Engine {
             result = audio->CreateMasteringVoice(&master);
         }
         check(result);
+        if (platform::test_audio_muted()) {
+            check(master->SetVolume(0));
+            trace_value("test_audio_muted", 1);
+        }
     }
 
     ~Engine() {

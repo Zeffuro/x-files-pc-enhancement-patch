@@ -22,7 +22,9 @@ constexpr std::array choices{Choice{2101, L"Input", L"Gamepad", true},
                              Choice{2109, L"Input", L"ControllerHints", true},
                              Choice{2110, L"Video", L"DVDMovies", true},
                              Choice{2111, L"Video", L"DVDDeinterlace", true},
-                             Choice{2112, L"Audio", L"MovieSpeedMute", true}};
+                             Choice{2112, L"Audio", L"MovieSpeedMute", true},
+                             Choice{2116, L"Enhancements", L"DialogueTranscript", true},
+                             Choice{2117, L"Enhancements", L"QuickMenu", true}};
 
 }
 

@@ -66,6 +66,18 @@ struct Surface {
 HDC replacement = nullptr;
 bool fail = false;
 unsigned calls = 0;
+HDC decorated_surface = nullptr;
+bool decoration_fails = false;
+
+HDC decorate(HDC source) {
+    require(source == replacement, "Decoration bypassed the active browser surface");
+    require(native_game::presentation_source(source) == source,
+            "Decoration recursively substituted its source");
+    if (decoration_fails) {
+        throw std::runtime_error("Unavailable decoration");
+    }
+    return decorated_surface;
+}
 
 HDC browser(HDC native) {
     ++calls;
@@ -80,6 +92,7 @@ HDC browser(HDC native) {
 void run() {
     constexpr auto menu = RGB(180, 20, 10), overlay = RGB(10, 40, 200);
     Surface canvas(menu), output(0), browser_surface(overlay), unrelated(0);
+    Surface transcript_surface(RGB(20, 180, 40));
     replacement = browser_surface.dc;
     require(native_game::attach_render_imports(), "Cannot hook native GDI transfers");
     native_game::set_canvas_source(browser);
@@ -123,6 +136,21 @@ void run() {
         copy();
         require(GetPixel(output.dc, 2, 2) == overlay,
                 "Browser did not recover after callback failure");
+        decorated_surface = transcript_surface.dc;
+        native_game::set_canvas_overlay(decorate);
+        copy();
+        require(GetPixel(output.dc, 2, 2) == RGB(20, 180, 40),
+                "Canvas decoration did not reach the native presentation");
+        decoration_fails = true;
+        copy();
+        require(GetPixel(output.dc, 2, 2) == overlay,
+                "Failed decoration erased the active save browser");
+        decoration_fails = false;
+        decorated_surface = nullptr;
+        copy();
+        require(GetPixel(output.dc, 2, 2) == overlay,
+                "Null decoration erased the active save browser");
+        native_game::set_canvas_overlay(nullptr);
         native_game::set_canvas_source(nullptr);
         copy();
         require(GetPixel(output.dc, 2, 2) == menu, "Closing the browser retained its pixels");

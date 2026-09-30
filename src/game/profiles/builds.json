@@ -58,7 +58,9 @@
         "registered_gun_action": 2824508,
         "inventory_action_variable": 2853244,
         "selected_inventory": 2853236,
-        "queue_mouse_move": 310528
+        "queue_mouse_move": 310528,
+        "menu_corner": 2443992,
+        "menu_corner_rectangle": 2856152
       },
       "offsets": {
         "children": 2048,
@@ -125,7 +127,9 @@
         "registered_gun_action": 2836844,
         "inventory_action_variable": 2865532,
         "selected_inventory": 2865524,
-        "queue_mouse_move": 309024
+        "queue_mouse_move": 309024,
+        "menu_corner": 2452264,
+        "menu_corner_rectangle": 2868448
       },
       "offsets": {
         "children": 2052,
@@ -192,7 +196,9 @@
         "registered_gun_action": 2843444,
         "inventory_action_variable": 2881380,
         "selected_inventory": 2881372,
-        "queue_mouse_move": 309216
+        "queue_mouse_move": 309216,
+        "menu_corner": 2450400,
+        "menu_corner_rectangle": 2869304
       },
       "offsets": {
         "children": 2052,
@@ -259,7 +265,9 @@
         "registered_gun_action": 2840948,
         "inventory_action_variable": 2869660,
         "selected_inventory": 2869652,
-        "queue_mouse_move": 309264
+        "queue_mouse_move": 309264,
+        "menu_corner": 2456352,
+        "menu_corner_rectangle": 2872576
       },
       "offsets": {
         "children": 2052,

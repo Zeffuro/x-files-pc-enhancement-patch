@@ -1,5 +1,12 @@
 # What's new
 
+## Unreleased
+
+- In-game dialogue transcript with selected conversation choices and available
+  captions from the current play session.
+- A sliding in-game menu for Save, Load, Transcript, Tweaks and Menu, with native hover text
+  and a setting to choose which items appear.
+
 ## 0.3.0
 
 - Optional DVD movie playback for the opening movies and one English game-over

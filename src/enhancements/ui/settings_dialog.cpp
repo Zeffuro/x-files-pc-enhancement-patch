@@ -1,6 +1,7 @@
 #include "settings_dialog.h"
 #include "tools_dialog.h"
 #include "movie_preview.h"
+#include "quick_menu_dialog.h"
 #include "enhancements/quick_save.h"
 #include "enhancements/edition.h"
 #include "resources.h"
@@ -27,6 +28,7 @@ namespace {
 struct Dialog {
     std::vector<playback::OutputDevice> devices;
     std::filesystem::path checkpoint;
+    Settings draft = settings();
     unsigned display_mode = 0;
     unsigned window_size = 0;
     unsigned scaling_filter = 0;
@@ -234,6 +236,8 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                            settings().skip_menu_animation ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_SAVE_BROWSER,
                            settings().save_browser ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(window, IDC_DIALOGUE_TRANSCRIPT,
+                           settings().dialogue_transcript ? BST_CHECKED : BST_UNCHECKED);
             return TRUE;
         }
         if (message == WM_COMMAND && LOWORD(parameter) == IDC_GITHUB &&
@@ -280,6 +284,12 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
         if (message == WM_COMMAND && LOWORD(parameter) == IDC_GAMEPAD) {
             EnableWindow(GetDlgItem(window, IDC_VIBRATION),
                          IsDlgButtonChecked(window, IDC_GAMEPAD) == BST_CHECKED);
+            return TRUE;
+        }
+        if (message == WM_COMMAND && LOWORD(parameter) == IDC_QUICK_MENU && state) {
+            show_quick_menu_dialog(
+                window, reinterpret_cast<HMODULE>(GetWindowLongPtrW(window, GWLP_HINSTANCE)),
+                state->draft);
             return TRUE;
         }
         if (message == WM_COMMAND && LOWORD(parameter) == IDC_TOOLS && state) {
@@ -356,6 +366,10 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                 IsDlgButtonChecked(window, IDC_SKIP_LOGIN) == BST_CHECKED;
             value.skip_menu_animation = IsDlgButtonChecked(window, IDC_SKIP_MENU) == BST_CHECKED;
             value.save_browser = IsDlgButtonChecked(window, IDC_SAVE_BROWSER) == BST_CHECKED;
+            value.dialogue_transcript =
+                IsDlgButtonChecked(window, IDC_DIALOGUE_TRANSCRIPT) == BST_CHECKED;
+            value.quick_menu = state->draft.quick_menu;
+            value.quick_menu_items = state->draft.quick_menu_items;
             const auto selected_language =
                 SendDlgItemMessageW(window, IDC_INTERFACE_LANGUAGE, CB_GETCURSEL, 0, 0);
             if (selected_language < 0 || selected_language >= 6) {

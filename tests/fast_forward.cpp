@@ -23,6 +23,36 @@ void verify_settings() {
     const auto defaults = read_settings(path);
     test::require(defaults.movie_speed == 2 && defaults.movie_speed_mute,
                   "Held speed must default to muted 2x.");
+    test::require(defaults.dialogue_transcript, "Dialogue transcript default was not loaded.");
+    test::require(defaults.quick_menu, "Quick menu default was not loaded.");
+    test::require(defaults.quick_menu_items == std::array{true, true, true, true, true},
+                  "Quick menu buttons must default to visible.");
+    for (const auto enabled : {false, true}) {
+        std::ofstream(path) << "[Enhancements]\nQuickMenu=" << enabled
+                            << "\nSaveBrowser=1\nDialogueTranscript=1\n";
+        const auto options = read_settings(path);
+        test::require(options.quick_menu == enabled && options.save_browser &&
+                          options.dialogue_transcript,
+                      "Quick menu setting changed independent enhancements.");
+    }
+    constexpr std::array item_keys{"Save", "Load", "Transcript", "Tweaks", "Menu"};
+    for (std::size_t index = 0; index < item_keys.size(); ++index) {
+        std::ofstream(path) << "[Enhancements]\nSaveBrowser=1\nDialogueTranscript=1\n"
+                               "[QuickMenu]\n"
+                            << item_keys[index] << "=0\n";
+        const auto options = read_settings(path);
+        auto expected = defaults.quick_menu_items;
+        expected[index] = false;
+        test::require(options.quick_menu && options.save_browser && options.dialogue_transcript &&
+                          options.quick_menu_items == expected,
+                      "A hidden button changed another button or enhancement.");
+    }
+    std::ofstream(path) << "[Enhancements]\nDialogueTranscript=0\n";
+    test::require(!read_settings(path).dialogue_transcript,
+                  "Dialogue transcript cannot be disabled.");
+    std::ofstream(path) << "[Enhancements]\nDialogueTranscript=1\n";
+    test::require(read_settings(path).dialogue_transcript,
+                  "Dialogue transcript cannot be enabled.");
     for (unsigned speed = 2; speed <= 4; ++speed) {
         std::ofstream(path) << "[Video]\nMovieSpeed=" << speed
                             << "\n[Audio]\nMovieSpeedMute=0\n[Input]\nMovieSpeedKey=0\n";

@@ -7,6 +7,7 @@
 #include "enhancements/rumble.h"
 #include "enhancements/controls.h"
 #include "fast_forward_input.h"
+#include "transcript/capture.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -108,6 +109,7 @@ void task_movie(MovieHandle handle) {
         }
     }
     const auto drawn = value.active && draw_movie(value);
+    transcript::observe_movie(value);
     const auto before = value.serviced_time;
     value.serviced_time = value.time;
     const auto after = value.time;

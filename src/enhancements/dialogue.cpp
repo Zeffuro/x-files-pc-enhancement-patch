@@ -6,6 +6,8 @@
 #include "platform/imports.h"
 #include "runtime.h"
 #include "focus.h"
+#include "transcript/capture.h"
+#include "transcript/selection.h"
 
 #include <algorithm>
 #include <cstring>
@@ -32,6 +34,9 @@ thread_local POINT close_cursor{};
 thread_local bool return_valid = false;
 thread_local ULONGLONG closing_until = 0;
 thread_local bool evidence_focus = false;
+UINT text_code_page = 1252;
+thread_local transcript::Selection pending_choice;
+thread_local void* pending_input = nullptr;
 
 struct Capture {
     Dialogue* previous;
@@ -67,7 +72,15 @@ int WINAPI draw_text(HDC dc, LPCSTR text, int length, LPRECT bounds, UINT format
         if (IntersectRect(&clipped, bounds, &viewport) &&
             clipped.bottom - clipped.top >= bounds->bottom - bounds->top &&
             collecting->count < collecting->choices.size()) {
-            collecting->choices[collecting->count++] = clipped;
+            const auto index = collecting->count++;
+            collecting->choices[index] = clipped;
+            const auto size = length < 0 ? static_cast<int>(std::strlen(text)) : length;
+            const auto count = MultiByteToWideChar(text_code_page, 0, text, size, nullptr, 0);
+            if (count > 0) {
+                collecting->text[index].resize(count);
+                MultiByteToWideChar(text_code_page, 0, text, size, collecting->text[index].data(),
+                                    count);
+            }
         }
     }
     return result;
@@ -105,12 +118,23 @@ int __stdcall draw_list(game::Container* object, void* context, void* clip) {
         Capture capture(frame, list->viewport_for(game::edition()).bounds);
         result = original_draw(object, context, clip);
     }
-    std::sort(frame.choices.begin(), frame.choices.begin() + frame.count,
-              [](const RECT& a, const RECT& b) { return a.top < b.top; });
-    const auto end = std::unique(
-        frame.choices.begin(), frame.choices.begin() + frame.count,
-        [](const RECT& a, const RECT& b) { return a.top == b.top && a.bottom == b.bottom; });
-    frame.count = static_cast<std::size_t>(end - frame.choices.begin());
+    std::vector<std::pair<RECT, std::wstring>> rows;
+    for (std::size_t i = 0; i < frame.count; ++i) {
+        rows.emplace_back(frame.choices[i], std::move(frame.text[i]));
+    }
+    std::sort(rows.begin(), rows.end(),
+              [](const auto& a, const auto& b) { return a.first.top < b.first.top; });
+    rows.erase(std::unique(rows.begin(), rows.end(),
+                           [](const auto& a, const auto& b) {
+                               return a.first.top == b.first.top &&
+                                      a.first.bottom == b.first.bottom;
+                           }),
+               rows.end());
+    frame.count = rows.size();
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+        frame.choices[i] = rows[i].first;
+        frame.text[i] = std::move(rows[i].second);
+    }
     visible = frame;
     visible_container = object;
     close_button = list->close_for(game::edition());
@@ -148,8 +172,8 @@ void attach_dialogue(HWND window) {
         if (!identity.build || !identity.build->profile) {
             return;
         }
-        set_game_string_code_page(identity.build->id == native_game::BuildId::cd_10020 ? 932
-                                                                                       : 1252);
+        text_code_page = identity.build->id == native_game::BuildId::cd_10020 ? 932 : 1252;
+        set_game_string_code_page(text_code_page);
         auto* base = reinterpret_cast<std::byte*>(GetModuleHandleW(nullptr));
         const auto& addresses = *identity.build->profile;
         draw_slot = reinterpret_cast<DrawList*>(base + addresses.draw_slot);
@@ -203,6 +227,9 @@ void clear_dialogue() {
 }
 
 void update_dialogue(bool focused) {
+    if (!focused) {
+        pending_choice.cancel();
+    }
     if (closing_until) {
         POINT cursor{};
         if (!focused || GetTickCount64() >= closing_until || !GetCursorPos(&cursor) ||
@@ -220,9 +247,53 @@ void update_dialogue(bool focused) {
         }
     }
     current_dialogue();
+    finish_dialogue_click(0);
+}
+
+void begin_dialogue_click(HWND window, UINT message) {
+    if (message != WM_LBUTTONDOWN && message != WM_LBUTTONDBLCLK) {
+        return;
+    }
+    pending_choice.cancel();
+    const auto frame = current_dialogue();
+    POINT point{};
+    if (!frame || !GetCursorPos(&point) || !ScreenToClient(window, &point)) {
+        return;
+    }
+    for (std::size_t i = 0; i < frame->count; ++i) {
+        if (PtInRect(&frame->choices[i], point)) {
+            pending_choice.begin(frame->text[i], GetTickCount64());
+            pending_input = game::current_input();
+            trace_value("transcript_choice_pending",
+                        static_cast<std::uint32_t>(frame->text[i].size()));
+            break;
+        }
+    }
+}
+
+void finish_dialogue_click(UINT message) {
+    if (!pending_choice.pending()) {
+        return;
+    }
+    if (message == WM_LBUTTONUP) {
+        pending_choice.release(GetTickCount64());
+    }
+    // Native acceptance removes the choice panel or changes its input state.
+    const auto frame = current_dialogue();
+    auto selected =
+        pending_choice.update(!frame || game::current_input() != pending_input, GetTickCount64());
+    if (!selected.empty()) {
+        transcript::record_choice(std::move(selected));
+        trace_value("transcript_choice_accepted", 1);
+    }
+}
+
+void cancel_dialogue_click() {
+    pending_choice.cancel();
 }
 
 bool close_dialogue(HWND window) {
+    pending_choice.cancel();
     if (!current_dialogue()) {
         return false;
     }

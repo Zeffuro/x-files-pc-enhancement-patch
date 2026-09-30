@@ -3,6 +3,12 @@
 The patch is licensed under [MIT](LICENSE). This does not change the licenses of
 its dependencies or *The X-Files Game*. You need your own copy of the game.
 
+## Font Awesome
+
+The game menu uses Font Awesome Free 6.7.2 icons by Fonticons, Inc., under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Their colors and size
+are adapted for the game. The release includes `fontawesome.LICENSE`.
+
 ## cnc-ddraw
 
 [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) is used under the MIT license.

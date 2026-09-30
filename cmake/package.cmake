@@ -1,6 +1,9 @@
 install(FILES "$<TARGET_FILE:xfiles-patch>" "$<TARGET_FILE:xfiles-setup>"
     "$<TARGET_FILE:quicktime>" "$<TARGET_FILE:dvd-mpeg>" DESTINATION .)
 install(FILES
+    "${CMAKE_SOURCE_DIR}/assets/menu/LICENSE.txt"
+    DESTINATION . RENAME fontawesome.LICENSE)
+install(FILES
     "${ddraw_package}/ddraw.dll"
     "${ddraw_package}/cnc-ddraw.LICENSE"
     "${CMAKE_SOURCE_DIR}/README.md"
@@ -47,6 +50,8 @@ add_custom_target(notice-files ALL
         "$<TARGET_FILE_DIR:quicktime>/docs"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_BINARY_DIR}/generated/zlib.LICENSE"
         "$<TARGET_FILE_DIR:quicktime>/zlib.LICENSE"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/assets/menu/LICENSE.txt"
+        "$<TARGET_FILE_DIR:quicktime>/fontawesome.LICENSE"
     VERBATIM)
 add_dependencies(launcher-common notice-files)
 

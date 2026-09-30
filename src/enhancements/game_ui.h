@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <optional>
+#include <algorithm>
 #include "edition.h"
 #include "game/layouts/ui.h"
 

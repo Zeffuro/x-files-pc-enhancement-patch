@@ -43,6 +43,9 @@ struct Settings {
     bool movie_speed_mute = true;
     MovieContrast movie_contrast = MovieContrast::Off;
     bool save_browser = false;
+    bool dialogue_transcript = true;
+    bool quick_menu = true;
+    std::array<bool, 5> quick_menu_items{true, true, true, true, true};
     bool menu_black_background = true;
     bool skip_menu_animation = false;
     bool skip_workstation_login = false;

@@ -98,6 +98,7 @@ void trace_movie(const char* event, const Movie& movie, std::int32_t value);
 void sync_audio(Movie& movie);
 bool draw_movie(Movie& movie);
 std::wstring current_caption(const Movie& movie);
+std::wstring current_caption(const Movie& movie, CaptionMode mode);
 bool draw_captions(Movie& movie, std::wstring text, const CaptionLayout& layout,
                    const CaptionStyle& style, bool video_changed);
 void run_callbacks(MovieHandle handle, std::int32_t before, std::int32_t after);

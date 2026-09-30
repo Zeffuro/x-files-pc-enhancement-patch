@@ -44,6 +44,14 @@ class GameProfilesTest(unittest.TestCase):
                                              "credit_position": 0xC4,
                                              "canvas": 0x7D4})
 
+    def test_native_corner_addresses_cover_all_profiles(self):
+        for build, vtable, rectangle in zip(
+                self.data["builds"],
+                (0x254AD8, 0x256B28, 0x2563E0, 0x257B20),
+                (0x2B94D8, 0x2BC4E0, 0x2BC838, 0x2BD500)):
+            self.assertEqual(build["rvas"]["menu_corner"], vtable)
+            self.assertEqual(build["rvas"]["menu_corner_rectangle"], rectangle)
+
     def test_rejects_wrong_kind_and_partial_profiles(self):
         wrong_kind = copy.deepcopy(self.data)
         wrong_kind["builds"][0]["offsets"]["application"] = 0x100

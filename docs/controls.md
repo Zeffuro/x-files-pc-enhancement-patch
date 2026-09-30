@@ -5,6 +5,7 @@
 | Key | Action |
 |---|---|
 | F10 | Open enhancement settings |
+| F8 | Open the dialogue transcript |
 | Alt+Enter | Switch between windowed and borderless |
 | F5 | Quick-save during exploration |
 | F9 | Quick-load during exploration or from the main menu |
@@ -12,6 +13,28 @@
 
 Close movies, conversations and device screens before saving or loading.
 Loading replaces your current progress.
+
+Open the top-right menu in game and choose **Transcript** to read dialogue from the current play
+session. Selected conversation choices appear beside available caption text,
+including captions hidden during playback. Use Previous/Next, the arrow keys
+or the mouse wheel to move through the pages. Escape or Done returns to the game.
+The controller D-pad turns pages and B closes the transcript.
+Turn **Dialogue transcript** on or off in F10 or the welcome screen.
+
+Enable **Quick menu** in F10 or the welcome screen to open Save, Load, Transcript,
+Tweaks and the game's main menu from the top-right corner. It has its own toggle,
+separate from **Dialogue transcript** and **Save browser with thumbnails**.
+Open **Quick menu...** in F10 to enable it and choose which items appear.
+Hidden items leave no gaps. Turning it off keeps your item choices.
+If every item is hidden, the original corner menu remains available.
+Hover in the corner to reveal the menu button. Once opened, the menu stays
+visible until you close it or choose an action.
+You can also open it during conversations. Save and Load are disabled there.
+
+The transcript stays in memory until you close the game. Loading a save does
+not restore earlier dialogue. Non-English editions generally lack spoken
+dialogue captions, so their transcript may contain only selected choices and
+occasional sound cues. Installed subtitle packs can supply missing dialogue.
 
 Release backtick to return to normal speed and sound. After pausing, seeking or
 switching windows, release it before pressing again. This applies to moving

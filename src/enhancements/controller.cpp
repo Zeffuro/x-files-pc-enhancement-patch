@@ -6,6 +6,8 @@
 #include "rumble.h"
 #include "controls.h"
 #include "dialogue.h"
+#include "transcript/view.h"
+#include "ui/quick_menu.h"
 #include "inventory.h"
 #include "screens.h"
 #include "settings.h"
@@ -48,8 +50,10 @@ bool scene_cursor(HWND window, POINT& point) {
 input::Context controller_context(HWND window) {
     input::Context context;
     context.native = reinterpret_cast<std::uintptr_t>(game::current_input());
-    if (saves::browser_active()) {
+    if (saves::browser_active() || transcript::active()) {
         context.kind = input::ContextKind::browser;
+    } else if (quick_menu::expanded()) {
+        context.kind = input::ContextKind::menu;
     } else if (game::menu_confirmation_active()) {
         context.kind = input::ContextKind::modal;
     } else if (game::input_vtable() == game::edition().main_menu) {
@@ -181,7 +185,7 @@ void poll_controller(HWND window) {
                                     !saves::browser_active() && !game::menu_confirmation_active() &&
                                     game::input_vtable() != game::edition().main_menu);
     const WORD pressed = frame.pressed;
-    if (saves::browser_active()) {
+    if (saves::browser_active() || transcript::active()) {
         cancel_controller_inventory_click();
         spring_cursor.suspend();
         analog_motion.reset();
@@ -200,7 +204,11 @@ void poll_controller(HWND window) {
             : (pressed & input::button::activate) ? VK_RETURN
                                                   : 0;
         if (key) {
-            saves::browser_message(window, WM_KEYDOWN, key, 0);
+            if (transcript::active()) {
+                transcript::message(window, WM_KEYDOWN, key, 0);
+            } else {
+                saves::browser_message(window, WM_KEYDOWN, key, 0);
+            }
         }
         return;
     }

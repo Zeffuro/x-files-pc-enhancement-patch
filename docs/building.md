@@ -101,6 +101,20 @@ Use `--wine` and `--wineserver` together to select a different Wine build.
 No original game files are needed. These checks do not verify Proton, game
 progression, physical controllers, sound output or display pacing.
 
+For a game playtest in WSL, keep existing installations named `Playtest-CD` and
+`Playtest-DVD` and an initialized Wine prefix. Install `Xvfb` and `xdotool`, then run:
+
+```sh
+python3 tools/wine-playtest.py cd --playtests /mnt/f/Games/Fox --mute-audio
+python3 tools/wine-playtest.py dvd --playtests /mnt/f/Games/Fox --mute-audio
+```
+
+Run one at a time. The script uses a private display and the existing test folders.
+Use `--prefix` to choose another test prefix and `--display` to choose an unused
+display number above 99. The display number and process IDs are saved in the
+installation's `logs/wine-playtest.json`. Audio muting applies only to that run
+and preserves saved options. Omit `--mute-audio` to hear sound.
+
 For release testing on Linux, also try setup, launch, saving and loading, L2 with
 inventory shown and hidden, held L3 across movies, Alt+Tab and normal exit in an
 isolated installation. Repeat through Steam Proton and Lutris's managed runner

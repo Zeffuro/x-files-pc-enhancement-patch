@@ -60,16 +60,24 @@ add_library(quicktime SHARED
     src/devtools/clip_key.cpp
     src/devtools/clip_defaults.cpp
     src/enhancements/ui/settings_dialog.cpp
+    src/enhancements/ui/quick_menu_dialog.cpp
     src/enhancements/ui/movie_preview.cpp
     src/enhancements/ui/tools_dialog.cpp
     src/enhancements/ui/subtitle_dialog.cpp
     src/enhancements/ui/menu_link.cpp
     src/enhancements/ui/notification.cpp
     src/enhancements/controls.cpp
+    src/enhancements/scene_overlay.cpp
+    src/enhancements/ui/quick_menu.cpp
+    src/enhancements/ui/quick_menu_surface.cpp
     src/enhancements/controller.cpp
     src/enhancements/dialogue.cpp
+    src/transcript/capture.cpp
+    src/transcript/page.cpp
+    src/transcript/view.cpp
     src/enhancements/game_strings.cpp
     src/enhancements/inventory.cpp
+    src/enhancements/menu_corner.cpp
     src/enhancements/gun.cpp
     src/enhancements/menu.cpp
     src/enhancements/script_controls.cpp

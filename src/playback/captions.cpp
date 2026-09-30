@@ -37,7 +37,10 @@ std::wstring caption_text(std::span<const std::uint8_t> packet) {
 }
 
 std::wstring current_caption(const Movie& value) {
-    const auto mode = settings().captions;
+    return current_caption(value, settings().captions);
+}
+
+std::wstring current_caption(const Movie& value, CaptionMode mode) {
     if (mode == CaptionMode::On && !value.source_path.empty() &&
         std::any_of(value.tracks.begin(), value.tracks.end(), [](const auto& track) {
             return track->enabled && track->media->handler == "vide";

@@ -64,15 +64,18 @@ Captions::Captions(std::vector<media::subtitles::Cue> cues, std::uint32_t scale,
         throw std::runtime_error("DVD movie has no mapped captions");
     }
     std::uint64_t previous = 0;
+    source_scale_ = scale;
     for (auto& cue : cues) {
         if (cue.begin < previous || cue.end <= cue.begin || cue.text.empty()) {
             throw std::runtime_error("Invalid DVD caption cues");
         }
         previous = cue.begin;
+        const auto source = cue;
         cue.begin = mapped_time(cue.begin, scale, offset);
         cue.end = mapped_time(cue.end, scale, offset);
         if (cue.end > cue.begin) {
             cues_.push_back(std::move(cue));
+            source_cues_.push_back(source);
         }
     }
     if (cues_.empty()) {
@@ -106,6 +109,7 @@ Captions Captions::load(const std::filesystem::path& vob) {
     if (auto override = media::subtitles::load_override(root, relative, source)) {
         if (override->empty()) {
             mapped.cues_.clear();
+            mapped.source_cues_.clear();
         } else {
             mapped = Captions(std::move(*override), 1000, pair->offset);
         }

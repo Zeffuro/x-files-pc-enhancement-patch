@@ -4,6 +4,7 @@
 #include "rumble.h"
 #include "controls.h"
 #include "ui/settings_dialog.h"
+#include "ui/quick_menu.h"
 #include "ui/menu_link.h"
 #include "dialogue.h"
 #include "inventory.h"
@@ -23,6 +24,7 @@
 #include "saves/browser.h"
 #include "game/render/native_render.h"
 #include "playback/fast_forward_input.h"
+#include "transcript/view.h"
 
 #include <commctrl.h>
 #include <shellapi.h>
@@ -146,9 +148,25 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         f10_down = escape_consumed = right_click_consumed = settings_clicked = false;
     }
     if (message == WM_KEYDOWN && value == VK_ESCAPE) {
+        cancel_dialogue_click();
         playback::suspend_fast_forward_input();
         stop_rumble();
         cancel_controller_inventory_click();
+    }
+    if (!dialog_open && !text_entry_busy() && transcript::message(window, message, value, data)) {
+        if (message == WM_KEYDOWN && value < navigation_keys.size()) {
+            navigation_keys[value] = true;
+        }
+        if (message == WM_KEYUP && value < navigation_keys.size()) {
+            navigation_keys[value] = false;
+        }
+        if (message == WM_RBUTTONDOWN) {
+            right_click_consumed = true;
+        }
+        if (injected_left) {
+            cancel_controller_inventory_click();
+        }
+        return 0;
     }
     if (!dialog_open && !text_entry_busy() &&
         saves::browser_message(window, message, value, data)) {
@@ -160,7 +178,17 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         }
         return 0;
     }
+    if (!dialog_open && !text_entry_busy() && quick_menu::message(window, message, value, data)) {
+        if (message == WM_KEYDOWN && value < navigation_keys.size()) {
+            navigation_keys[value] = true;
+        }
+        if (injected_left) {
+            cancel_controller_inventory_click();
+        }
+        return 0;
+    }
     if (message == WM_RBUTTONDOWN && !dialog_open && !text_entry_busy()) {
+        quick_menu::dismiss();
         right_click_consumed = close_dialogue(window);
         if (right_click_consumed) {
             return 0;
@@ -199,6 +227,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         return 0;
     }
     if (value < navigation_keys.size() && navigation_keys[value]) {
+        if (message == WM_KEYDOWN && (data & (1L << 30))) {
+            return 0;
+        }
         if (message == WM_CHAR) {
             return 0;
         }
@@ -301,7 +332,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         update_menu();
         update_quick_load();
         saves::update_browser(window);
-        if (saves::browser_active()) {
+        quick_menu::update(!dialog_open && !text_entry_busy() && game_is_foreground(window));
+        transcript::update();
+        if (saves::browser_active() || transcript::active()) {
             update_inventory_focus(window, false);
             update_settings_link(window, false);
             update_highlight(window, false);
@@ -338,8 +371,10 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         detach_controls();
     }
     const auto click_generation = inventory_click.generation;
+    begin_dialogue_click(window, message);
     begin_inventory_mouse_dispatch(window, message, injected_left, click_generation);
     const auto result = DefSubclassProc(window, message, value, data);
+    finish_dialogue_click(message);
     if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK || message == WM_LBUTTONUP) {
         finish_inventory_click(window, message, injected_left, click_generation);
     }
@@ -355,7 +390,7 @@ bool game_is_foreground(HWND window) {
 }
 
 HWND playback_input_window() {
-    return !dialog_open && !text_entry_busy() ? game_window : nullptr;
+    return !dialog_open && !text_entry_busy() && !transcript::active() ? game_window : nullptr;
 }
 
 void begin_controller_inventory_click(HWND window, POINT scene_cursor, POINT item_cursor) {
@@ -431,6 +466,7 @@ void detach_controls() {
     suspend_controller();
     detach_rumble();
     saves::release_browser();
+    transcript::release();
     devtools::release_inspector();
     detach_modal_input();
     release_settings_link();
@@ -441,6 +477,7 @@ void detach_controls() {
     clear_inventory_focus();
     native_game::detach_native_render();
     detach_dialogue();
+    quick_menu::release();
     if (game_window && IsWindow(game_window)) {
         KillTimer(game_window, timer);
         RemoveWindowSubclass(game_window, window_proc, subclass_id);

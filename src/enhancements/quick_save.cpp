@@ -1,5 +1,7 @@
 #include "quick_save.h"
 #include "dialogue.h"
+#include "scene_overlay.h"
+#include "transcript/capture.h"
 #include "game_ui.h"
 #include "platform/copy_file.h"
 #include "runtime.h"
@@ -124,6 +126,7 @@ void quick_save(HWND window, bool load) {
                 function<int(__stdcall*)(void*, void*)>(game::edition().load_file)(&name, queue);
             trace_value("quick_load", result);
             if (result) {
+                transcript::record_marker(L"Saved game loaded");
                 notify_status(window, L"Quick-save loaded");
             }
             if (result && (menu || !converted.empty())) {
@@ -165,14 +168,20 @@ void quick_save(HWND window, bool load) {
 bool checkpoint_available() {
     return !busy && !resume_pending && game::executable_image() &&
            !game::menu_confirmation_active() &&
-           (game::input_vtable() == game::edition().main_menu || exploration_available()) &&
+           (game::input_vtable() == game::edition().main_menu || exploration_available() ||
+            scene_overlay_checkpoint_available()) &&
            !*reinterpret_cast<void**>(game::executable_image() + game::edition().pending_load);
+}
+
+bool checkpoint_load_pending() {
+    return resume_pending;
 }
 
 bool export_save_available() {
     return !busy && !resume_pending && game::executable_image() &&
            !game::menu_confirmation_active() &&
-           (exploration_available() || game::input_vtable() == game::edition().main_menu) &&
+           (exploration_available() || scene_overlay_checkpoint_available() ||
+            game::input_vtable() == game::edition().main_menu) &&
            game::saving_available() &&
            !*reinterpret_cast<void**>(game::executable_image() + game::edition().pending_load);
 }
@@ -252,6 +261,7 @@ void load_checkpoint(HWND window, const std::filesystem::path& path) {
         throw std::runtime_error("The game could not load this saved game");
     }
     resume_pending = true;
+    transcript::record_marker(L"Saved game loaded");
     notify_status(window, L"Saved game loaded");
 }
 

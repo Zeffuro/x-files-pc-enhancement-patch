@@ -30,6 +30,8 @@ jobs:
       - name: Portable tests
         run: |
           mkdir -p /tmp/xfiles-checks
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/transcript_history.cpp -o /tmp/xfiles-checks/transcript-history
+          /tmp/xfiles-checks/transcript-history
           g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/audio_edits.cpp -o /tmp/xfiles-checks/audio-edits
           /tmp/xfiles-checks/audio-edits
           g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/log_file.cpp src/diagnostics/log_file.cpp -o /tmp/xfiles-checks/log-file

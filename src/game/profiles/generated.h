@@ -66,6 +66,8 @@ struct Profile {
     std::uint32_t inventory_action_variable;
     std::uint32_t selected_inventory;
     std::uint32_t queue_mouse_move;
+    std::uint32_t menu_corner;
+    std::uint32_t menu_corner_rectangle;
 };
 
 struct Build {
@@ -134,6 +136,8 @@ inline constexpr Profile profile_cd_10012{
     .inventory_action_variable = 0x2b897c,
     .selected_inventory = 0x2b8974,
     .queue_mouse_move = 0x4bd00,
+    .menu_corner = 0x254ad8,
+    .menu_corner_rectangle = 0x2b94d8,
 };
 
 inline constexpr Profile profile_cd_10019{
@@ -194,6 +198,8 @@ inline constexpr Profile profile_cd_10019{
     .inventory_action_variable = 0x2bb97c,
     .selected_inventory = 0x2bb974,
     .queue_mouse_move = 0x4b720,
+    .menu_corner = 0x256b28,
+    .menu_corner_rectangle = 0x2bc4e0,
 };
 
 inline constexpr Profile profile_dvd_20000{
@@ -254,6 +260,8 @@ inline constexpr Profile profile_dvd_20000{
     .inventory_action_variable = 0x2bf764,
     .selected_inventory = 0x2bf75c,
     .queue_mouse_move = 0x4b7e0,
+    .menu_corner = 0x2563e0,
+    .menu_corner_rectangle = 0x2bc838,
 };
 
 inline constexpr Profile profile_cd_10020{
@@ -314,6 +322,8 @@ inline constexpr Profile profile_cd_10020{
     .inventory_action_variable = 0x2bc99c,
     .selected_inventory = 0x2bc994,
     .queue_mouse_move = 0x4b810,
+    .menu_corner = 0x257b20,
+    .menu_corner_rectangle = 0x2bd500,
 };
 
 inline constexpr Build build_cd_10012{

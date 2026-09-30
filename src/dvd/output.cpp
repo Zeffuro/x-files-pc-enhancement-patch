@@ -1,6 +1,7 @@
 #include "output.h"
 #include "canvas.h"
 #include "playback/caption_paint.h"
+#include "platform/test_environment.h"
 
 #include <algorithm>
 #include <atomic>
@@ -309,6 +310,9 @@ void Output::State::ensure_audio() {
         audio_apartment = SUCCEEDED(apartment);
         check(XAudio2Create(&engine), "XAudio2 engine");
         check(engine->CreateMasteringVoice(&master), "XAudio2 mastering voice");
+        if (platform::test_audio_muted()) {
+            check(master->SetVolume(0), "Mute DVD test audio");
+        }
     }
     WAVEFORMATEX format{};
     format.wFormatTag = WAVE_FORMAT_PCM;

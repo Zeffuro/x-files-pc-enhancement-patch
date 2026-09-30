@@ -26,6 +26,10 @@ template <typename Action> void rejects(Action action, const char* message) {
 int wmain(int argc, wchar_t** argv) {
     try {
         dvd::Captions captions({{9250, 12767, L"first"}, {13050, 16834, L"second"}}, 1000);
+        require(captions.source_scale() == 1000 && captions.source_cues().size() == 2 &&
+                    captions.source_cues()[0].begin == 9250 &&
+                    captions.source_cues()[0].end == 12767 && captions.cues()[0].begin == 828891,
+                "DVD transcript lost the original MOV cue identity");
         require(captions.at(-1).empty() && captions.at(828890).empty(),
                 "DVD caption appeared before its audio-aligned beginning");
         require(captions.at(828891) == L"first" && captions.at(1145420) == L"first",

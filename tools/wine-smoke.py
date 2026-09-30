@@ -19,6 +19,9 @@ CHECKS = (
     "fast-forward", "dvd-clock", "save-compatibility", "save-conversion",
     "save-storage", "save-slots", "installation", "welcome", "menu-colors",
     "ui-colors", "movie", "audio", "compressed-audio", "video", "canvas-presentation",
+    "transcript-history", "transcript-page", "transcript-capture", "transcript-view",
+    "browser-session", "scene-overlay", "menu-control", "quick-menu", "quick-menu-navigation",
+    "quick-menu-dialog",
 )
 
 

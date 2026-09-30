@@ -19,6 +19,7 @@ void attach_native_render();
 void detach_native_render();
 bool native_render_available();
 void set_canvas_source(CanvasSource callback);
+void set_canvas_overlay(CanvasSource callback);
 HDC canvas_dc();
 void invalidate_canvas();
 }

@@ -21,6 +21,7 @@ const Profile* profile = nullptr;
 std::array<std::byte, 5> original_call{};
 bool attached = false;
 thread_local CanvasSource canvas_source = nullptr;
+thread_local CanvasSource canvas_overlay = nullptr;
 thread_local HDC presenting = nullptr;
 thread_local bool substituting = false;
 thread_local bool source_reported = false;
@@ -163,10 +164,19 @@ HDC canvas_dc() {
 }
 
 HDC presentation_source(HDC source) {
-    if (canvas_source && presenting && source == presenting && !substituting) {
+    if ((canvas_source || canvas_overlay) && presenting && source == presenting && !substituting) {
         substituting = true;
         try {
-            const auto replacement = canvas_source(source);
+            auto replacement = canvas_source ? canvas_source(source) : source;
+            if (canvas_overlay) {
+                try {
+                    const auto decorated = canvas_overlay(replacement ? replacement : source);
+                    if (decorated) {
+                        replacement = decorated;
+                    }
+                } catch (...) {
+                }
+            }
             if (replacement && replacement != source && !source_reported) {
                 source_reported = true;
                 trace_value("native_canvas_source", 1);
@@ -182,6 +192,11 @@ HDC presentation_source(HDC source) {
 
 void set_canvas_source(CanvasSource callback) {
     canvas_source = callback;
+    source_reported = false;
+}
+
+void set_canvas_overlay(CanvasSource callback) {
+    canvas_overlay = callback;
     source_reported = false;
 }
 
@@ -257,6 +272,7 @@ void detach_native_render() {
     detach_render_imports();
     caption_surface::clear();
     canvas_source = nullptr;
+    canvas_overlay = nullptr;
     presenting = nullptr;
     attached = false;
     image = nullptr;

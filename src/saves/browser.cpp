@@ -3,6 +3,8 @@
 #include "artwork.h"
 #include "enhancements/game_ui.h"
 #include "enhancements/quick_save.h"
+#include "enhancements/scene_overlay.h"
+#include "enhancements/controls.h"
 #include "game/render/native_render.h"
 #include "runtime.h"
 #include "settings.h"
@@ -13,6 +15,8 @@ namespace saves {
 namespace {
 std::shared_ptr<Browser> browser;
 bool committing = false;
+bool consumed_left = false;
+enhancements::SceneOverlay scene_pause;
 Thumbnail last_scene;
 SceneReference last_reference;
 ULONGLONG last_capture = 0;
@@ -28,6 +32,7 @@ void repaint() {
 void close() {
     native_game::set_canvas_source(nullptr);
     browser.reset();
+    scene_pause.end();
     pressed = -1;
     native_game::invalidate_canvas();
 }
@@ -146,6 +151,9 @@ void commit(HWND window) {
     } else {
         trace_value("save_browser_load_slot", chosen.number);
         enhancements::load_checkpoint(window, chosen.file);
+        if (enhancements::checkpoint_load_pending()) {
+            scene_pause.end(true);
+        }
         if (browser == state) {
             close();
         }
@@ -244,11 +252,35 @@ bool browser_active() {
     return browser != nullptr;
 }
 
+bool show_browser(bool saving) {
+    if (browser || !settings().save_browser || !native_game::native_render_available() ||
+        !(saving ? enhancements::export_save_available() : enhancements::checkpoint_available())) {
+        return false;
+    }
+    const bool menu = enhancements::game::input_vtable() == enhancements::game::edition().main_menu;
+    if (!menu && !scene_pause.begin()) {
+        return false;
+    }
+    try {
+        enhancements::suspend_controller();
+        open(saving);
+        return true;
+    } catch (const std::exception& error) {
+        scene_pause.end();
+        trace_value(error.what(), 0);
+        return false;
+    }
+}
+
 HDC browser_canvas(HDC native) {
     return browser ? browser->output.dc : native;
 }
 
 void update_browser(HWND) {
+    if (browser && scene_pause.active() && !scene_pause.valid()) {
+        scene_pause.end(true);
+        close();
+    }
     if (browser) {
         const auto target = browser->keyboard || browser->confirm ? -1
                             : browser->hover >= 0                 ? browser->hover
@@ -319,6 +351,14 @@ void update_browser(HWND) {
 
 bool browser_message(HWND window, UINT message, WPARAM value, LPARAM) {
     try {
+        if (message == WM_KILLFOCUS || (message == WM_ACTIVATEAPP && !value)) {
+            pressed = menu_pressed = -1;
+            return false;
+        }
+        if (message == WM_LBUTTONUP && consumed_left && !browser) {
+            consumed_left = false;
+            return true;
+        }
         if (committing) {
             return message == WM_CLOSE || message == WM_SYSCOMMAND ||
                    (message >= WM_KEYFIRST && message <= WM_KEYLAST) ||
@@ -366,11 +406,12 @@ bool browser_message(HWND window, UINT message, WPARAM value, LPARAM) {
             }
             return true;
         }
-        if (message == WM_LBUTTONDOWN || message == WM_LBUTTONUP) {
+        if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK || message == WM_LBUTTONUP) {
+            consumed_left = message != WM_LBUTTONUP;
             POINT point{};
             if (GetCursorPos(&point) && ScreenToClient(window, &point)) {
                 const auto item = hit(point);
-                if (message == WM_LBUTTONDOWN) {
+                if (message != WM_LBUTTONUP) {
                     pressed = item;
                 } else {
                     const auto selected = pressed;
@@ -467,10 +508,12 @@ bool browser_message(HWND window, UINT message, WPARAM value, LPARAM) {
 }
 
 void release_browser() {
+    scene_pause.end(true);
     native_game::set_canvas_source(nullptr);
     browser.reset();
     last_scene = {};
     last_reference = {};
     menu_pressed = pressed = -1;
+    consumed_left = false;
 }
 }

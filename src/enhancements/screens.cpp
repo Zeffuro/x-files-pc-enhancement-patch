@@ -8,6 +8,7 @@
 #include "ui/menu_link.h"
 #include "dialogue.h"
 #include "inventory.h"
+#include "ui/quick_menu.h"
 
 #include <array>
 #include <algorithm>
@@ -54,6 +55,38 @@ bool navigate_emotions(HWND window, int direction, bool focus) {
 bool navigate_screen(HWND window, int horizontal, int vertical, bool activate, bool cancel,
                      bool change_group, bool keyboard) {
     std::vector<RECT> items;
+    if (quick_menu::expanded()) {
+        if (cancel) {
+            quick_menu::dismiss();
+            return true;
+        }
+        const auto menu = quick_menu::targets();
+        POINT point{};
+        if (GetCursorPos(&point) && ScreenToClient(window, &point)) {
+            const auto direction = vertical ? vertical : horizontal;
+            int index = direction ? hotspot_target(menu, point, direction) : -1;
+            if (!direction && activate) {
+                for (std::size_t i = 0; i < menu.size(); ++i) {
+                    if (PtInRect(&menu[i], point)) {
+                        index = static_cast<int>(i);
+                    }
+                }
+            }
+            if (index >= 0) {
+                point_controller(window, menu[index], activate);
+            }
+        }
+        return true;
+    }
+    if (activate) {
+        const auto menu = quick_menu::targets();
+        POINT point{};
+        if (!menu.empty() && GetCursorPos(&point) && ScreenToClient(window, &point) &&
+            PtInRect(&menu.back(), point)) {
+            point_controller(window, menu.back(), true);
+            return true;
+        }
+    }
     unsigned edit_resource = 0;
     std::vector<RECT> edit_targets;
     const auto input = game::input_vtable();
