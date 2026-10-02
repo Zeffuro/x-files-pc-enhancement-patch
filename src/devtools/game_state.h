@@ -1,6 +1,7 @@
 #pragma once
 #include <windows.h>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace devtools {
@@ -15,9 +16,9 @@ struct GameSnapshot {
     std::vector<StateGroup> groups;
 };
 
-GameSnapshot inspect_game();
+GameSnapshot inspect_game(bool include_story = true);
 void show_hotspots(HWND game, bool enabled, const std::vector<RECT>& targets);
 void release_hotspots();
-void update_state_tree(HWND tree, const GameSnapshot& snapshot);
+void update_state_tree(HWND tree, const GameSnapshot& snapshot, std::wstring_view query = {});
 void copy_state_item(HWND tree);
 }

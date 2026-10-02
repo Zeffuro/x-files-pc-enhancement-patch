@@ -4,6 +4,7 @@
 
 #include <span>
 #include <vector>
+#include <limits>
 
 namespace picture {
 
@@ -25,6 +26,12 @@ struct Picture {
     std::vector<Bitmap> bitmaps;
 };
 
-Picture read(std::span<const std::uint8_t> bytes);
+struct ReadLimits {
+    std::size_t bitmap_count = std::numeric_limits<std::size_t>::max();
+    std::size_t bitmap_bytes = std::numeric_limits<std::size_t>::max();
+    bool allow_solid_rectangles = false;
+};
+
+Picture read(std::span<const std::uint8_t> bytes, ReadLimits limits = {});
 
 }

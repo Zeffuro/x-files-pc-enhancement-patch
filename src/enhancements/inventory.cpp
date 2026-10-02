@@ -1,6 +1,6 @@
 #include "input_source.h"
 #include "inventory.h"
-#include "game/layouts/asset_reference.h"
+#include "game/layouts/database/asset_reference.h"
 
 #include <algorithm>
 

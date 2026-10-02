@@ -1,5 +1,5 @@
 #include "enhancements/inventory.h"
-#include "game/layouts/asset_reference.h"
+#include "game/layouts/database/asset_reference.h"
 
 #include <iostream>
 #include <cstring>

@@ -1,5 +1,7 @@
 #include "inspector_internal.h"
 #include "subtitle_editor.h"
+#include "database/browser.h"
+#include "enhancements/game_ui.h"
 #include "platform/tool_cursor.h"
 #include "platform/tool_theme.h"
 #include <uxtheme.h>
@@ -24,8 +26,8 @@ LRESULT CALLBACK child_keys(HWND window, UINT message, WPARAM key, LPARAM data, 
         SendMessageW(state.window, WM_CLOSE, 0, 0);
         return 0;
     }
-    if (message == WM_KEYDOWN && window == state.state_text && key == 'C' &&
-        (GetKeyState(VK_CONTROL) & 0x8000)) {
+    if (message == WM_KEYDOWN && (window == state.state_text || window == state.details) &&
+        key == 'C' && (GetKeyState(VK_CONTROL) & 0x8000)) {
         copy_state_item(window);
         return 0;
     }
@@ -58,6 +60,8 @@ void layout() {
     MoveWindow(state.search_label, 20, 70, 62, 24, TRUE);
     MoveWindow(state.search, 86, 66, split - 86, 30, TRUE);
     MoveWindow(state.game_state, 306, 18, 130, 34, TRUE);
+    MoveWindow(state.database_button, 442, 18, 158, 34, TRUE);
+    MoveWindow(state.database, 20, 66, width - 40, height - 120, TRUE);
     MoveWindow(state.filenames, 20, 100, 94, 24, TRUE);
     MoveWindow(state.labels, 118, 100, 85, 24, TRUE);
     MoveWindow(state.notes_search, 207, 100, 82, 24, TRUE);
@@ -68,9 +72,12 @@ void layout() {
     MoveWindow(state.coverage, 20, 164, split - 20, 220, TRUE);
     MoveWindow(state.list, 20, 200, split - 20, height - 254, TRUE);
     MoveWindow(state.refresh, 20, 66, 130, 30, TRUE);
-    MoveWindow(state.hotspots, 166, 66, 220, 30, TRUE);
+    MoveWindow(state.state_snapshot, 156, 66, 140, 30, TRUE);
+    MoveWindow(state.hotspots, 308, 66, 220, 30, TRUE);
+    MoveWindow(state.state_search, 540, 66, std::max(80, width - 560), 30, TRUE);
     MoveWindow(state.state_text, 20, 108, width - 40, height - 162, TRUE);
-    MoveWindow(state.title, right, 20, detail_width, 32, TRUE);
+    const int title_left = std::max(right, 620);
+    MoveWindow(state.title, title_left, 20, width - title_left - 20, 32, TRUE);
     MoveWindow(state.preview, right, 66, detail_width, 180, TRUE);
     MoveWindow(state.clock, right, 252, detail_width, 24, TRUE);
     MoveWindow(state.play, right, 280, 118, 30, TRUE);
@@ -78,8 +85,7 @@ void layout() {
     MoveWindow(state.subtitle, right + 196, 280, 110, 30, TRUE);
     MoveWindow(state.seek, right + 312, 280, std::max(40, detail_width - 312), 30, TRUE);
     MoveWindow(state.caption, right, 314, detail_width, 38, TRUE);
-    MoveWindow(state.hint, right, 355, detail_width, 38, TRUE);
-    MoveWindow(state.details, right, 398, detail_width, 80, TRUE);
+    MoveWindow(state.details, right, 355, detail_width, 123, TRUE);
     MoveWindow(state.label_heading, right, 483, detail_width, 22, TRUE);
     MoveWindow(state.label, right, 508, detail_width, 28, TRUE);
     MoveWindow(state.notes_heading, right, 540, detail_width, 22, TRUE);
@@ -110,8 +116,16 @@ void create_controls() {
     SendMessageW(state.live, BM_SETCHECK, BST_CHECKED, 0);
     state.game_state = child(L"BUTTON", L"Game state",
                              BS_PUSHLIKE | BS_AUTORADIOBUTTON | WS_TABSTOP, game_state_id);
+    state.database_button = child(L"BUTTON", L"Database && assets",
+                                  BS_PUSHLIKE | BS_AUTORADIOBUTTON | WS_TABSTOP, database_id);
     state.refresh = child(L"BUTTON", L"Live updates", BS_AUTOCHECKBOX | WS_TABSTOP, refresh_id);
     SendMessageW(state.refresh, BM_SETCHECK, BST_CHECKED, 0);
+    state.state_snapshot =
+        child(L"BUTTON", L"Refresh snapshot", BS_PUSHBUTTON | WS_TABSTOP, state_snapshot_id);
+    state.state_search =
+        child(L"EDIT", L"", ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP, state_search_id);
+    SendMessageW(state.state_search, EM_SETCUEBANNER, TRUE,
+                 reinterpret_cast<LPARAM>(L"Search state name or value"));
     state.hotspots =
         child(L"BUTTON", L"Show interaction targets", BS_AUTOCHECKBOX | WS_TABSTOP, hotspots_id);
     state.state_text = child(WC_TREEVIEWW, L"Game state",
@@ -171,8 +185,10 @@ void create_controls() {
     state.subtitle = child(L"BUTTON", L"Subtitles...", BS_PUSHBUTTON | WS_TABSTOP, subtitle_id);
     state.seek = child(TRACKBAR_CLASSW, L"", TBS_HORZ | WS_TABSTOP, seek_id);
     SendMessageW(state.seek, TBM_SETRANGE, TRUE, MAKELPARAM(0, 1000));
-    state.hint = child(L"EDIT", L"", ES_MULTILINE | ES_READONLY | WS_TABSTOP);
-    state.details = child(L"EDIT", L"", ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP);
+    state.details = child(WC_TREEVIEWW, L"Clip details",
+                          WS_BORDER | WS_TABSTOP | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT |
+                              TVS_SHOWSELALWAYS | TVS_FULLROWSELECT);
+    TreeView_SetBkColor(state.details, GetSysColor(COLOR_BTNFACE));
     state.label_heading = child(L"STATIC", L"Your label");
     state.label = child(L"EDIT", L"", WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, label_id);
     SendMessageW(state.label, EM_SETLIMITTEXT, 1024, 0);
@@ -274,6 +290,10 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         }
         if (message == WM_COMMAND && !state.rebuilding) {
             const auto id = LOWORD(value), event = HIWORD(value);
+            if (id == IDCANCEL) {
+                SendMessageW(window, WM_CLOSE, 0, 0);
+                return 0;
+            }
             if (id == play_id || id == subtitle_id) {
                 SetTimer(window, 1, 33, nullptr);
                 if (!state.selected.empty()) {
@@ -341,9 +361,13 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
                 }
                 populate();
             }
-            if (id == refresh_id) {
+            if (id == refresh_id || id == state_snapshot_id) {
                 state.snapshot = inspect_game();
-                update_state_tree(state.state_text, state.snapshot);
+                state.state_updated = GetTickCount64();
+                update_game_state_view();
+            }
+            if (id == state_search_id && event == EN_CHANGE) {
+                update_game_state_view();
             }
             if (id == captions_id && SendMessageW(state.captions, BM_GETCHECK, 0, 0)) {
                 start_caption_index();
@@ -359,29 +383,44 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             if (id == save_id && save_notes()) {
                 populate();
             }
-            if (id == live_id || id == library_id || id == game_state_id) {
+            if (id == live_id || id == library_id || id == game_state_id || id == database_id) {
                 if (leave_notes()) {
                     state.player.reset();
                     state.showing_state = id == game_state_id;
+                    state.showing_database = id == database_id;
+                    if (state.showing_database && !state.database) {
+                        state.database = create_database_browser(
+                            state.window, state.module, state.font, state.catalog.root,
+                            open_database_asset, [] {
+                                return inspect_database(enhancements::game::executable_image(),
+                                                        enhancements::game::edition());
+                            });
+                        layout();
+                    }
                     state.browsing = id == library_id;
                     state.selected.clear();
                     state.selected_movie = 0;
                     show_view();
                     if (state.showing_state) {
                         state.snapshot = inspect_game();
-                        update_state_tree(state.state_text, state.snapshot);
-                    } else {
+                        state.state_updated = GetTickCount64();
+                        update_game_state_view();
+                    } else if (!state.showing_database) {
                         populate();
                         describe();
                     }
                 }
                 SendMessageW(state.live, BM_SETCHECK,
-                             !state.browsing && !state.showing_state ? BST_CHECKED : BST_UNCHECKED,
+                             !state.browsing && !state.showing_state && !state.showing_database
+                                 ? BST_CHECKED
+                                 : BST_UNCHECKED,
                              0);
                 SendMessageW(state.library, BM_SETCHECK,
                              state.browsing ? BST_CHECKED : BST_UNCHECKED, 0);
                 SendMessageW(state.game_state, BM_SETCHECK,
                              state.showing_state ? BST_CHECKED : BST_UNCHECKED, 0);
+                SendMessageW(state.database_button, BM_SETCHECK,
+                             state.showing_database ? BST_CHECKED : BST_UNCHECKED, 0);
             }
             return 0;
         }
@@ -412,6 +451,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             release_hotspots();
             platform::tool_cursor(state.game, false);
             state.window = nullptr;
+            state.database = nullptr;
             return 0;
         }
     } catch (const std::exception& error) {

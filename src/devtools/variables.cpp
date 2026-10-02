@@ -1,6 +1,7 @@
 #include "variables.h"
-#include "game/layouts/variable.h"
-#include "game/layouts/inventory_selection.h"
+#include "database/memory.h"
+#include "game/layouts/database/variable.h"
+#include "game/layouts/input/inventory_selection.h"
 #include "game/profiles/variables.h"
 #include <windows.h>
 #include <sstream>
@@ -8,9 +9,7 @@
 namespace devtools {
 namespace {
 template <class T> bool read(const void* address, T& value) {
-    SIZE_T bytes = 0;
-    return ReadProcessMemory(GetCurrentProcess(), address, &value, sizeof(value), &bytes) &&
-           bytes == sizeof(value);
+    return database_copy(reinterpret_cast<std::uintptr_t>(address), &value, sizeof(value));
 }
 }
 

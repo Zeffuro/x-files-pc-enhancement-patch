@@ -10,6 +10,10 @@ enum class BuildId { unknown, cd_10012, cd_10019, dvd_20000, cd_10020 };
 
 struct Profile {
     std::uint32_t application;
+    std::uint32_t database_manager;
+    std::uint32_t database_class_node;
+    std::uint32_t database_branch_node;
+    std::uint32_t database_object_node;
     std::uint32_t draw_slot;
     std::uint32_t draw_list;
     std::uint32_t talk_list;
@@ -80,6 +84,10 @@ struct Build {
 
 inline constexpr Profile profile_cd_10012{
     .application = 0x2b2ecc,
+    .database_manager = 0x2b4670,
+    .database_class_node = 0x2624c0,
+    .database_branch_node = 0x262930,
+    .database_object_node = 0x261958,
     .draw_slot = 0x25e844,
     .draw_list = 0x17070,
     .talk_list = 0x2bd018,
@@ -142,6 +150,10 @@ inline constexpr Profile profile_cd_10012{
 
 inline constexpr Profile profile_cd_10019{
     .application = 0x2b5ef4,
+    .database_manager = 0x2b7698,
+    .database_class_node = 0x264c48,
+    .database_branch_node = 0x2650b8,
+    .database_object_node = 0x264018,
     .draw_slot = 0x260d4c,
     .draw_list = 0x16e20,
     .talk_list = 0x2c0180,
@@ -204,6 +216,10 @@ inline constexpr Profile profile_cd_10019{
 
 inline constexpr Profile profile_dvd_20000{
     .application = 0x2b6fec,
+    .database_manager = 0x2b8490,
+    .database_class_node = 0x265bf0,
+    .database_branch_node = 0x2660a8,
+    .database_object_node = 0x2650d0,
     .draw_slot = 0x25feac,
     .draw_list = 0x16e20,
     .talk_list = 0x2c0270,
@@ -266,6 +282,10 @@ inline constexpr Profile profile_dvd_20000{
 
 inline constexpr Profile profile_cd_10020{
     .application = 0x2b6f04,
+    .database_manager = 0x2b8690,
+    .database_class_node = 0x265c50,
+    .database_branch_node = 0x2660c0,
+    .database_object_node = 0x265020,
     .draw_slot = 0x2620fc,
     .draw_list = 0x16e60,
     .talk_list = 0x2c11e0,

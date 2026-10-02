@@ -1,5 +1,5 @@
 install(FILES "$<TARGET_FILE:xfiles-patch>" "$<TARGET_FILE:xfiles-setup>"
-    "$<TARGET_FILE:quicktime>" "$<TARGET_FILE:dvd-mpeg>" DESTINATION .)
+    "$<TARGET_FILE:quicktime>" "$<TARGET_FILE:dvd-mpeg>" "$<TARGET_FILE:xfiles-devtools>" DESTINATION .)
 install(FILES
     "${CMAKE_SOURCE_DIR}/assets/menu/LICENSE.txt"
     DESTINATION . RENAME fontawesome.LICENSE)

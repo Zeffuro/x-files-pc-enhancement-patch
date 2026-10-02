@@ -11,7 +11,26 @@ namespace {
 
 class Reader {
 public:
-    explicit Reader(std::span<const std::uint8_t> bytes) : bytes_(bytes) {}
+    explicit Reader(std::span<const std::uint8_t> bytes, ReadLimits limits = {})
+        : bytes_(bytes), limits_(limits) {}
+
+    void bitmap() {
+        if (!limits_.bitmap_count) {
+            throw std::runtime_error("PICT: bitmap count exceeds safety limit");
+        }
+        --limits_.bitmap_count;
+    }
+
+    void allocate(std::size_t size) {
+        if (size > limits_.bitmap_bytes) {
+            throw std::runtime_error("PICT: bitmap storage exceeds safety limit");
+        }
+        limits_.bitmap_bytes -= size;
+    }
+
+    bool solid_rectangles() const {
+        return limits_.allow_solid_rectangles;
+    }
 
     std::span<const std::uint8_t> take(std::size_t size) {
         if (size > bytes_.size() - position_) {
@@ -47,6 +66,7 @@ public:
 private:
     std::span<const std::uint8_t> bytes_;
     std::size_t position_ = 0;
+    ReadLimits limits_;
 };
 
 std::vector<std::uint8_t> unpack(std::span<const std::uint8_t> data, std::size_t expected,
@@ -142,6 +162,7 @@ Bitmap indexed_bitmap(Reader& input, const quickdraw::Rect& clip) {
     if (std::uint64_t(bitmap.stride) * height > 64 * 1024 * 1024) {
         throw std::runtime_error("PICT: bitmap is too large");
     }
+    input.allocate(std::size_t(bitmap.stride) * height);
     bitmap.pixels.resize(std::size_t(bitmap.stride) * height);
     for (int y = 0; y < height; ++y) {
         std::vector<std::uint8_t> row;
@@ -206,6 +227,7 @@ Bitmap direct_bitmap(Reader& input, const quickdraw::Rect& clip) {
     if (std::uint64_t(bitmap.stride) * height > 64 * 1024 * 1024) {
         throw std::runtime_error("PICT: bitmap is too large");
     }
+    input.allocate(std::size_t(bitmap.stride) * height);
     bitmap.pixels.resize(std::size_t(bitmap.stride) * height);
     const std::size_t plane_size = bitmap.stride / 4;
     for (int y = 0; y < height; ++y) {
@@ -322,14 +344,15 @@ Bitmap compressed_bitmap(Reader& stream, const quickdraw::Rect& clip) {
     bitmap.stride = static_cast<std::uint16_t>(width * 4);
     bitmap.components = 3;
     const auto packet = input.take(payload);
+    stream.allocate(payload);
     bitmap.compressed.assign(packet.begin(), packet.end());
     return bitmap;
 }
 
 }
 
-Picture read(std::span<const std::uint8_t> bytes) {
-    Reader input(bytes);
+Picture read(std::span<const std::uint8_t> bytes, ReadLimits limits) {
+    Reader input(bytes, limits);
     input.word();
     Picture picture;
     picture.frame = input.rectangle();
@@ -354,7 +377,36 @@ Picture read(std::span<const std::uint8_t> bytes) {
                 clip = input.rectangle();
                 fallback = false;
                 break;
+            case Opcode::PenPattern: {
+                if (!input.solid_rectangles()) {
+                    throw std::runtime_error("PICT: unsupported opcode 9");
+                }
+                const auto pattern = input.take(8);
+                if (!std::all_of(pattern.begin(), pattern.end(),
+                                 [](std::uint8_t byte) { return byte == 255; })) {
+                    throw std::runtime_error("PICT: only solid black pen patterns are supported");
+                }
+                break;
+            }
+            case Opcode::PaintRect: {
+                if (!input.solid_rectangles()) {
+                    throw std::runtime_error("PICT: unsupported opcode 49");
+                }
+                input.bitmap();
+                input.allocate(4);
+                Bitmap bitmap{};
+                bitmap.bounds = bitmap.source = {0, 0, 1, 1};
+                bitmap.destination = input.rectangle();
+                bitmap.clip = clip;
+                bitmap.mode = static_cast<std::int16_t>(quickdraw::TransferMode::Copy);
+                bitmap.stride = 4;
+                bitmap.components = 3;
+                bitmap.pixels = {0, 0, 0, 255};
+                picture.bitmaps.push_back(std::move(bitmap));
+                break;
+            }
             case Opcode::CompressedQuickTime:
+                input.bitmap();
                 picture.bitmaps.push_back(compressed_bitmap(input, clip));
                 compressed = true;
                 fallback = true;
@@ -381,9 +433,11 @@ Picture read(std::span<const std::uint8_t> bytes) {
                 }
                 break;
             case Opcode::DirectBitsRect:
+                input.bitmap();
                 picture.bitmaps.push_back(direct_bitmap(input, clip));
                 break;
             case Opcode::PackBitsRect: {
+                input.bitmap();
                 auto bitmap = indexed_bitmap(input, clip);
                 // Legacy QuickTime pictures append a bitmap warning for non-QuickTime readers.
                 if (!fallback) {

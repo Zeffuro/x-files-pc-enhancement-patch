@@ -45,6 +45,10 @@ add_library(quicktime SHARED
     src/localization/ui.cpp
     src/devtools/inspector.cpp
     src/devtools/inspector_window.cpp
+    src/devtools/inspector_preview_details.cpp
+    src/devtools/database/native.cpp
+    src/devtools/database/types.cpp
+    src/devtools/database/trigger.cpp
     src/devtools/library_list.cpp
     src/devtools/artwork.cpp
     src/devtools/preview.cpp
@@ -53,11 +57,11 @@ add_library(quicktime SHARED
     src/devtools/subtitle_editor.cpp
     src/devtools/dialogs.rc
     src/devtools/game_state.cpp
+    src/devtools/story_state.cpp
     src/devtools/state_tree.cpp
     src/devtools/variables.cpp
     src/devtools/hotspots.cpp
     src/devtools/clip_catalog.cpp
-    src/devtools/clip_key.cpp
     src/devtools/clip_defaults.cpp
     src/enhancements/ui/settings_dialog.cpp
     src/enhancements/ui/settings_tabs.cpp
@@ -156,9 +160,38 @@ target_include_directories(controller-input PUBLIC src)
 target_link_libraries(controller-input PUBLIC user32 xinput)
 add_library(clip-index STATIC src/game/assets/clip_index.cpp)
 target_include_directories(clip-index PUBLIC src)
+add_library(database-browser-ui STATIC
+    src/devtools/database/browser.cpp src/devtools/database/browser_controls.cpp
+    src/devtools/database/browser_details.cpp src/devtools/database/browser_rows.cpp
+    src/devtools/database/browser_navigation.cpp src/devtools/database/assets.cpp
+    src/devtools/database/browser_asset_content.cpp src/devtools/database/source.cpp
+    src/devtools/database/browser_tabs.cpp src/devtools/database/font_preview.cpp
+    src/devtools/database/browser_strings.cpp src/game/assets/resource_strings.cpp
+    src/devtools/database/browser_text.cpp
+    src/devtools/database/browser_tables.cpp src/devtools/database/browser_database.cpp
+    src/devtools/database/field_guide.cpp
+    src/devtools/database/browser_accessibility.cpp
+    src/devtools/database/browser_accessibility_list.cpp
+    src/devtools/database/browser_stored_list.cpp src/game/database/stored_list.cpp
+    src/devtools/database/browser_stored_action.cpp src/game/database/stored_action.cpp
+    src/devtools/database/browser_stored_asset_list.cpp src/game/database/stored_asset_list.cpp
+    src/devtools/database/browser_stored_asset_ref.cpp src/game/database/stored_asset_ref.cpp
+    src/devtools/database/browser_stored_fields.cpp src/game/database/stored_fields.cpp
+    src/devtools/database/payload.cpp
+    src/game/assets/xt_text.cpp
+    src/devtools/database/model.cpp src/devtools/clip_key.cpp
+    src/game/database/database.cpp src/game/database/io.cpp src/game/database/offline_index.cpp
+    src/game/database/stored_variable.cpp
+    src/game/database/stored_trigger.cpp
+    src/game/assets/hotspots.cpp src/game/assets/pff.cpp
+    src/devtools/database/pff_browser.cpp src/devtools/database/pff_browser_files.cpp
+    src/devtools/database/pff_image.cpp src/devtools/database/asset_io.cpp src/picture/pict.cpp)
+target_include_directories(database-browser-ui PUBLIC src)
+target_link_libraries(database-browser-ui PUBLIC clip-index comctl32 comdlg32 user32 gdi32
+    uiautomationcore oleaut32 uuid)
 add_library(clip-notes STATIC src/devtools/clip_notes.cpp)
 target_include_directories(clip-notes PUBLIC src)
-target_link_libraries(quicktime PRIVATE clip-index clip-notes controller-input movie-grading uxtheme)
+target_link_libraries(quicktime PRIVATE database-browser-ui clip-notes controller-input movie-grading uxtheme)
 target_include_directories(quicktime PRIVATE src src/enhancements/ui)
 target_link_libraries(quicktime PRIVATE advapi32 bcrypt comctl32 comdlg32 dxguid gdi32 msimg32 shell32 user32 uuid winmm xaudio2 xinput)
 
@@ -198,7 +231,7 @@ add_custom_command(TARGET xfiles-patch POST_BUILD
         "${CMAKE_SOURCE_DIR}/config/patch.ini" "$<TARGET_FILE_DIR:xfiles-patch>/patch.ini")
 configure_file(cmake/version.rc.in "${CMAKE_BINARY_DIR}/generated/version.rc" @ONLY)
 configure_file(cmake/icon.rc.in "${CMAKE_BINARY_DIR}/generated/icon.rc" @ONLY)
-foreach(target xfiles-patch xfiles-setup)
+foreach(target quicktime xfiles-patch xfiles-setup)
     target_sources(${target} PRIVATE "${CMAKE_BINARY_DIR}/generated/icon.rc")
 endforeach()
 foreach(target quicktime xfiles-patch xfiles-setup)
@@ -222,7 +255,14 @@ target_link_libraries(movie PUBLIC bcrypt ole32 windowscodecs movie-zlib movie-m
     FFmpeg::avformat FFmpeg::avcodec FFmpeg::avfilter FFmpeg::avutil FFmpeg::swresample FFmpeg::swscale)
 add_dependencies(movie codec-files)
 target_link_libraries(quicktime PRIVATE movie)
+target_link_libraries(database-browser-ui PUBLIC movie ole32 windowscodecs)
 target_include_directories(movie PUBLIC src/media)
+add_executable(xfiles-devtools WIN32 src/devtools/database/standalone.cpp
+    src/devtools/database/standalone_preview.cpp
+    src/devtools/preview.cpp src/playback/audio.cpp src/playback/output.cpp
+    "${CMAKE_BINARY_DIR}/generated/version.rc" "${CMAKE_BINARY_DIR}/generated/icon.rc")
+target_link_libraries(xfiles-devtools PRIVATE database-browser-ui movie
+    comdlg32 shell32 xaudio2 uuid ole32)
 add_library(dvd-player STATIC src/dvd/player.cpp src/dvd/files.cpp src/dvd/captions.cpp
     src/identity.cpp src/platform/imports.cpp src/diagnostics/log_file.cpp)
 target_include_directories(dvd-player PUBLIC src)

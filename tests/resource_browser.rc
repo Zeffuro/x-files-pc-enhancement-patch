@@ -1,0 +1,12 @@
+#include <windows.h>
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+STRINGTABLE
+BEGIN
+    16 "First English string"
+    31 "Long text\nSecond line"
+END
+LANGUAGE LANG_FRENCH, SUBLANG_FRENCH
+STRINGTABLE
+BEGIN
+    16 "Texte francais"
+END

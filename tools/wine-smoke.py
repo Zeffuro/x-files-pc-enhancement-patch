@@ -14,6 +14,9 @@ import time
 
 
 CHECKS = (
+    "game-story-state", "game-state-tree",
+    "database-flow",
+    "database-usability",
     "controller-delivery", "controller-state", "controller-navigation",
     "controller-click", "navigation", "native-gun", "options-navigation", "rumble",
     "fast-forward", "dvd-clock", "save-compatibility", "save-conversion",
@@ -23,6 +26,17 @@ CHECKS = (
     "browser-session", "scene-overlay", "menu-control", "quick-menu", "quick-menu-navigation",
     "quick-menu-dialog", "settings-tabs", "settings-dialog", "controller-profile", "controller-dialog",
     "controller-profile-portable",
+    "database", "database-io", "database-native", "database-browser", "database-model",
+    "database-payload", "database-story", "database-trigger", "database-assets", "database-offline", "database-stored-browser",
+    "hotspots", "standalone-preview", "pff", "pff-image", "asset-io", "xt-text", "asset-browser",
+    "font-preview", "database-gam", "database-stored-trigger", "resource-strings", "resource-browser",
+    "database-text-browser",
+    "database-stored-list", "database-stored-list-browser",
+    "database-stored-action", "database-stored-action-browser",
+    "database-stored-asset-list", "database-stored-asset-list-browser",
+    "database-stored-asset-ref", "database-stored-asset-ref-browser",
+    "database-stored-fields", "database-stored-fields-browser",
+    "database-stored-object-list", "database-stored-object-list-browser",
 )
 
 
@@ -44,7 +58,7 @@ def main():
     parser.add_argument("output", type=Path, help="new folder for copies, prefix and logs")
     parser.add_argument("--wine", default="wine", help="Wine executable")
     parser.add_argument("--wineserver", default="wineserver", help="matching Wine server")
-    parser.add_argument("--timeout", type=int, default=90, help="per-check seconds")
+    parser.add_argument("--timeout", type=int, default=180, help="per-check seconds")
     args = parser.parse_args()
     if platform.system() != "Linux" or args.timeout < 1:
         parser.error("Run on Linux with a positive timeout, using xvfb-run if headless")
@@ -87,7 +101,10 @@ def main():
         for name in CHECKS:
             started = time.monotonic()
             try:
-                code = run([wine, str(stage / (name + "-test.exe"))], stage, environment,
+                arguments = ["--visible"] if name == "standalone-preview" else []
+                if name in ("resource-browser", "database-usability"):
+                    arguments = ["--clipboard"]
+                code = run([wine, str(stage / (name + "-test.exe"))] + arguments, stage, environment,
                            logs / (name + ".log"), args.timeout)
                 status = "passed" if code == 0 else "failed"
             except subprocess.TimeoutExpired:

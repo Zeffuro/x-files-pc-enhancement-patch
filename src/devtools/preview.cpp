@@ -14,6 +14,9 @@ media::Movie open(const std::filesystem::path& path) {
 
 Preview::Preview(const std::filesystem::path& root, const std::filesystem::path& relative)
     : movie_(open(root / relative)) {
+    auto extension = relative.extension().wstring();
+    std::transform(extension.begin(), extension.end(), extension.begin(), std::towlower);
+    frame_navigation_ = extension == L".nmv";
     if (duration() > UINT32_MAX) {
         throw std::runtime_error("Movie duration is too long to preview.");
     }
@@ -36,7 +39,11 @@ Preview::Preview(const std::filesystem::path& root, const std::filesystem::path&
             cue.end = (cue.end * 1000 + movie_.timescale - 1) / movie_.timescale;
         }
     }
-    update();
+    if (frame_navigation_ && frame_count()) {
+        select_frame(0);
+    } else {
+        update();
+    }
 }
 
 std::uint64_t Preview::duration() const {
@@ -55,6 +62,7 @@ void Preview::play() {
     if (playing_) {
         return;
     }
+    direct_frame_ = false;
     if (position_ >= duration()) {
         position_ = 0;
     }
@@ -77,6 +85,7 @@ void Preview::pause() {
 }
 
 void Preview::seek(std::uint64_t milliseconds) {
+    direct_frame_ = false;
     const bool resume = playing_;
     pause();
     position_ = std::min(duration(), milliseconds);
@@ -87,6 +96,9 @@ void Preview::seek(std::uint64_t milliseconds) {
 }
 
 void Preview::update() {
+    if (direct_frame_) {
+        return;
+    }
     const auto position = time();
     if (position == duration()) {
         pause();
@@ -103,6 +115,63 @@ void Preview::update() {
             sample_ = sample;
         }
     }
+}
+
+void Preview::select_frame(std::size_t sample) {
+    if (!frame_navigation_ || !video_track_ || sample >= frame_count()) {
+        return;
+    }
+    pause();
+    direct_frame_ = true;
+    if (sample_ != sample) {
+        auto frame = decoder_.decode(movie_, *video_track_, sample);
+        frame_ = std::move(frame);
+        sample_ = sample;
+    }
+}
+
+std::vector<std::size_t> Preview::video_tracks() const {
+    std::vector<std::size_t> result;
+    for (std::size_t index = 0; index < movie_.tracks.size(); ++index) {
+        if (movie_.tracks[index].handler == "vide") {
+            result.push_back(index);
+        }
+    }
+    return result;
+}
+
+std::optional<std::size_t> Preview::video_track() const {
+    return video_track_ ? std::optional<std::size_t>(video_track_ - movie_.tracks.data())
+                        : std::nullopt;
+}
+
+void Preview::select_video_track(std::size_t index) {
+    if (!frame_navigation_ || index >= movie_.tracks.size() ||
+        movie_.tracks[index].handler != "vide") {
+        return;
+    }
+    pause();
+    if (video_track_ != &movie_.tracks[index]) {
+        video_track_ = &movie_.tracks[index];
+        sample_.reset();
+        frame_ = {};
+    }
+    direct_frame_ = true;
+    if (frame_count()) {
+        select_frame(0);
+    }
+}
+
+std::pair<unsigned, unsigned> Preview::frame_dimensions(std::size_t sample) const {
+    if (!video_track_ || sample >= frame_count()) {
+        return {};
+    }
+    const auto description = video_track_->samples[sample].description;
+    if (description >= video_track_->descriptions.size()) {
+        return {};
+    }
+    const auto& image = video_track_->descriptions[description];
+    return {image.width, image.height};
 }
 
 std::wstring Preview::caption() const {

@@ -91,9 +91,10 @@ StagedGame stage_game(const fs::path& source, const fs::path& destination, const
     for (const auto& asset : assets) {
         platform::copy_file(asset, output / asset.filename());
     }
-    for (const wchar_t* name : {L"XFilesPlay.exe", L"QuickTime.qts", L"XFilesMpeg.dll",
-                                L"ddraw.dll", L"cnc-ddraw.LICENSE", L"LICENSE", L"THIRD_PARTY.md",
-                                L"zlib.LICENSE", L"README.md", L"fontawesome.LICENSE"}) {
+    for (const wchar_t* name :
+         {L"XFilesPlay.exe", L"QuickTime.qts", L"XFilesMpeg.dll", L"xfiles-database.exe",
+          L"ddraw.dll", L"cnc-ddraw.LICENSE", L"LICENSE", L"THIRD_PARTY.md", L"zlib.LICENSE",
+          L"README.md", L"fontawesome.LICENSE"}) {
         platform::copy_file(package / name, output / name);
     }
     for (const auto* name : ffmpeg_files) {

@@ -4,11 +4,12 @@
 #include "devtools/subtitle_time.h"
 #include "devtools/artwork.h"
 #include "devtools/variables.h"
-#include "game/layouts/variable.h"
-#include "game/layouts/inventory_selection.h"
+#include "game/layouts/database/variable.h"
+#include "game/layouts/input/inventory_selection.h"
 #include "game/profiles/variables.h"
 #include <cstring>
 #include "devtools/clip_defaults.h"
+#include "devtools/inspector_preview_details.h"
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -23,9 +24,63 @@ void require(bool value, const char* message) {
     }
 }
 
-unsigned tool_messages = 0;
+unsigned tool_messages = 0, tool_closes = 0;
+HWND closed_tool = nullptr;
 HHOOK quit_hook = nullptr;
 constexpr UINT quit_trigger = WM_APP + 47;
+
+void verify_preview_details_tree() {
+    INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_TREEVIEW_CLASSES};
+    require(InitCommonControlsEx(&controls), "Cannot initialize preview detail tree");
+    const auto parent = CreateWindowW(L"STATIC", L"", WS_POPUP, 0, 0, 300, 200, nullptr, nullptr,
+                                      GetModuleHandleW(nullptr), nullptr);
+    const auto tree =
+        CreateWindowW(WC_TREEVIEWW, L"", WS_CHILD | TVS_HASBUTTONS | TVS_LINESATROOT, 0, 0, 300,
+                      200, parent, nullptr, GetModuleHandleW(nullptr), nullptr);
+    require(parent && tree, "Cannot create preview detail tree");
+    devtools::inspector::PreviewDetailsTree details;
+    std::vector<devtools::inspector::PreviewDetail> rows{
+        {L"clip", L"", L"Clip", true},
+        {L"clip/path", L"clip", L"Path: XN/7.xmv"},
+        {L"playback", L"", L"Playback", true},
+        {L"playback/state", L"playback", L"State: Paused"}};
+    details.update(tree, rows);
+    const auto clip = TreeView_GetRoot(tree);
+    const auto playback = TreeView_GetNextSibling(tree, clip);
+    const auto selected = TreeView_GetChild(tree, playback);
+    require(clip && playback && selected &&
+                (TreeView_GetItemState(tree, clip, TVIS_EXPANDED) & TVIS_EXPANDED),
+            "Preview detail group did not expand after children were inserted");
+    TreeView_Expand(tree, clip, TVE_COLLAPSE);
+    TreeView_SelectItem(tree, selected);
+    rows.back().text = L"State: Playing";
+    details.update(tree, rows);
+    require(TreeView_GetSelection(tree) == selected && TreeView_GetRoot(tree) == clip &&
+                TreeView_GetChild(tree, playback) == selected &&
+                !(TreeView_GetItemState(tree, clip, TVIS_EXPANDED) & TVIS_EXPANDED),
+            "Periodic preview details changed selection or a collapsed group");
+    wchar_t text[64]{};
+    TVITEMW item{};
+    item.mask = TVIF_TEXT;
+    item.hItem = selected;
+    item.pszText = text;
+    item.cchTextMax = static_cast<int>(std::size(text));
+    require(TreeView_GetItem(tree, &item) && std::wstring(text) == L"State: Playing",
+            "Changed playback detail was not updated in place");
+    details.update(tree, rows);
+    require(TreeView_GetCount(tree) == 4 && TreeView_GetSelection(tree) == selected,
+            "Unchanged preview details rebuilt the tree");
+    rows.pop_back();
+    details.update(tree, rows);
+    require(TreeView_GetCount(tree) == 3 && TreeView_GetRoot(tree) == clip &&
+                !(TreeView_GetItemState(tree, clip, TVIS_EXPANDED) & TVIS_EXPANDED),
+            "Removing obsolete details rebuilt preserved groups");
+    rows.push_back({L"playback/empty", L"playback", L"No open preview"});
+    details.update(tree, rows);
+    require(TreeView_GetCount(tree) == 4 && TreeView_GetNextSibling(tree, clip) == playback,
+            "New preview detail lost its existing parent");
+    DestroyWindow(parent);
+}
 
 LRESULT CALLBACK quit_between_peeks(int code, WPARAM remove, LPARAM data) {
     if (code >= 0 && remove == PM_NOREMOVE) {
@@ -56,6 +111,11 @@ void require_quit(WPARAM exit_code) {
 }
 
 LRESULT CALLBACK tool_window(HWND window, UINT message, WPARAM value, LPARAM data) {
+    if (message == WM_CLOSE) {
+        ++tool_closes;
+        closed_tool = window;
+        return 0;
+    }
     if (message == WM_LBUTTONUP || message == WM_TIMER) {
         ++tool_messages;
         return 0;
@@ -85,6 +145,14 @@ void verify_tool_pump() {
         devtools::pump_tool_messages(tools);
     }
     require(tool_messages == 2, "Queued game input starved tool child input or timers");
+    const auto nested = CreateWindowExW(WS_EX_CONTROLPARENT, type.lpszClassName, L"", WS_CHILD, 0,
+                                        0, 0, 0, child, nullptr, type.hInstance, nullptr);
+    const auto edit = CreateWindowW(L"EDIT", L"", WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, nested,
+                                    nullptr, type.hInstance, nullptr);
+    require(nested && edit && PostMessageW(edit, WM_KEYDOWN, VK_ESCAPE, 0),
+            "Cannot queue nested tool Escape");
+    devtools::pump_tool_messages(tools);
+    require(tool_closes == 1 && closed_tool == tools, "Nested Escape did not close the tools root");
     MSG message{};
     require(PeekMessageW(&message, game, WM_KEYDOWN, WM_KEYDOWN, PM_REMOVE),
             "Tool pump consumed native game input");
@@ -211,6 +279,7 @@ int main() {
         fs::temp_directory_path() / ("xfiles-preview-" + std::to_string(GetCurrentProcessId()));
     try {
         verify_tool_pump();
+        verify_preview_details_tree();
         require(fs::create_directory(root), "Test directory exists");
         write(root / "video.xmv", movie(false));
         write(root / "audio.amv", movie(true));

@@ -1,14 +1,15 @@
 #include "game_state.h"
 #include "variables.h"
+#include "story_state.h"
 #include "enhancements/game_ui.h"
 #include "enhancements/game_resources.h"
 #include "enhancements/inventory.h"
-#include "game/layouts/input_events.h"
+#include "game/layouts/input/events.h"
 #include <filesystem>
 #include <sstream>
 
 namespace devtools {
-GameSnapshot inspect_game() {
+GameSnapshot inspect_game(bool include_story) {
     namespace game = enhancements::game;
     GameSnapshot result;
     auto* image = game::executable_image();
@@ -31,6 +32,11 @@ GameSnapshot inspect_game() {
           L"Navigation available: " + std::to_wstring(game::world_navigation_available()),
           input.str(), L"Script dialog: " + std::to_wstring(script.script_dialog),
           L"Text input: " + std::to_wstring(script.text_input)}});
+    if (include_story) {
+        for (auto& group : story_state_groups(inspect_database(image, profile))) {
+            result.groups.push_back(std::move(group));
+        }
+    }
     StateGroup resources{L"Resources"};
     for (const auto id : script.resources) {
         resources.values.push_back(std::to_wstring(id));

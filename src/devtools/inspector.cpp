@@ -10,6 +10,8 @@
 #include "caption_index.h"
 #include "game_state.h"
 #include "subtitle_editor.h"
+#include "database/browser.h"
+#include "database/assets.h"
 
 #include <commctrl.h>
 
@@ -71,74 +73,11 @@ std::wstring activity(const playback::MovieSnapshot& movie) {
     return GetTickCount64() - movie.last_draw < 1000 ? L"Drawing frames" : L"Playing";
 }
 
-void update_image_reference() {
-    if (media::navigation_archive(state.selected)) {
-        const auto* live = selected_movie();
-        const auto image = state.player ? state.player->image() : live ? live->image : std::nullopt;
-        auto hint = state.player ? L"Preview image" : L"Last drawn image";
-        std::wstring identity;
-        if (image) {
-            identity = std::wstring(hint) + L": " + std::to_wstring(image->sample + 1) + L" of " +
-                       std::to_wstring(image->count) + L" on track " +
-                       std::to_wstring(image->track) + L"\r\n" +
-                       media::frame_key(state.selected, *image);
-        } else {
-            identity = L"Navigation archive. No image has been decoded for this preview.";
-        }
-        if (GetFocus() != state.hint) {
-            set_text(state.hint, identity);
-        }
-    }
-}
-
 void describe() {
     const auto note = state.selected.empty() ? std::nullopt : state.annotations.get(state.selected);
     set_text(state.title,
              note && !note->label.empty() ? note->label : state.selected.generic_wstring());
-    std::wstring info = state.selected.empty() ? L"Select a clip to inspect it."
-                                               : state.catalog.metadata(state.selected);
-    if (const auto* movie = selected_movie()) {
-        info += L"\r\nVideo: " + std::wstring(movie->video ? L"yes" : L"no") + L"    Audio: " +
-                (movie->audio ? L"yes" : L"no");
-        info += L"\r\nDraw area: " + std::to_wstring(movie->width) + L" x " +
-                std::to_wstring(movie->height) + L" at " + std::to_wstring(movie->left) + L", " +
-                std::to_wstring(movie->top);
-        if (!media::navigation_archive(state.selected)) {
-            set_text(state.hint,
-                     movie->preview.pixels.empty()
-                         ? L"No video frame. This may be an audio or unopened clip."
-                         : L"Last decoded frame. Other clips can cover it in the game.");
-        }
-    } else {
-        if (!media::navigation_archive(state.selected)) {
-            set_text(state.hint, state.selected.empty() ? L"No clip selected."
-                                 : state.browsing
-                                     ? L"Use Play preview to open this movie independently."
-                                     : L"This movie is no longer open.");
-        }
-    }
-    if (!state.selected.empty() &&
-        !state.catalog.installed_keys.contains(catalog_key(state.selected))) {
-        info += L"\r\nFile not found in local game folders.";
-    }
-    if (state.player) {
-        info += L"\r\nPreview tracks: " +
-                std::wstring(state.player->has_video() ? L"video" : L"no video") + L" / " +
-                (state.player->has_audio() ? L"audio" : L"no audio");
-        if (!media::navigation_archive(state.selected)) {
-            set_text(state.hint, state.player->has_video()
-                                     ? L"Independent preview. The game keeps running."
-                                     : L"Audio-only preview. Use Play preview to listen.");
-        }
-    }
-    update_image_reference();
-    DWORD first = 0, last = 0;
-    SendMessageW(state.details, EM_GETSEL, reinterpret_cast<WPARAM>(&first),
-                 reinterpret_cast<LPARAM>(&last));
-    if (text(state.details) != info && GetFocus() != state.details) {
-        set_text(state.details, info);
-        SendMessageW(state.details, EM_SETSEL, first, last);
-    }
+    update_preview_details();
     EnableWindow(state.play, !state.selected.empty());
     const auto* movie = selected_movie();
     const bool sound_only = state.player ? state.player->has_audio() && !state.player->has_video()
@@ -258,29 +197,82 @@ void tick_preview() {
         set_text(state.caption, L"");
         set_text(state.play, L"Play preview");
     }
-    update_image_reference();
+    update_preview_details();
     EnableWindow(state.stop, state.player != nullptr);
     EnableWindow(state.seek, state.player != nullptr);
 }
 
+void update_game_state_view() {
+    update_state_tree(state.state_text, state.snapshot, text(state.state_search));
+}
+
 void show_view() {
-    for (auto window :
-         {state.coverage,     state.group,         state.place,     state.compact,
-          state.search_label, state.search,        state.filenames, state.labels,
-          state.notes_search, state.captions,      state.list,      state.title,
-          state.preview,      state.clock,         state.play,      state.stop,
-          state.subtitle,     state.seek,          state.caption,   state.hint,
-          state.details,      state.label_heading, state.label,     state.notes_heading,
-          state.notes,        state.save}) {
-        ShowWindow(window, state.showing_state ? SW_HIDE : SW_SHOW);
+    for (auto window : {state.coverage,      state.group,    state.place,         state.compact,
+                        state.search_label,  state.search,   state.filenames,     state.labels,
+                        state.notes_search,  state.captions, state.list,          state.title,
+                        state.preview,       state.clock,    state.play,          state.stop,
+                        state.subtitle,      state.seek,     state.caption,       state.details,
+                        state.label_heading, state.label,    state.notes_heading, state.notes,
+                        state.save}) {
+        ShowWindow(window, state.showing_state || state.showing_database ? SW_HIDE : SW_SHOW);
     }
-    for (auto window : {state.refresh, state.hotspots, state.state_text}) {
+    for (auto window : {state.refresh, state.hotspots, state.state_text, state.state_search,
+                        state.state_snapshot}) {
         ShowWindow(window, state.showing_state ? SW_SHOW : SW_HIDE);
     }
-    if (state.showing_state) {
-        set_text(state.status, L"Read-only. Expand groups to inspect values. Ctrl+C copies the "
-                               L"selected row. Clear Live updates to hold values still.");
+    ShowWindow(state.database, state.showing_database ? SW_SHOW : SW_HIDE);
+    if (state.showing_database) {
+        set_text(state.status, L"Browse database tables or asset files. Values are read-only.");
     }
+    if (state.showing_state) {
+        set_text(state.status, L"Copied game values. Search names or values. Ctrl+C copies a row. "
+                               L"Clear Live updates to hold the snapshot, then Refresh snapshot "
+                               L"when needed.");
+    }
+}
+
+void open_database_asset(const std::filesystem::path& requested) {
+    const auto path = database_asset_path(requested);
+    if (!path || !database_asset_previewable(*path) ||
+        !database_asset_file(state.catalog.root, *path) || !leave_notes()) {
+        return;
+    }
+    state.player.reset();
+    state.showing_state = false;
+    state.showing_database = false;
+    state.browsing = true;
+    state.selected.clear();
+    state.selected_movie = 0;
+    if (std::none_of(state.catalog.paths.begin(), state.catalog.paths.end(),
+                     [&](const auto& item) { return catalog_key(item) == catalog_key(*path); })) {
+        state.catalog.paths.push_back(*path);
+    }
+    state.catalog.installed_keys.insert(catalog_key(*path));
+    state.selected = *path;
+    state.rebuilding = true;
+    set_text(state.search, L"");
+    for (auto control : {state.group, state.place, state.coverage}) {
+        SendMessageW(control, CB_SETCURSEL, 0, 0);
+    }
+    state.rebuilding = false;
+    show_view();
+    populate();
+    select({*path, 0});
+    state.rebuilding = true;
+    for (std::size_t row = 0; row < state.rows.size(); ++row) {
+        const bool selected = catalog_key(state.rows[row].path) == catalog_key(*path);
+        ListView_SetItemState(state.list, static_cast<int>(row), selected ? LVIS_SELECTED : 0,
+                              LVIS_SELECTED);
+        if (selected) {
+            ListView_EnsureVisible(state.list, static_cast<int>(row), FALSE);
+        }
+    }
+    state.rebuilding = false;
+    SendMessageW(state.live, BM_SETCHECK, BST_UNCHECKED, 0);
+    SendMessageW(state.library, BM_SETCHECK, BST_CHECKED, 0);
+    SendMessageW(state.game_state, BM_SETCHECK, BST_UNCHECKED, 0);
+    SendMessageW(state.database_button, BM_SETCHECK, BST_UNCHECKED, 0);
+    SetFocus(state.list);
 }
 
 void dispose_resources() {
@@ -368,17 +360,23 @@ void update_inspector(HWND game, bool available) {
             return;
         }
         state.updated = GetTickCount64();
-        if (SendMessageW(state.hotspots, BM_GETCHECK, 0, 0)) {
-            const auto snapshot = inspect_game();
+        if (state.showing_state && SendMessageW(state.hotspots, BM_GETCHECK, 0, 0)) {
+            const auto snapshot = inspect_game(false);
             show_hotspots(game, true, snapshot.targets);
         } else {
             show_hotspots(game, false, {});
         }
         if (state.showing_state) {
-            if (SendMessageW(state.refresh, BM_GETCHECK, 0, 0)) {
+            if (SendMessageW(state.refresh, BM_GETCHECK, 0, 0) &&
+                GetTickCount64() - state.state_updated >= 1000) {
                 state.snapshot = inspect_game();
-                update_state_tree(state.state_text, state.snapshot);
+                state.state_updated = GetTickCount64();
+                update_game_state_view();
             }
+            return;
+        }
+        if (state.showing_database) {
+            update_database_browser(state.database);
             return;
         }
         if ((SendMessageW(state.captions, BM_GETCHECK, 0, 0) ||

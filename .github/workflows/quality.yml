@@ -29,6 +29,13 @@ jobs:
         run: python tests/dvd_registration.py
       - name: Portable tests
         run: |
+          mkdir -p /tmp/xfiles-asset-checks
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_asset_ref.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_asset_ref.cpp -o /tmp/xfiles-asset-checks/asset-ref
+          /tmp/xfiles-asset-checks/asset-ref
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_fields.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_fields.cpp src/game/database/stored_asset_list.cpp -o /tmp/xfiles-asset-checks/fields
+          /tmp/xfiles-asset-checks/fields
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_object_list.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_asset_list.cpp -o /tmp/xfiles-asset-checks/object-list
+          /tmp/xfiles-asset-checks/object-list
           mkdir -p /tmp/xfiles-checks
           g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/controller_profile_portable.cpp -o /tmp/xfiles-checks/controller-profile
           /tmp/xfiles-checks/controller-profile
@@ -40,6 +47,32 @@ jobs:
           /tmp/xfiles-checks/log-file
           g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/installation.cpp src/launcher/configuration.cpp src/setup/destination.cpp -o /tmp/xfiles-checks/installation
           /tmp/xfiles-checks/installation
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database.cpp src/game/database/database.cpp -o /tmp/xfiles-checks/database
+          /tmp/xfiles-checks/database
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_model.cpp src/devtools/database/model.cpp -o /tmp/xfiles-checks/database-model
+          /tmp/xfiles-checks/database-model
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_payload.cpp src/devtools/database/payload.cpp -o /tmp/xfiles-checks/database-payload
+          /tmp/xfiles-checks/database-payload
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_assets.cpp src/devtools/database/assets.cpp src/devtools/clip_key.cpp src/game/assets/hotspots.cpp -o /tmp/xfiles-checks/database-assets
+          /tmp/xfiles-checks/database-assets
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/hotspots.cpp src/game/assets/hotspots.cpp -o /tmp/xfiles-checks/hotspots
+          /tmp/xfiles-checks/hotspots
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/pff.cpp src/game/assets/pff.cpp -o /tmp/xfiles-checks/pff
+          /tmp/xfiles-checks/pff
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/xt_text.cpp src/game/assets/xt_text.cpp -o /tmp/xfiles-checks/xt-text
+          /tmp/xfiles-checks/xt-text
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/resource_strings.cpp src/game/assets/resource_strings.cpp -o /tmp/xfiles-checks/resource-strings
+          /tmp/xfiles-checks/resource-strings
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_offline.cpp src/game/database/database.cpp src/game/database/offline_index.cpp -o /tmp/xfiles-checks/database-offline
+          /tmp/xfiles-checks/database-offline
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_trigger.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_trigger.cpp -o /tmp/xfiles-checks/database-stored-trigger
+          /tmp/xfiles-checks/database-stored-trigger
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_list.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_list.cpp -o /tmp/xfiles-checks/database-stored-list
+          /tmp/xfiles-checks/database-stored-list
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_action.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_action.cpp -o /tmp/xfiles-checks/database-stored-action
+          /tmp/xfiles-checks/database-stored-action
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_asset_list.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_asset_list.cpp -o /tmp/xfiles-checks/database-stored-asset-list
+          /tmp/xfiles-checks/database-stored-asset-list
       - name: Script syntax
         run: |
           bash -n tools/build-ffmpeg.sh

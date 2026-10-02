@@ -22,7 +22,9 @@ inline void pump_tool_messages(HWND window) {
             PostQuitMessage(static_cast<int>(message.wParam));
             break;
         }
-        if (!IsDialogMessageW(window, &message)) {
+        if (message.message == WM_KEYDOWN && message.wParam == VK_ESCAPE) {
+            SendMessageW(window, WM_CLOSE, 0, 0);
+        } else if (!IsDialogMessageW(window, &message)) {
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }

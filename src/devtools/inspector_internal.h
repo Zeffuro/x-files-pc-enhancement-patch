@@ -6,6 +6,7 @@
 #include "caption_index.h"
 #include "game_state.h"
 #include "playback/inspection.h"
+#include "inspector_preview_details.h"
 #include <commctrl.h>
 #include <array>
 
@@ -34,7 +35,10 @@ enum : int {
     compact_id,
     group_id,
     place_id,
-    coverage_id
+    coverage_id,
+    database_id,
+    state_search_id,
+    state_snapshot_id
 };
 
 struct Row {
@@ -47,16 +51,21 @@ struct State {
     HWND window = nullptr, game = nullptr, live = nullptr, library = nullptr, search = nullptr;
     HWND list = nullptr, title = nullptr, preview = nullptr, details = nullptr;
     HWND label_heading = nullptr, label = nullptr, notes_heading = nullptr, notes = nullptr;
-    HWND save = nullptr, status = nullptr, hint = nullptr, search_label = nullptr;
+    HWND save = nullptr, status = nullptr, search_label = nullptr;
+    PreviewDetailsTree preview_details;
     HWND clock = nullptr, caption = nullptr, play = nullptr, stop = nullptr, seek = nullptr,
          subtitle = nullptr;
     HWND filenames = nullptr, labels = nullptr, notes_search = nullptr, captions = nullptr;
     HWND game_state = nullptr, refresh = nullptr, hotspots = nullptr, state_text = nullptr;
+    HWND state_search = nullptr, state_snapshot = nullptr;
+    ULONGLONG state_updated = 0;
     HWND compact = nullptr, group = nullptr, place = nullptr, coverage = nullptr;
     bool compact_view = true;
     std::unique_ptr<ArtworkCache> artwork;
     std::array<std::shared_ptr<const Artwork>, 64> shown_artwork;
     bool showing_state = false;
+    bool showing_database = false;
+    HWND database_button = nullptr, database = nullptr;
     std::unique_ptr<Preview> player;
     std::unique_ptr<CaptionIndex> caption_index;
     unsigned indexed = 0;
@@ -84,6 +93,8 @@ const playback::MovieSnapshot* selected_movie();
 std::wstring activity(const playback::MovieSnapshot& movie);
 void paint_frame(HDC dc, RECT bounds, const media::Frame* frame, const std::wstring& caption);
 void describe();
+void update_preview_details();
+void update_game_state_view();
 void populate();
 void update_artwork();
 void set_list_density();
@@ -91,6 +102,7 @@ void update_save();
 bool save_notes();
 bool leave_notes();
 void select(const Row& row);
+void open_database_asset(const std::filesystem::path& path);
 void tick_preview();
 void start_caption_index();
 void layout();

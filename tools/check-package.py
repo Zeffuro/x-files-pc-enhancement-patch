@@ -15,7 +15,7 @@ class PackageError(ValueError):
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-RUNTIME = {"XFilesPlay.exe", "XFilesSetup.exe", "QuickTime.qts", "ddraw.dll", "XFilesMpeg.dll"}
+RUNTIME = {"XFilesPlay.exe", "XFilesSetup.exe", "QuickTime.qts", "ddraw.dll", "XFilesMpeg.dll", "xfiles-devtools.exe"}
 REQUIRED = RUNTIME | {
     "LICENSE", "THIRD_PARTY.md", "README.md", "CHANGELOG.md", "cnc-ddraw.LICENSE", "FFmpeg.LICENSE",
     "zlib.LICENSE", "fontawesome.LICENSE", "defaults/ddraw.ini", "defaults/patch.ini", "docs/controls.md", "docs/building.md", "docs/linux.md",

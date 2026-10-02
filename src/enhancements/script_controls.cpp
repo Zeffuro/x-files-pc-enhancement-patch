@@ -1,6 +1,6 @@
 #include "script_controls.h"
 #include "game_resources.h"
-#include "game/layouts/input_events.h"
+#include "game/layouts/input/events.h"
 
 #include <algorithm>
 #include <cstring>

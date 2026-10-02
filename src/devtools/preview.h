@@ -17,6 +17,24 @@ public:
     std::uint64_t time() const;
     std::uint64_t duration() const;
 
+    bool frame_navigation() const {
+        return frame_navigation_;
+    }
+
+    bool direct_frame() const {
+        return direct_frame_;
+    }
+
+    std::size_t frame_count() const {
+        return video_track_ ? video_track_->samples.size() : 0;
+    }
+
+    void select_frame(std::size_t sample);
+    std::vector<std::size_t> video_tracks() const;
+    std::optional<std::size_t> video_track() const;
+    void select_video_track(std::size_t index);
+    std::pair<unsigned, unsigned> frame_dimensions(std::size_t sample) const;
+
     bool playing() const {
         return playing_;
     }
@@ -65,5 +83,7 @@ private:
     std::chrono::steady_clock::time_point started_;
     std::uint64_t position_ = 0;
     bool playing_ = false;
+    bool frame_navigation_ = false;
+    bool direct_frame_ = false;
 };
 }

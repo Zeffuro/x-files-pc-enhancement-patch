@@ -7,7 +7,8 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 FIELDS = (
-    "application draw_slot draw_list talk_list history_list current_input main_menu "
+    "application database_manager database_class_node database_branch_node database_object_node "
+    "draw_slot draw_list talk_list history_list current_input main_menu "
     "script_root script_control input_graphic text movie action_movie emotion picture "
     "viewport lookup release picture_bounds activate remove pause restore_preferences "
     "restore_view session_active scene_active menu_used children control_rectangle "
