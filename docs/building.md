@@ -19,14 +19,15 @@ From the repository folder, run:
 ```
 
 The script downloads and builds dependencies, checks the code, runs tests and
-creates a release ZIP in `build/packages`. The first build needs internet access
+creates enhancement and standalone tools ZIPs in `build/packages`. The first build needs internet access
 and takes longer. Later builds reuse downloaded dependencies.
-A checksum file is written beside the ZIP. Nothing is installed or published.
+Checksum files are written beside both ZIPs, with a combined `SHA256SUMS.txt`.
+Nothing is installed or published.
 
 Useful options:
 
 ```powershell
-.\build.ps1 -Version 0.3.0
+.\build.ps1 -Version 0.4.0
 .\build.ps1 -BuildDirectory build-release -Jobs 4
 .\build.ps1 -FFmpegRoot C:/dependencies/ffmpeg -Clean
 ```
@@ -43,7 +44,9 @@ cmake --build build --config Release --target format
 ## Test
 
 The build script runs automated tests. These do not replace testing with the game.
-To include tests that play sound or change the display, close the game and run:
+Tests that play sound or change the display are disabled by default. Display tests
+can briefly show black windows across connected monitors. To opt in, close the game
+and run:
 
 ```powershell
 .\build.ps1 -InteractiveTests
@@ -98,6 +101,8 @@ xvfb-run -a python3 tools/wine-smoke.py build/Release build/wine-smoke
 The output folder must be new. The script copies test binaries and dependencies,
 creates a separate prefix, and saves results and file hashes in `summary.json`.
 Use `--wine` and `--wineserver` together to select a different Wine build.
+Add `--display-monitors` inside Xvfb to check maximize, borderless and restore
+after moving between simulated monitors. Release checks include this option.
 No original game files are needed. These checks do not verify Proton, game
 progression, physical controllers, sound output or display pacing.
 
@@ -138,13 +143,20 @@ scenes keep QuickTime playback.
 Pushing code runs the GitHub checks. After local testing, tag the release:
 
 ```sh
-git tag -a v0.3.0 -m "v0.3.0"
-git push origin v0.3.0
+git tag -a v0.4.0 -m "v0.4.0"
+git push origin v0.4.0
 ```
 
 The tag sets the release version. If all checks pass, GitHub creates a draft
-release with the ZIP and checksum. Review it before publishing. Versions below
+release with both ZIPs and their checksums. Review it before publishing. Versions below
 1.0 are marked as prereleases.
+
+For packaging after a manual build, run CPack and then prepare both downloads:
+
+```powershell
+cpack --config build/CPackConfig.cmake -C Release
+python tools/package-release.py build/packages/xfiles-enhancement-0.4.0-windows-x86.zip --version 0.4.0
+```
 
 Keep dependency licenses and matching FFmpeg source with redistributed packages.
 Do not include game files, saves or locally installed fonts.

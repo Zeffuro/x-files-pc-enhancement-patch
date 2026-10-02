@@ -24,6 +24,35 @@ fs::path own_directory() {
 
 }
 
+void stage_patch_files(const fs::path& package, const fs::path& destination) {
+    std::vector<fs::path> files;
+    for (const auto* name :
+         {L"XFilesPlay.exe", L"QuickTime.qts", L"XFilesMpeg.dll", L"xfiles-devtools.exe",
+          L"ddraw.dll", L"cnc-ddraw.LICENSE", L"LICENSE", L"THIRD_PARTY.md", L"zlib.LICENSE",
+          L"README.md", L"CHANGELOG.md", L"fontawesome.LICENSE"}) {
+        files.emplace_back(name);
+    }
+    for (const auto* name : ffmpeg_files) {
+        files.emplace_back(name);
+    }
+    for (const auto* name : {L"controls.md", L"building.md", L"linux.md", L"developer-tools.md",
+                             L"standalone-devtools.md", L"devtools-notices.md"}) {
+        files.emplace_back(fs::path(L"docs") / name);
+    }
+    for (const auto* name : {L"ddraw.ini", L"patch.ini"}) {
+        files.emplace_back(fs::path(L"defaults") / name);
+    }
+    for (const auto& file : files) {
+        if (!fs::is_regular_file(package / file)) {
+            throw std::runtime_error("The patch package is incomplete: " + file.string());
+        }
+    }
+    for (const auto& file : files) {
+        fs::create_directories((destination / file).parent_path());
+        platform::copy_file(package / file, destination / file);
+    }
+}
+
 StagedGame stage_game(const fs::path& source, const fs::path& destination, const fs::path& media,
                       DisplayMode mode, bool preserve_settings) {
     const auto game = fs::canonical(source);
@@ -91,25 +120,9 @@ StagedGame stage_game(const fs::path& source, const fs::path& destination, const
     for (const auto& asset : assets) {
         platform::copy_file(asset, output / asset.filename());
     }
-    for (const wchar_t* name :
-         {L"XFilesPlay.exe", L"QuickTime.qts", L"XFilesMpeg.dll", L"xfiles-database.exe",
-          L"ddraw.dll", L"cnc-ddraw.LICENSE", L"LICENSE", L"THIRD_PARTY.md", L"zlib.LICENSE",
-          L"README.md", L"fontawesome.LICENSE"}) {
-        platform::copy_file(package / name, output / name);
-    }
-    for (const auto* name : ffmpeg_files) {
-        platform::copy_file(package / name, output / name);
-    }
+    stage_patch_files(package, output);
     if (sha256(output / L"ddraw.dll") != ddraw_sha256) {
         throw std::runtime_error("Staged DirectDraw hash differs from this build.");
-    }
-    fs::create_directory(output / L"docs");
-    for (const auto* name : {L"controls.md", L"building.md", L"linux.md"}) {
-        platform::copy_file(package / L"docs" / name, output / L"docs" / name);
-    }
-    fs::create_directory(output / L"defaults");
-    for (const auto* name : {L"ddraw.ini", L"patch.ini"}) {
-        platform::copy_file(package / L"defaults" / name, output / L"defaults" / name);
     }
     if (preserve_settings && fs::is_regular_file(game / L"patch.ini")) {
         platform::copy_file(game / L"patch.ini", output / L"patch.ini");

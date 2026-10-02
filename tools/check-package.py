@@ -18,8 +18,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNTIME = {"XFilesPlay.exe", "XFilesSetup.exe", "QuickTime.qts", "ddraw.dll", "XFilesMpeg.dll", "xfiles-devtools.exe"}
 REQUIRED = RUNTIME | {
     "LICENSE", "THIRD_PARTY.md", "README.md", "CHANGELOG.md", "cnc-ddraw.LICENSE", "FFmpeg.LICENSE",
-    "zlib.LICENSE", "fontawesome.LICENSE", "defaults/ddraw.ini", "defaults/patch.ini", "docs/controls.md", "docs/building.md", "docs/linux.md",
+    "zlib.LICENSE", "fontawesome.LICENSE", "defaults/ddraw.ini", "defaults/patch.ini", "docs/controls.md", "docs/developer-tools.md", "docs/building.md", "docs/linux.md",
     "source/ffmpeg/build-ffmpeg.sh", "defaults/clip-labels.tsv", "icons/patch.ico", "icons/patch.svg",
+    "docs/standalone-devtools.md", "docs/devtools-notices.md",
+}
+DEVTOOLS_RUNTIME = {"xfiles-devtools.exe"}
+DEVTOOLS_REQUIRED = DEVTOOLS_RUNTIME | {
+    "LICENSE", "THIRD_PARTY.md", "README.md", "FFmpeg.LICENSE", "zlib.LICENSE",
+    "docs/developer-tools.md", "source/ffmpeg/build-ffmpeg.sh",
 }
 COMPONENTS = ("avformat", "avcodec", "avfilter", "avutil", "swresample", "swscale")
 
@@ -45,10 +51,13 @@ def check_pe(header: bytes, name: str) -> None:
         raise PackageError(f"{name} must be a 32-bit x86 PE binary")
 
 
-def check_package(path: pathlib.Path, version: str, script_path: pathlib.Path) -> None:
+def check_package(path: pathlib.Path, version: str, script_path: pathlib.Path,
+                  kind: str = "enhancement") -> None:
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise PackageError("The package version must have the form 0.1.0")
-    expected_name = f"xfiles-enhancement-{version}-windows-x86.zip"
+    if kind not in ("enhancement", "devtools"):
+        raise PackageError("Unknown package kind")
+    expected_name = f"xfiles-{kind}-{version}-windows-x86.zip"
     if path.name != expected_name:
         raise PackageError(f"Expected package name {expected_name}, got {path.name}")
     recipe = script_path.read_bytes()
@@ -69,8 +78,8 @@ def check_package(path: pathlib.Path, version: str, script_path: pathlib.Path) -
             if entry.flag_bits & 1 or (entry.external_attr >> 16) & 0o170000 == 0o120000:
                 raise PackageError(f"Encrypted or symlink entry: {name}")
         files = {entry.filename for entry in entries if not entry.is_dir()}
-        required = REQUIRED | {source_name}
-        runtime = set(RUNTIME)
+        required = (REQUIRED if kind == "enhancement" else DEVTOOLS_REQUIRED) | {source_name}
+        runtime = set(RUNTIME if kind == "enhancement" else DEVTOOLS_RUNTIME)
         for component in COMPONENTS:
             matches = {name for name in files if re.fullmatch(rf"{component}-[0-9]+\.dll", name)}
             if len(matches) != 1:
@@ -105,12 +114,16 @@ def check_package(path: pathlib.Path, version: str, script_path: pathlib.Path) -
             actual_hash = digest.hexdigest()
         if actual_hash != source_hash:
             raise PackageError("The FFmpeg source archive does not match its pinned checksum")
-        for name in ("ddraw.ini", "patch.ini"):
+        for name in (("ddraw.ini", "patch.ini") if kind == "enhancement" else ()):
             expected = (ROOT / "config" / name).read_bytes().replace(b"\r\n", b"\n")
             if archive.read("defaults/" + name).replace(b"\r\n", b"\n") != expected:
                 raise PackageError(f"The bundled defaults/{name} differs from this checkout")
-        for notice in ("LICENSE", "THIRD_PARTY.md"):
-            expected = (ROOT / notice).read_bytes().replace(b"\r\n", b"\n")
+        notices = {"LICENSE": "LICENSE", "THIRD_PARTY.md": "THIRD_PARTY.md"}
+        if kind == "devtools":
+            notices.update({"README.md": "docs/standalone-devtools.md",
+                            "THIRD_PARTY.md": "docs/devtools-notices.md"})
+        for notice, source in notices.items():
+            expected = (ROOT / source).read_bytes().replace(b"\r\n", b"\n")
             if archive.read(notice).replace(b"\r\n", b"\n") != expected:
                 raise PackageError(f"The bundled {notice} differs from this checkout")
 
@@ -119,9 +132,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=pathlib.Path)
     parser.add_argument("--version", required=True)
+    parser.add_argument("--kind", choices=("enhancement", "devtools"), default="enhancement")
     args = parser.parse_args()
     try:
-        check_package(args.archive, args.version, ROOT / "tools/build-ffmpeg.sh")
+        check_package(args.archive, args.version, ROOT / "tools/build-ffmpeg.sh", args.kind)
     except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as error:
         print(f"Package check failed: {error}", file=sys.stderr)
         return 1

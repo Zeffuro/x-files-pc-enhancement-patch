@@ -1,0 +1,219 @@
+diff --git a/src/utils.c b/src/utils.c
+index 87b0c17..5e4de9f 100644
+--- a/src/utils.c
++++ b/src/utils.c
+@@ -13,6 +13,26 @@
+ #include "config.h"
+ #include "versionhelpers.h"
+ 
++static void util_relocate_restore_rect(RECT* restored, const RECT* previous_work,
++    const RECT* work, DWORD style, BOOL menu, DWORD exstyle)
++{
++    if (IsRectEmpty(previous_work) || EqualRect(previous_work, work))
++        return;
++
++    RECT outer = { 0, 0, restored->right, restored->bottom };
++    if (!AdjustWindowRectEx(&outer, style, menu, exstyle))
++        return;
++
++    /* Preserve the restore offset on the new monitor and keep its titlebar reachable. */
++    int x = restored->left - previous_work->left + work->left + outer.left;
++    int y = restored->top - previous_work->top + work->top + outer.top;
++    int width = outer.right - outer.left;
++    int height = outer.bottom - outer.top;
++    restored->left = max(work->left, min(x, work->right - width)) - outer.left;
++    restored->top = max(work->top, min(y, work->bottom - height)) - outer.top;
++}
++
++
+ 
+ /*
+     The following code is licensed under the MIT license:
+@@ -618,14 +638,23 @@ void util_toggle_maximize()
+         return;
+ 
+     RECT client_rc;
++    static RECT restored_work = { 0 };
+     RECT dst_rc;
++    MONITORINFO monitor = { sizeof(monitor) };
+ 
+     LONG style = real_GetWindowLongA(g_ddraw.hwnd, GWL_STYLE);
+     LONG exstyle = real_GetWindowLongA(g_ddraw.hwnd, GWL_EXSTYLE);
+     BOOL got_menu = GetMenu(g_ddraw.hwnd) != NULL;
+ 
+-    if (real_GetClientRect(g_ddraw.hwnd, &client_rc) && SystemParametersInfo(SPI_GETWORKAREA, 0, &dst_rc, 0))
++    if (real_GetClientRect(g_ddraw.hwnd, &client_rc) &&
++        GetMonitorInfo(MonitorFromWindow(g_ddraw.hwnd, MONITOR_DEFAULTTONEAREST), &monitor))
+     {
++        dst_rc = monitor.rcWork;
++        if (client_rc.right == maximized.cx && client_rc.bottom == maximized.cy)
++            util_relocate_restore_rect(&restored, &restored_work, &monitor.rcWork,
++                style, got_menu, exstyle);
++        else
++            restored_work = monitor.rcWork;
+         int width = (dst_rc.right - dst_rc.left);
+         int height = (dst_rc.bottom - dst_rc.top);
+         int x = dst_rc.left;
+@@ -726,6 +755,11 @@ void util_toggle_maximize()
+ 
+ void util_toggle_fullscreen()
+ {
++    static RECT borderless_restore = { 0 };
++    static RECT borderless_work = { 0 };
++    static LONG restore_style, restore_exstyle;
++    static BOOL restore_menu, have_restore;
++
+     /* Disable ALT+ENTER on battle.net and Infantry Online Zone List Window */
+     if (g_ddraw.bnet_active || !g_ddraw.width || (g_config.infantryhack && GetMenu(g_ddraw.hwnd)))
+         return;
+@@ -738,6 +772,32 @@ void util_toggle_fullscreen()
+     {
+         if (!g_config.fullscreen)
+         {
++            RECT window_rc, client_rc;
++            if (real_GetWindowRect(g_ddraw.hwnd, &window_rc) &&
++                real_GetClientRect(g_ddraw.hwnd, &client_rc))
++            {
++                util_unadjust_window_rect(&window_rc,
++                    real_GetWindowLongA(g_ddraw.hwnd, GWL_STYLE),
++                    GetMenu(g_ddraw.hwnd) != NULL,
++                    real_GetWindowLongA(g_ddraw.hwnd, GWL_EXSTYLE));
++                g_config.window_rect.left = window_rc.left;
++                g_config.window_rect.top = window_rc.top;
++                g_config.window_rect.right = client_rc.right;
++                g_config.window_rect.bottom = client_rc.bottom;
++                borderless_restore = g_config.window_rect;
++                restore_style = real_GetWindowLongA(g_ddraw.hwnd, GWL_STYLE);
++                restore_exstyle = real_GetWindowLongA(g_ddraw.hwnd, GWL_EXSTYLE);
++                restore_menu = GetMenu(g_ddraw.hwnd) != NULL;
++                MONITORINFO monitor = { sizeof(monitor) };
++                have_restore = GetMonitorInfo(
++                    MonitorFromWindow(g_ddraw.hwnd, MONITOR_DEFAULTTONEAREST), &monitor);
++                if (have_restore)
++                    borderless_work = monitor.rcWork;
++            }
++            else
++            {
++                have_restore = FALSE;
++            }
+             mouse_unlock();
+ 
+             g_config.upscaled_state = g_config.fullscreen = TRUE;
+@@ -750,6 +810,25 @@ void util_toggle_fullscreen()
+             mouse_unlock();
+ 
+             g_config.upscaled_state = g_config.fullscreen = FALSE;
++            if (have_restore)
++            {
++                borderless_restore.right = g_config.window_rect.right;
++                borderless_restore.bottom = g_config.window_rect.bottom;
++                if (g_config.window_rect.left == -32000 || g_config.window_rect.top == -32000)
++                {
++                    borderless_restore.left = g_config.window_rect.left;
++                    borderless_restore.top = g_config.window_rect.top;
++                }
++                MONITORINFO monitor = { sizeof(monitor) };
++                if (borderless_restore.left != -32000 && borderless_restore.top != -32000 &&
++                    GetMonitorInfo(MonitorFromWindow(g_ddraw.hwnd, MONITOR_DEFAULTTONEAREST), &monitor))
++                {
++                    util_relocate_restore_rect(&borderless_restore, &borderless_work, &monitor.rcWork,
++                        restore_style, restore_menu, restore_exstyle);
++                }
++                g_config.window_rect = borderless_restore;
++                have_restore = FALSE;
++            }
+             dd_SetDisplayMode(0, 0, 0, 0);
+ 
+             //mouse_lock();
+diff --git a/src/dd.c b/src/dd.c
+--- a/src/dd.c
++++ b/src/dd.c
+@@ -704,6 +704,12 @@
+         }
+     }
+ 
++    MONITORINFO monitor = { sizeof(monitor) };
++    BOOL have_monitor = g_config.windowed &&
++        GetMonitorInfo(MonitorFromWindow(g_ddraw.hwnd, MONITOR_DEFAULTTONEAREST), &monitor);
++    DWORD monitor_width = have_monitor ? monitor.rcMonitor.right - monitor.rcMonitor.left : g_ddraw.mode.dmPelsWidth;
++    DWORD monitor_height = have_monitor ? monitor.rcMonitor.bottom - monitor.rcMonitor.top : g_ddraw.mode.dmPelsHeight;
++
+     BOOL zooming = g_ddraw.zoom.enabled;
+     g_ddraw.zoom.enabled = FALSE;
+ 
+@@ -714,5 +720,6 @@
+     /* temporary fix: center window for games that keep changing their resolution */
+     if (g_config.center_window &&
++        !(g_config.windowed && g_config.fullscreen) &&
+         (g_ddraw.width || g_config.infantryhack || g_config.center_window == CENTER_WINDOW_ALWAYS) &&
+         (g_ddraw.width != dwWidth || g_ddraw.height != dwHeight) &&
+         (
+@@ -736,8 +742,8 @@
+ 
+     if (g_config.fullscreen)
+     {
+-        g_ddraw.render.width = g_ddraw.mode.dmPelsWidth;
+-        g_ddraw.render.height = g_ddraw.mode.dmPelsHeight;
++        g_ddraw.render.width = g_config.windowed ? monitor_width : g_ddraw.mode.dmPelsWidth;
++        g_ddraw.render.height = g_config.windowed ? monitor_height : g_ddraw.mode.dmPelsHeight;
+ 
+         if (g_config.windowed) /* windowed-fullscreen aka borderless */
+         {
+@@ -906,14 +912,14 @@
+     /* Support downscaling in borderless mode */
+     if (g_config.windowed && g_config.fullscreen)
+     {
+-        if (g_ddraw.width > g_ddraw.mode.dmPelsWidth ||
+-            g_ddraw.height > g_ddraw.mode.dmPelsHeight)
++        if (g_ddraw.width > monitor_width ||
++            g_ddraw.height > monitor_height)
+         {
+             /* Downscaling requires adjmouse to be enabled */
+             g_config.adjmouse = TRUE;
+ 
+-            g_ddraw.render.width = g_ddraw.mode.dmPelsWidth;
+-            g_ddraw.render.height = g_ddraw.mode.dmPelsHeight;
++            g_ddraw.render.width = monitor_width;
++            g_ddraw.render.height = monitor_height;
+ 
+             g_ddraw.render.mode.dmPelsWidth = g_ddraw.render.width;
+             g_ddraw.render.mode.dmPelsHeight = g_ddraw.render.height;
+@@ -1099,19 +1105,30 @@
+         int x = (g_config.window_rect.left != -32000) ? g_config.window_rect.left : (cy / 2) - (g_ddraw.render.width / 2);
+         int y = (g_config.window_rect.top != -32000) ? g_config.window_rect.top : (cx / 2) - (g_ddraw.render.height / 2);
+ 
++        if (have_monitor)
++        {
++            if (g_config.window_rect.left == -32000)
++                x = monitor.rcWork.left + (monitor.rcWork.right - monitor.rcWork.left - g_ddraw.render.width) / 2;
++            if (g_config.window_rect.top == -32000)
++                y = monitor.rcWork.top + (monitor.rcWork.bottom - monitor.rcWork.top - g_ddraw.render.height) / 2;
++        }
++
+         if (g_config.fullscreen)
+         {
+-            x = y = 0;
++            x = have_monitor ? monitor.rcMonitor.left : 0;
++            y = have_monitor ? monitor.rcMonitor.top : 0;
+ 
+             if (GetMenu(g_ddraw.hwnd))
+             {
+-                y = real_GetSystemMetrics(SM_CYMENU);
+-            }
+-        }
+-        else if (border && g_config.window_rect.top == -32000 && y < 0)
+-        {
+-            /* Make window titlebar visible if window does not fit into screen */
+-            y = real_GetSystemMetrics(SM_CYCAPTION) + real_GetSystemMetrics(SM_CYSIZEFRAME);
++                y += real_GetSystemMetrics(SM_CYMENU);
++            }
++        }
++        else if (border && g_config.window_rect.top == -32000 &&
++            y < (have_monitor ? monitor.rcWork.top : 0))
++        {
++            /* Keep the titlebar inside the selected monitor work area. */
++            y = (have_monitor ? monitor.rcWork.top : 0) +
++                real_GetSystemMetrics(SM_CYCAPTION) + real_GetSystemMetrics(SM_CYSIZEFRAME);
+         }
+ 
+         if (util_is_minimized(g_ddraw.hwnd))

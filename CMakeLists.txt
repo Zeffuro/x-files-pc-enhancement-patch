@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(XFILES_VERSION "0.3.0" CACHE STRING "Release version (major.minor.patch)")
+set(XFILES_VERSION "0.4.0" CACHE STRING "Release version (major.minor.patch)")
 if(NOT XFILES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "XFILES_VERSION must be major.minor.patch")
 endif()
@@ -45,6 +45,7 @@ add_library(quicktime SHARED
     src/localization/ui.cpp
     src/devtools/inspector.cpp
     src/devtools/inspector_window.cpp
+    src/devtools/inspector_state.cpp
     src/devtools/inspector_preview_details.cpp
     src/devtools/database/native.cpp
     src/devtools/database/types.cpp
@@ -58,6 +59,11 @@ add_library(quicktime SHARED
     src/devtools/dialogs.rc
     src/devtools/game_state.cpp
     src/devtools/story_state.cpp
+    src/devtools/state_variables.cpp
+    src/devtools/state_history.cpp
+    src/devtools/state_capture.cpp
+    src/devtools/native_writes.cpp
+    src/devtools/story_edit.cpp
     src/devtools/state_tree.cpp
     src/devtools/variables.cpp
     src/devtools/hotspots.cpp
@@ -266,6 +272,7 @@ add_executable(xfiles-devtools WIN32 src/devtools/database/standalone.cpp
     "${CMAKE_BINARY_DIR}/generated/version.rc" "${CMAKE_BINARY_DIR}/generated/icon.rc")
 target_link_libraries(xfiles-devtools PRIVATE database-browser-ui movie
     comdlg32 shell32 xaudio2 uuid ole32)
+add_dependencies(xfiles-setup xfiles-devtools)
 add_library(dvd-player STATIC src/dvd/player.cpp src/dvd/files.cpp src/dvd/captions.cpp
     src/identity.cpp src/platform/imports.cpp src/diagnostics/log_file.cpp)
 target_include_directories(dvd-player PUBLIC src)

@@ -11,6 +11,7 @@ BrowserView current_view(const Browser& state) {
     view.offset = state.manual_offset;
     view.pane = selected_pane(state);
     view.database_pane = state.database_pane;
+    view.native_pane = state.native_pane;
     view.sort_column = state.sort_column;
     view.sort_descending = state.sort_descending;
     view.top = ListView_GetTopIndex(state.list);
@@ -32,6 +33,8 @@ void restore_view(Browser& state, const BrowserView& view) {
     state.mode_index = view.mode;
     if (view.mode == 7) {
         state.database_pane = view.database_pane;
+    } else if (native_mode(state)) {
+        state.native_pane = view.native_pane;
     } else if (view.mode == 6 && !view.asset_type.empty()) {
         state.asset_panes[view.asset_type] = view.asset_pane;
     }
@@ -67,6 +70,8 @@ void restore_view(Browser& state, const BrowserView& view) {
     select_pane(state, view.pane);
     if (view.mode == 7) {
         state.database_pane = view.database_pane;
+    } else if (native_mode(state)) {
+        state.native_pane = view.native_pane;
     } else if (view.mode == 6 && !view.asset_type.empty()) {
         state.asset_panes[view.asset_type] = view.asset_pane;
     }

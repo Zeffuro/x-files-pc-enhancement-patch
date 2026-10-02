@@ -18,6 +18,8 @@ install(FILES "${CMAKE_SOURCE_DIR}/config/ddraw.ini" "${CMAKE_SOURCE_DIR}/config
     DESTINATION defaults)
 
 install(FILES "${CMAKE_SOURCE_DIR}/docs/controls.md" "${CMAKE_SOURCE_DIR}/docs/building.md"
+    "${CMAKE_SOURCE_DIR}/docs/developer-tools.md"
+    "${CMAKE_SOURCE_DIR}/docs/standalone-devtools.md" "${CMAKE_SOURCE_DIR}/docs/devtools-notices.md"
     "${CMAKE_SOURCE_DIR}/docs/linux.md"
     DESTINATION docs)
 
@@ -41,11 +43,13 @@ add_custom_target(notice-files ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:quicktime>"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_SOURCE_DIR}/THIRD_PARTY.md"
-        "${CMAKE_SOURCE_DIR}/README.md"
+        "${CMAKE_SOURCE_DIR}/README.md" "${CMAKE_SOURCE_DIR}/CHANGELOG.md"
         "$<TARGET_FILE_DIR:quicktime>"
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:quicktime>/docs"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/docs/controls.md" "${CMAKE_SOURCE_DIR}/docs/building.md"
+        "${CMAKE_SOURCE_DIR}/docs/developer-tools.md"
+        "${CMAKE_SOURCE_DIR}/docs/standalone-devtools.md" "${CMAKE_SOURCE_DIR}/docs/devtools-notices.md"
         "${CMAKE_SOURCE_DIR}/docs/linux.md"
         "$<TARGET_FILE_DIR:quicktime>/docs"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_BINARY_DIR}/generated/zlib.LICENSE"

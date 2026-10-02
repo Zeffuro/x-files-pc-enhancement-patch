@@ -1,4 +1,5 @@
 #include "ddraw_version.h"
+#include "display_monitors.h"
 #include "graphics.h"
 #include "identity.h"
 #include "platform/desktop.h"
@@ -9,6 +10,7 @@
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 #include <windows.h>
 #include <wrl/client.h>
 
@@ -22,6 +24,7 @@ using BindSurface = short(__cdecl*)(IUnknown*, unsigned long);
 CursorClip initial_clip;
 decltype(&GetClipCursor) read_cursor_clip;
 decltype(&ShowCursor) real_show_cursor;
+decltype(&SetWindowPos) real_set_window_pos;
 
 void require(bool condition, const char* message) {
     if (!condition) {
@@ -199,11 +202,98 @@ void draw_frame(HWND window, IDirectDraw* draw, DWORD width, DWORD height, DWORD
     release_graphics();
 }
 
-void exercise(HWND window, CreateDraw create_draw, const Desktop& before) {
+void monitor_toggles(HWND window, IDirectDraw* draw, const Desktop& before, bool synthetic) {
+    auto monitors = synthetic ? synthetic_display_monitors() : std::vector<MONITORINFO>{};
+    if (!synthetic) {
+        require(EnumDisplayMonitors(
+                    nullptr, nullptr,
+                    [](HMONITOR monitor, HDC, LPRECT, LPARAM data) -> BOOL {
+                        MONITORINFO info{sizeof(info)};
+                        if (!GetMonitorInfoW(monitor, &info)) {
+                            return FALSE;
+                        }
+                        reinterpret_cast<std::vector<MONITORINFO>*>(data)->push_back(info);
+                        return TRUE;
+                    },
+                    reinterpret_cast<LPARAM>(&monitors)),
+                "Cannot enumerate monitor work areas.");
+    }
+    constexpr UINT toggle_fullscreen = WM_APP + 117;
+    for (const auto& monitor : monitors) {
+        RECT bounds{0, 0, 640, 480};
+        require(AdjustWindowRectEx(&bounds, GetWindowLongW(window, GWL_STYLE), FALSE,
+                                   GetWindowLongW(window, GWL_EXSTYLE)),
+                "Cannot measure the monitor test border.");
+        const auto width = bounds.right - bounds.left;
+        const auto height = bounds.bottom - bounds.top;
+        require(width <= monitor.rcWork.right - monitor.rcWork.left &&
+                    height <= monitor.rcWork.bottom - monitor.rcWork.top,
+                "Monitor test needs a work area that fits a 640x480 window.");
+        require(real_set_window_pos(window, nullptr, monitor.rcWork.left + 10,
+                                    monitor.rcWork.top + 10, width, height,
+                                    SWP_NOZORDER | SWP_NOACTIVATE),
+                "Cannot position the test window on a monitor.");
+        pump();
+        WINDOWINFO restored{sizeof(restored)}, current{sizeof(current)};
+        require(GetWindowInfo(window, &restored), "Cannot capture monitor restore bounds.");
+        for (const UINT message : {synthetic ? WM_APP + 118 : WM_SYSCOMMAND, WM_NCLBUTTONDBLCLK}) {
+            const WPARAM command = message == WM_SYSCOMMAND ? SC_MAXIMIZE : HTCAPTION;
+            SendMessageW(window, message, command, 0);
+            pump();
+            require(GetWindowInfo(window, &current) &&
+                        current.rcClient.left >= monitor.rcWork.left &&
+                        current.rcClient.top >= monitor.rcWork.top &&
+                        current.rcClient.right <= monitor.rcWork.right &&
+                        current.rcClient.bottom <= monitor.rcWork.bottom,
+                    "Maximize moved outside the current monitor work area.");
+            SendMessageW(window, message, command, 0);
+            pump();
+            require(GetWindowInfo(window, &current) &&
+                        EqualRect(&current.rcClient, &restored.rcClient),
+                    "Monitor maximize lost the original window bounds.");
+        }
+        SendMessageW(window, toggle_fullscreen, 1, 0);
+        for (const auto dimensions : {SIZE{640, 480}, SIZE{3200, 1800}, SIZE{640, 480}}) {
+            require(SUCCEEDED(draw->SetDisplayMode(dimensions.cx, dimensions.cy, 16)),
+                    "Monitor borderless display refresh failed.");
+            pump();
+            require(GetWindowInfo(window, &current) &&
+                        current.rcClient.left == monitor.rcMonitor.left &&
+                        current.rcClient.top == monitor.rcMonitor.top &&
+                        current.rcClient.right >= monitor.rcMonitor.right &&
+                        current.rcClient.right <= monitor.rcMonitor.right + 1 &&
+                        current.rcClient.bottom >= monitor.rcMonitor.bottom &&
+                        current.rcClient.bottom <= monitor.rcMonitor.bottom + 1,
+                    "Borderless mode changed monitor or used the primary monitor dimensions.");
+        }
+        SendMessageW(window, toggle_fullscreen, 2, 0);
+        pump();
+        require(GetWindowInfo(window, &current) && EqualRect(&current.rcClient, &restored.rcClient),
+                "Leaving borderless mode lost the original monitor window bounds.");
+        check_desktop(before);
+        std::cout << "Monitor toggles: " << monitor.rcMonitor.left << ',' << monitor.rcMonitor.top
+                  << " to " << monitor.rcMonitor.right << ',' << monitor.rcMonitor.bottom << '\n';
+    }
+}
+
+void exercise(HWND window, HMODULE library, CreateDraw create_draw, const Desktop& before,
+              bool monitors_only) {
     ComPtr<IDirectDraw> draw;
     require(SUCCEEDED(create_draw(nullptr, &draw, nullptr)), "DirectDrawCreate failed.");
     require(SUCCEEDED(draw->SetCooperativeLevel(window, DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN)),
             "SetCooperativeLevel failed.");
+
+    if (monitors_only) {
+        require(SUCCEEDED(draw->SetDisplayMode(640, 480, 16)), "Monitor display setup failed.");
+        SendMessageW(window, WM_APP + 117, 2, 0);
+        install_display_monitors(library);
+        monitor_toggles(window, draw.Get(), before, true);
+        test_monitor_restore_moves(window, real_set_window_pos, pump);
+        check_desktop(before);
+        remove_display_monitors();
+        require(SUCCEEDED(draw->RestoreDisplayMode()), "Monitor display teardown failed.");
+        return;
+    }
 
     for (const DWORD bits : {16UL, 32UL}) {
         draw_frame(window, draw.Get(), 640, 480, bits);
@@ -358,6 +448,14 @@ void exercise(HWND window, CreateDraw create_draw, const Desktop& before) {
     SendMessageW(window, WM_ACTIVATEAPP, TRUE, 0);
     check_desktop(before);
 
+    monitor_toggles(window, draw.Get(), before, false);
+    install_display_monitors(library);
+    monitor_toggles(window, draw.Get(), before, true);
+    test_monitor_restore_moves(window, real_set_window_pos, pump);
+    check_desktop(before);
+    remove_display_monitors();
+    require(real_set_window_pos(window, nullptr, 100, 100, 640, 480, SWP_NOZORDER | SWP_NOACTIVATE),
+            "Cannot restore physical monitor test placement.");
     SendMessageW(window, toggle_fullscreen, 1, 0);
     check_desktop(before);
     require(!(GetWindowLongW(window, GWL_STYLE) & WS_CAPTION), "Borderless mode has a border.");
@@ -398,10 +496,16 @@ int wmain(int argc, wchar_t** argv) {
     if (!real_show_cursor) {
         return 1;
     }
+    real_set_window_pos = reinterpret_cast<decltype(real_set_window_pos)>(
+        GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetWindowPos"));
+    if (!real_set_window_pos) {
+        return 1;
+    }
     initial_clip = cursor_clip(read_cursor_clip);
 
     try {
-        require(argc == 2, "Pass the built ddraw.dll path.");
+        require(argc == 2 || (argc == 3 && std::wstring_view(argv[2]) == L"--monitors-only"),
+                "Pass the built ddraw.dll path and optional --monitors-only.");
         const auto path = std::filesystem::canonical(argv[1]);
         require(sha256(path) == ddraw_sha256, "Unexpected DirectDraw library.");
         require(sha256(path.parent_path() / L"ddraw.ini") == ddraw_config_sha256,
@@ -425,13 +529,14 @@ int wmain(int argc, wchar_t** argv) {
                                  window_class.hInstance, nullptr);
         require(window != nullptr, "CreateWindow failed.");
         ShowWindow(window, SW_SHOWNOACTIVATE);
-        exercise(window, create_draw, before);
+        exercise(window, library, create_draw, before, argc == 3);
         result = 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
     }
 
     release_graphics();
+    remove_display_monitors();
     if (window) {
         DestroyWindow(window);
     }
@@ -449,8 +554,11 @@ int wmain(int argc, wchar_t** argv) {
     }
     if (result == 0) {
         write_desktop(std::cout, before);
-        std::cout << "Drawing, mode switches, focus changes and teardown preserved the desktop and "
-                     "cursor.\n";
+        std::cout << (argc == 3
+                          ? "Monitor toggles, restore and teardown preserved the desktop and "
+                            "cursor.\n"
+                          : "Drawing, mode switches, focus changes and teardown preserved the "
+                            "desktop and cursor.\n");
     }
     return result;
 }

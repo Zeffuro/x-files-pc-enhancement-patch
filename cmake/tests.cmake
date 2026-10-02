@@ -25,6 +25,27 @@ if(BUILD_TESTING)
         src/devtools/database/trigger.cpp src/devtools/database/payload.cpp)
     target_include_directories(game-story-state-test PRIVATE src)
     add_test(NAME game-story-state COMMAND game-story-state-test)
+    add_executable(game-state-variables-test tests/state_variables.cpp src/devtools/state_variables.cpp)
+    target_include_directories(game-state-variables-test PRIVATE src)
+    target_link_libraries(game-state-variables-test PRIVATE comctl32)
+    add_test(NAME game-state-variables COMMAND game-state-variables-test)
+    add_executable(game-state-history-test tests/state_history.cpp src/devtools/state_history.cpp)
+    target_include_directories(game-state-history-test PRIVATE src)
+    add_test(NAME game-state-history COMMAND game-state-history-test)
+    add_executable(game-state-capture-test tests/state_capture.cpp src/devtools/state_capture.cpp
+        src/devtools/state_history.cpp)
+    target_include_directories(game-state-capture-test PRIVATE src)
+    add_test(NAME game-state-capture COMMAND game-state-capture-test)
+    add_executable(native-writes-test tests/native_writes.cpp src/devtools/native_writes.cpp)
+    target_include_directories(native-writes-test PRIVATE src)
+    foreach(edition RANGE 0 3)
+        add_test(NAME native-writes-${edition} COMMAND native-writes-test ${edition})
+    endforeach()
+    add_executable(game-story-edit-test tests/story_edit.cpp src/devtools/story_edit.cpp
+        src/devtools/story_state.cpp src/devtools/variables.cpp src/devtools/database/native.cpp
+        src/devtools/database/types.cpp src/devtools/database/trigger.cpp src/devtools/database/payload.cpp)
+    target_include_directories(game-story-edit-test PRIVATE src)
+    add_test(NAME game-story-edit COMMAND game-story-edit-test)
     add_executable(database-flow-test tests/database_flow.cpp)
     target_link_libraries(database-flow-test PRIVATE database-browser-ui)
     add_test(NAME database-flow COMMAND database-flow-test)
@@ -390,7 +411,7 @@ if(BUILD_TESTING)
     endif()
     add_executable(codec-staging-test tests/codec_staging.cpp)
     target_link_libraries(codec-staging-test PRIVATE launcher-common)
-    add_dependencies(codec-staging-test quicktime xfiles-patch)
+    add_dependencies(codec-staging-test quicktime xfiles-patch xfiles-devtools)
     add_test(NAME codec-staging-files COMMAND codec-staging-test)
 
     add_executable(devtools-test "${CMAKE_BINARY_DIR}/generated/clip-labels.rc" tests/devtools.cpp src/devtools/caption_index.cpp src/devtools/clip_key.cpp src/devtools/artwork.cpp src/devtools/variables.cpp src/devtools/preview.cpp src/devtools/clip_defaults.cpp src/playback/audio.cpp)
@@ -425,7 +446,7 @@ if(BUILD_TESTING)
     target_include_directories(native-render-test PRIVATE src)
     target_link_libraries(native-render-test PRIVATE gdi32 user32)
     add_test(NAME native-caption-composition COMMAND native-render-test)
-    add_executable(canvas-presentation-test tests/canvas_presentation.cpp src/game/render/native_render.cpp src/game/render/gdi_hooks.cpp src/game/render/caption_surface.cpp src/platform/imports.cpp)
+    add_executable(canvas-presentation-test tests/canvas_presentation.cpp src/game/render/native_render.cpp src/game/render/gdi_hooks.cpp src/game/render/caption_surface.cpp src/platform/imports.cpp src/devtools/hotspots.cpp src/enhancements/ui/notification.cpp src/saves/browser_text.cpp)
     target_include_directories(canvas-presentation-test PRIVATE src)
     target_link_libraries(canvas-presentation-test PRIVATE gdi32 user32)
     add_test(NAME canvas-presentation COMMAND canvas-presentation-test)
@@ -492,10 +513,12 @@ if(BUILD_TESTING)
     add_executable(display-test
         src/diagnostics/log_file.cpp
         tests/display.cpp
+        tests/display_monitors.cpp
         src/graphics.cpp
         src/log.cpp
         src/identity.cpp
         src/platform/desktop.cpp
+        src/platform/imports.cpp
     )
     target_include_directories(display-test PRIVATE src "${CMAKE_BINARY_DIR}/generated")
     target_link_libraries(display-test PRIVATE bcrypt dxguid user32 gdi32 controller-input)
@@ -503,7 +526,7 @@ if(BUILD_TESTING)
     if(XFILES_INTERACTIVE_TESTS)
     add_test(NAME display-compatibility
         COMMAND display-test "$<TARGET_FILE_DIR:xfiles-patch>/ddraw.dll")
-    set_tests_properties(display-compatibility PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+    set_tests_properties(display-compatibility PROPERTIES TIMEOUT 240 RUN_SERIAL TRUE)
     endif()
 endif()
 

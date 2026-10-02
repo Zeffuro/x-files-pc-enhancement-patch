@@ -69,6 +69,30 @@ void mode(HWND browser, unsigned index) {
                  reinterpret_cast<LPARAM>(control));
 }
 
+std::wstring pane(HWND browser) {
+    const auto tabs = GetDlgItem(browser, 3112);
+    wchar_t name[64]{};
+    TCITEMW item{};
+    item.mask = TCIF_TEXT;
+    item.pszText = name;
+    item.cchTextMax = static_cast<int>(std::size(name));
+    require(TabCtrl_GetItem(tabs, TabCtrl_GetCurSel(tabs), &item), "Selected tab unavailable");
+    return name;
+}
+
+void pane(HWND browser, const wchar_t* name) {
+    const auto tabs = GetDlgItem(browser, 3112);
+    for (int index = 0; index < TabCtrl_GetItemCount(tabs); ++index) {
+        TabCtrl_SetCurSel(tabs, index);
+        if (pane(browser) == name) {
+            NMHDR notification{tabs, 3112, TCN_SELCHANGE};
+            SendMessageW(browser, WM_NOTIFY, 3112, reinterpret_cast<LPARAM>(&notification));
+            return;
+        }
+    }
+    throw std::runtime_error("Requested tab unavailable");
+}
+
 std::vector<char> read(const std::filesystem::path& path) {
     std::ifstream input(path, std::ios::binary);
     return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
@@ -124,16 +148,30 @@ int main(int argc, char** argv) {
         ListView_SetItemState(list, 0, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
         require(overview(browser).find(L"Action ID 40") != std::wstring::npos,
                 "Standard action fields missing");
+        pane(browser, L"Fields");
+        SetWindowTextW(GetDlgItem(browser, 3101), L"no matching native object");
+        require(pane(browser) == L"Overview", "Empty native results did not fall back");
+        SetWindowTextW(GetDlgItem(browser, 3101), L"VCStdAction");
+        ListView_SetItemState(list, 0, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+        require(pane(browser) == L"Fields", "Empty search erased native Fields preference");
+        SendMessageW(browser, WM_COMMAND, 3102, 0);
+        require(pane(browser) == L"Fields", "Native refresh lost Fields preference");
+        mode(browser, 6);
+        mode(browser, 0);
+        require(pane(browser) == L"Fields", "Asset round trip lost native Fields preference");
         const auto links = GetDlgItem(browser, 3108);
         require(ListView_GetItemCount(links) == 2, "Standard action relationships missing");
         ListView_SetItemState(links, 0, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
         SendMessageW(browser, WM_COMMAND, 3109, 0);
         require(overview(browser).find(L"Cook") != std::wstring::npos,
                 "Follow name reference failed");
+        require(pane(browser) == L"Fields", "Native Follow lost Fields preference");
+        pane(browser, L"Raw bytes");
         require(ListView_GetItemCount(links) == 3, "Incoming references missing");
         SendMessageW(browser, WM_COMMAND, 3110, 0);
         require(overview(browser).find(L"Action ID 40") != std::wstring::npos,
                 "Back navigation failed");
+        require(pane(browser) == L"Fields", "Native Back lost source Fields preference");
         native.put(0x14c04, 71u);
         native.put(0x11078, 71u);
         SendMessageW(browser, WM_COMMAND, 3102, 0);
@@ -167,6 +205,7 @@ int main(int argc, char** argv) {
         devtools::update_database_browser(browser);
         require(overview(browser).find(L"Raw value: 8") != std::wstring::npos,
                 "Auto-refresh did not update copied value");
+        require(pane(browser) == L"Fields", "Native auto-refresh lost Fields preference");
         require(!(TreeView_GetItemState(properties, TreeView_GetRoot(properties), TVIS_EXPANDED) &
                   TVIS_EXPANDED) &&
                     TreeView_GetSelection(properties) == TreeView_GetRoot(properties),

@@ -35,6 +35,8 @@ class PackageTests(unittest.TestCase):
             self.files["defaults/" + name] = (ROOT / "config" / name).read_bytes()
         for name in ("LICENSE", "THIRD_PARTY.md"):
             self.files[name] = (ROOT / name).read_bytes()
+        for name in ("docs/standalone-devtools.md", "docs/devtools-notices.md"):
+            self.files[name] = (ROOT / name).read_bytes()
         self.files["source/ffmpeg/build-ffmpeg.sh"] = self.script.read_bytes()
         self.files["source/ffmpeg/ffmpeg-1.2.3.tar.xz"] = self.source
 
@@ -177,6 +179,113 @@ class PackageTests(unittest.TestCase):
         self.zip_path.write_bytes(data)
         with self.assertRaisesRegex(package.PackageError, "CRC check failed"):
             package.check_package(self.zip_path, "0.1.0", self.script)
+
+
+class DevtoolsPackageTests(unittest.TestCase):
+    def setUp(self):
+        PackageTests.setUp(self)
+        self.patch_files = dict(self.files)
+        self.zip_path = self.root / "xfiles-devtools-0.1.0-windows-x86.zip"
+        self.files = {name: data for name, data in self.files.items()
+                      if name in package.DEVTOOLS_REQUIRED or name.startswith("source/ffmpeg/")
+                      or name in {f"{c}-1.dll" for c in package.COMPONENTS}}
+        self.files["README.md"] = self.patch_files["docs/standalone-devtools.md"]
+        self.files["THIRD_PARTY.md"] = self.patch_files["docs/devtools-notices.md"]
+
+    def check(self):
+        with zipfile.ZipFile(self.zip_path, "w", zipfile.ZIP_STORED) as output:
+            for name, data in self.files.items():
+                output.writestr(name, data)
+        package.check_package(self.zip_path, "0.1.0", self.script, "devtools")
+
+    def test_complete_without_patch_runtime(self):
+        self.check()
+        self.assertTrue((package.RUNTIME - package.DEVTOOLS_RUNTIME).isdisjoint(self.files))
+
+    def test_unexpected_game_or_patch_files(self):
+        for name in ("QuickTime.qts", "ddraw.dll", "XFilesPlay.exe", "XFiles.exe", "patch.ini",
+                     "defaults/patch.ini", "saves/example.x", ".dev_docs/notes.md"):
+            with self.subTest(name=name):
+                self.files[name] = b"must not be shipped"
+                with self.assertRaisesRegex(package.PackageError, "unexpected files"):
+                    self.check()
+                del self.files[name]
+
+    def test_missing_dependencies_and_notices(self):
+        for name in ("avformat-1.dll", "zlib.LICENSE", "FFmpeg.LICENSE", "README.md",
+                     "source/ffmpeg/ffmpeg-1.2.3.tar.xz"):
+            with self.subTest(name=name):
+                original = self.files.pop(name)
+                with self.assertRaises(package.PackageError):
+                    self.check()
+                self.files[name] = original
+
+    def test_changed_readme_or_notices(self):
+        for name in ("README.md", "THIRD_PARTY.md"):
+            with self.subTest(name=name):
+                original = self.files[name]
+                self.files[name] += b"unexpected content"
+                with self.assertRaisesRegex(package.PackageError, "differs from this checkout"):
+                    self.check()
+                self.files[name] = original
+
+    def test_wrong_kind_and_version(self):
+        self.check()
+        with self.assertRaisesRegex(package.PackageError, "Expected package name"):
+            package.check_package(self.zip_path, "0.1.0", self.script)
+        with self.assertRaisesRegex(package.PackageError, "Expected package name"):
+            package.check_package(self.zip_path, "0.1.1", self.script, "devtools")
+
+    def test_bad_source(self):
+        self.files["source/ffmpeg/ffmpeg-1.2.3.tar.xz"] = b"incorrect source"
+        with self.assertRaisesRegex(package.PackageError, "pinned checksum"):
+            self.check()
+
+    def test_x64_browser(self):
+        pe = bytearray(self.files["xfiles-devtools.exe"])
+        struct.pack_into("<H", pe, 132, 0x8664)
+        self.files["xfiles-devtools.exe"] = bytes(pe)
+        with self.assertRaisesRegex(package.PackageError, "32-bit x86"):
+            self.check()
+
+    def prepare(self):
+        spec = importlib.util.spec_from_file_location("package_release", ROOT / "tools/package-release.py")
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+        patch = self.root / "xfiles-enhancement-0.1.0-windows-x86.zip"
+        with zipfile.ZipFile(patch, "w") as output:
+            for name, data in self.patch_files.items():
+                output.writestr(name, data)
+        return builder.prepare_packages(patch, "0.1.0", self.script)
+
+    def test_release_preparation_and_checksums(self):
+        patch, tools = self.prepare()
+        package.check_package(tools, "0.1.0", self.script, "devtools")
+        with zipfile.ZipFile(tools) as archive:
+            self.assertEqual(set(archive.namelist()), set(self.files))
+            for name, expected in self.files.items():
+                self.assertEqual(archive.read(name), expected, name)
+        sums = (self.root / "SHA256SUMS.txt").read_text().splitlines()
+        self.assertEqual(len(sums), 2)
+        for path, line in zip((patch, tools), sums):
+            self.assertEqual(line, f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
+            self.assertEqual(path.with_suffix(".zip.sha256").read_text().strip(), line)
+
+    def test_invalid_patch_leaves_existing_tools_unchanged(self):
+        self.zip_path.write_bytes(b"existing download")
+        del self.patch_files["zlib.LICENSE"]
+        with self.assertRaisesRegex(ValueError, "Missing files"):
+            self.prepare()
+        self.assertEqual(self.zip_path.read_bytes(), b"existing download")
+        self.assertFalse((self.root / "SHA256SUMS.txt").exists())
+
+    def test_bad_tool_document_leaves_existing_tools_unchanged(self):
+        self.zip_path.write_bytes(b"existing download")
+        self.patch_files["docs/standalone-devtools.md"] += b"stale document"
+        with self.assertRaisesRegex(ValueError, "bundled README.md"):
+            self.prepare()
+        self.assertEqual(self.zip_path.read_bytes(), b"existing download")
+        self.assertFalse((self.root / "SHA256SUMS.txt").exists())
 
 
 if __name__ == "__main__":

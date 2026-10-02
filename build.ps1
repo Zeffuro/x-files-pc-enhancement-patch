@@ -134,12 +134,8 @@ try {
     Invoke-Checked 'ctest' @('--test-dir', $BuildDirectory, '-C', 'Release', '--output-on-failure', '--timeout', '180')
     Invoke-Checked 'cpack' @('--config', "$BuildDirectory/CPackConfig.cmake", '-C', 'Release')
     $package = Join-Path $BuildDirectory "packages/xfiles-enhancement-$Version-windows-x86.zip"
-    Invoke-Checked $python ($pythonArguments + @('tools/check-package.py', $package, '--version', $Version))
-    $hash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$hash  $(Split-Path $package -Leaf)" |
-        Set-Content -LiteralPath "$package.sha256" -Encoding ascii
-    Write-Host "`nBuild verified: $((Resolve-Path -LiteralPath $package).Path)"
-    Write-Host "SHA-256: $hash"
+    Invoke-Checked $python ($pythonArguments + @('tools/package-release.py', $package, '--version', $Version))
+    Write-Host "`nBuild verified: $((Resolve-Path -LiteralPath (Join-Path $BuildDirectory 'packages')).Path)"
 } finally {
     Pop-Location
 }

@@ -53,9 +53,7 @@ bool point_at(HWND window, const RECT& bounds) {
                        {(bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2});
 }
 
-}
-
-std::vector<InventoryEntry> inventory_items(const game::MainView* view) {
+std::vector<InventoryEntry> collect_inventory(const game::MainView* view, bool details) {
     game::Inventory inventory{};
     if (!view || !read(field(view, offsetof(game::MainView, inventory)), inventory) ||
         inventory.items.count > 256) {
@@ -78,7 +76,7 @@ std::vector<InventoryEntry> inventory_items(const game::MainView* view) {
         game::InventoryIcon::Graphic graphic{};
         game::InventoryIcon::Graphic::Resource resource{};
         // MoviesTask can dispatch this inspection while native objects are changing.
-        if (read(icon.graphic, graphic) && read(graphic.resource, resource)) {
+        if (details && read(icon.graphic, graphic) && read(graphic.resource, resource)) {
             entry.resource = resource.id;
             entry.asset_path = native_game::read_asset_path(
                 graphic.resource, game::executable_image(), game::edition());
@@ -87,12 +85,17 @@ std::vector<InventoryEntry> inventory_items(const game::MainView* view) {
     }
     return result;
 }
+}
+
+std::vector<InventoryEntry> inventory_items(const game::MainView* view) {
+    return collect_inventory(view, true);
+}
 
 std::vector<RECT> inventory_bounds(const game::MainView* view) {
     if (!visible_inventory(view)) {
         return {};
     }
-    const auto items = inventory_items(view);
+    const auto items = collect_inventory(view, false);
     if (items.size() > 64) {
         return {};
     }

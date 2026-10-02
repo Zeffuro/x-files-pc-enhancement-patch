@@ -48,9 +48,20 @@ bool prepare_load_copy(HWND window, const std::filesystem::path& path,
     return true;
 }
 
-bool exploration_available() {
+bool exploration_context_available() {
     return game::world_navigation_available() && !current_dialogue() &&
-           game::emotion_targets().empty() && game::script_controls().buttons.empty();
+           game::emotion_targets().empty();
+}
+
+bool exploration_available() {
+    return exploration_context_available() && game::script_controls().buttons.empty();
+}
+
+bool save_context_available() {
+    const auto executable = game::executable_image();
+    return !busy && !resume_pending && executable && !game::menu_confirmation_active() &&
+           game::saving_available() &&
+           !*reinterpret_cast<void**>(executable + game::edition().pending_load);
 }
 
 template <typename T> T function(std::uint32_t rva) {
@@ -101,8 +112,11 @@ std::filesystem::path save_game_root() {
 }
 
 bool safe_save_available() {
-    return export_save_available() && exploration_available() && !scene_overlay_active() &&
-           !game::script_controls().script_dialog && !game::script_controls().text_input;
+    if (!save_context_available() || scene_overlay_active() || !exploration_context_available()) {
+        return false;
+    }
+    const auto script = game::script_controls();
+    return script.buttons.empty() && !script.script_dialog && !script.text_input;
 }
 
 void export_safe_save(const std::filesystem::path& path) {
@@ -223,12 +237,9 @@ bool checkpoint_load_pending() {
 }
 
 bool export_save_available() {
-    return !busy && !resume_pending && game::executable_image() &&
-           !game::menu_confirmation_active() &&
+    return save_context_available() &&
            (exploration_available() || scene_overlay_checkpoint_available() ||
-            game::input_vtable() == game::edition().main_menu) &&
-           game::saving_available() &&
-           !*reinterpret_cast<void**>(game::executable_image() + game::edition().pending_load);
+            game::input_vtable() == game::edition().main_menu);
 }
 
 void export_save(const std::filesystem::path& path) {

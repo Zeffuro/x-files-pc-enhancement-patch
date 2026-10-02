@@ -2,6 +2,7 @@ cnc-ddraw 7.1.0.0
 Source: https://github.com/FunkyFr3sh/cnc-ddraw
 Revision: 541b5de218ec3fbd6ea91e606ebfadc07c1786b0
 Includes patches/cnc-ddraw-desktop.patch to preserve the desktop display mode.
+Includes patches/cnc-ddraw-monitor.patch to keep display toggles on the current monitor.
 
 @CNCDDRAW_LICENSE@
 

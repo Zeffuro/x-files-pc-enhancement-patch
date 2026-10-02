@@ -9,6 +9,7 @@
 #include "preview.h"
 #include "caption_index.h"
 #include "game_state.h"
+#include "state_capture.h"
 #include "subtitle_editor.h"
 #include "database/browser.h"
 #include "database/assets.h"
@@ -202,10 +203,6 @@ void tick_preview() {
     EnableWindow(state.seek, state.player != nullptr);
 }
 
-void update_game_state_view() {
-    update_state_tree(state.state_text, state.snapshot, text(state.state_search));
-}
-
 void show_view() {
     for (auto window : {state.coverage,      state.group,    state.place,         state.compact,
                         state.search_label,  state.search,   state.filenames,     state.labels,
@@ -216,18 +213,15 @@ void show_view() {
                         state.save}) {
         ShowWindow(window, state.showing_state || state.showing_database ? SW_HIDE : SW_SHOW);
     }
-    for (auto window : {state.refresh, state.hotspots, state.state_text, state.state_search,
-                        state.state_snapshot}) {
-        ShowWindow(window, state.showing_state ? SW_SHOW : SW_HIDE);
-    }
+    show_state_controls(state.showing_state);
     ShowWindow(state.database, state.showing_database ? SW_SHOW : SW_HIDE);
     if (state.showing_database) {
         set_text(state.status, L"Browse database tables or asset files. Values are read-only.");
     }
     if (state.showing_state) {
-        set_text(state.status, L"Copied game values. Search names or values. Ctrl+C copies a row. "
-                               L"Clear Live updates to hold the snapshot, then Refresh snapshot "
-                               L"when needed.");
+        set_text(state.status,
+                 L"Hold Live updates and enable editing. Enter a decimal value or 'A'. "
+                 L"Changes can affect gameplay and later saves.");
     }
 }
 
@@ -297,7 +291,14 @@ void open(HWND game) {
         return;
     }
     dispose_resources();
+    auto variables = std::move(state.state_variable_view);
+    auto history = std::move(state.state_history);
     state = State{};
+    state.state_variable_view = std::move(variables);
+    state.state_variable_view.cells.clear();
+    state.state_variable_view.rows.clear();
+    state.state_variable_view.keys.clear();
+    state.state_history = std::move(history);
     state.game = game;
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -356,23 +357,25 @@ void update_inspector(HWND game, bool available) {
             show_hotspots(game, false, {});
             return;
         }
+        if (state.showing_state && SendMessageW(state.hotspots, BM_GETCHECK, 0, 0)) {
+            show_hotspots(game, true, collect_interaction_targets());
+        } else {
+            show_hotspots(game, false, {});
+        }
         if (GetTickCount64() - state.updated < 250) {
             return;
         }
         state.updated = GetTickCount64();
-        if (state.showing_state && SendMessageW(state.hotspots, BM_GETCHECK, 0, 0)) {
-            const auto snapshot = inspect_game(false);
-            show_hotspots(game, true, snapshot.targets);
-        } else {
-            show_hotspots(game, false, {});
-        }
+        collect_state_history(state.state_history, state.snapshot);
         if (state.showing_state) {
             if (SendMessageW(state.refresh, BM_GETCHECK, 0, 0) &&
                 GetTickCount64() - state.state_updated >= 1000) {
                 state.snapshot = inspect_game();
                 state.state_updated = GetTickCount64();
+                collect_state_history(state.state_history, state.snapshot, true);
                 update_game_state_view();
             }
+            update_state_history_view();
             return;
         }
         if (state.showing_database) {
@@ -411,6 +414,7 @@ void update_inspector(HWND game, bool available) {
         }
         describe();
     } catch (...) {
+        show_hotspots(game, false, {});
         if (state.window) {
             SetWindowTextW(state.status, L"Inspector data unavailable. Close and reopen to retry.");
         }
@@ -418,6 +422,7 @@ void update_inspector(HWND game, bool available) {
 }
 
 void release_inspector() {
+    release_state_capture();
     if (state.window) {
         DestroyWindow(state.window);
     }

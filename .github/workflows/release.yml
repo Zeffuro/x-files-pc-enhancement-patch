@@ -73,13 +73,13 @@ jobs:
           if-no-files-found: ignore
       - name: Package
         run: cpack --config build/CPackConfig.cmake -C Release
-      - name: Check package and write checksum
+      - name: Prepare release packages and checksums
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_TYPE: ${{ github.ref_type }}
         run: |
-          $packages = @(Get-ChildItem build/packages/*.zip)
-          if ($packages.Count -ne 1) { throw 'Expected one release ZIP.' }
+          $packages = @(Get-ChildItem build/packages/xfiles-enhancement-*.zip)
+          if ($packages.Count -ne 1) { throw 'Expected one enhancement ZIP.' }
           if ($packages[0].Name -notmatch '^xfiles-enhancement-([0-9]+\.[0-9]+\.[0-9]+)-windows-x86\.zip$') {
             throw 'Unexpected package filename.'
           }
@@ -87,10 +87,9 @@ jobs:
           if ($env:RELEASE_TYPE -eq 'tag' -and "v$version" -ne $env:RELEASE_TAG) {
             throw 'The package version does not match the tag.'
           }
-          python tools/check-package.py $packages[0].FullName --version $version
-          if ($LASTEXITCODE) { throw 'Package check failed.' }
-          $hash = (Get-FileHash $packages[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $($packages[0].Name)" | Set-Content build/packages/SHA256SUMS.txt -Encoding ascii
+          python tools/package-release.py $packages[0].FullName --version $version
+          if ($LASTEXITCODE) { throw 'Release packaging failed.' }
+          if (@(Get-ChildItem build/packages/*.zip).Count -ne 2) { throw 'Expected two release ZIPs.' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: xfiles-enhancement-windows-x86
@@ -103,6 +102,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force build/wine-checks/source/ffmpeg | Out-Null
           Copy-Item build/Release/*-test.exe,build/Release/*.dll,build/Release/*LICENSE*,build/Release/THIRD_PARTY.md build/wine-checks
+          Copy-Item build/Release/ddraw.ini build/wine-checks
           Copy-Item "$env:FFMPEG_ROOT/source/*" build/wine-checks/source/ffmpeg
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -128,7 +128,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y wine wine32:i386 wine64 xvfb xauth
       - name: Synthetic Windows checks under Wine
-        run: xvfb-run -a python3 tools/wine-smoke.py build/wine-checks build/wine-results
+        run: xvfb-run -a python3 tools/wine-smoke.py build/wine-checks build/wine-results --display-monitors
       - name: Wine results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -167,9 +167,10 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           cd packages
-          printf '%s\n\n%s\n\n%s\n' \
-            'New install: Extract the release ZIP and run XFilesSetup.exe. Select your supported PC game files or disc images, then choose a new folder such as C:\Games\The X-Files. English CD/DVD and German, French, Spanish, Italian and Japanese CD editions are supported.' \
-            'Updating: Close the game and extract the contents of the release ZIP into the folder containing XFilesPlay.exe. Replace files when asked. Saves and settings are kept. Do not run Setup again.' \
+          printf '%s\n\n%s\n\n%s\n\n%s\n' \
+            'New install: Extract the xfiles-enhancement ZIP and run XFilesSetup.exe. Select your supported PC game files or disc images, then choose a new folder such as C:\Games\The X-Files. English CD/DVD and German, French, Spanish, Italian and Japanese CD editions are supported.' \
+            'Updating: Close the game and extract the xfiles-enhancement ZIP into the folder containing XFilesPlay.exe. Replace files when asked. Saves and settings are kept. Do not run Setup again.' \
+            'Standalone tools: Extract the xfiles-devtools ZIP into a separate folder and open xfiles-devtools.exe to browse your own databases, saves and assets without running the game. Live state editing, watches and history are available through the enhancement patch.' \
             'Uses FFmpeg under LGPL-2.1-or-later; its matching source and build script are included in the ZIP.' > ../release-notes.md
           args=(--verify-tag --draft --generate-notes --notes-file ../release-notes.md)
           if [[ "$RELEASE_TAG" == v0.* ]]; then args+=(--prerelease); fi

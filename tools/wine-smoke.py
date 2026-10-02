@@ -15,8 +15,8 @@ import time
 
 CHECKS = (
     "autosave-state", "save-recent", "continue-menu", "autosave-runtime",
-    "game-story-state", "game-state-tree",
-    "database-flow",
+    "game-story-state", "game-state-tree", "game-state-variables", "game-story-edit", "game-state-history",
+    "game-state-capture", "native-writes", "database-flow",
     "database-usability",
     "controller-delivery", "controller-state", "controller-navigation",
     "controller-click", "navigation", "native-gun", "options-navigation", "rumble",
@@ -60,6 +60,8 @@ def main():
     parser.add_argument("--wine", default="wine", help="Wine executable")
     parser.add_argument("--wineserver", default="wineserver", help="matching Wine server")
     parser.add_argument("--timeout", type=int, default=180, help="per-check seconds")
+    parser.add_argument("--display-monitors", action="store_true",
+                        help="also test monitor toggles and moved-window restore in the private display")
     args = parser.parse_args()
     if platform.system() != "Linux" or args.timeout < 1:
         parser.error("Run on Linux with a positive timeout, using xvfb-run if headless")
@@ -67,9 +69,13 @@ def main():
     if not wine or not server:
         parser.error("Wine and its matching wineserver must be installed")
     binaries = args.binaries.resolve(strict=True)
-    executables = [binaries / (name + "-test.exe") for name in CHECKS]
+    checks = CHECKS + (("display",) if args.display_monitors else ())
+    executables = [binaries / (name + "-test.exe") for name in checks]
     if any(not path.is_file() for path in executables):
         parser.error("Build all selected test executables first")
+    display_config = [binaries / "ddraw.ini"] if args.display_monitors else []
+    if any(not path.is_file() for path in display_config):
+        parser.error("Monitor checks need the built ddraw.ini")
     output = args.output.resolve()
     if output.exists():
         parser.error("The output folder must not already exist")
@@ -89,7 +95,7 @@ def main():
     }
     result = 0
     try:
-        for source in executables + list(binaries.glob("*.dll")):
+        for source in executables + list(binaries.glob("*.dll")) + display_config:
             target = stage / source.name
             shutil.copyfile(source, target)
             report["files"][source.name] = hashlib.sha256(target.read_bytes()).hexdigest()
@@ -99,20 +105,30 @@ def main():
                    logs / "wineboot.log", max(120, args.timeout))
         if code:
             raise RuntimeError(f"Wine initialization failed ({code})")
-        for name in CHECKS:
+        cases = [(name, edition) for name in checks
+                 for edition in (range(4) if name == "native-writes" else (None,))]
+        for name, edition in cases:
+            label = f"{name}-{edition}" if edition is not None else name
             started = time.monotonic()
             try:
                 arguments = ["--visible"] if name == "standalone-preview" else []
+                if edition is not None:
+                    arguments = [str(edition)]
                 if name in ("resource-browser", "database-usability"):
                     arguments = ["--clipboard"]
-                code = run([wine, str(stage / (name + "-test.exe"))] + arguments, stage, environment,
-                           logs / (name + ".log"), args.timeout)
+                if name == "display":
+                    arguments = [str(stage / "ddraw.dll"), "--monitors-only"]
+                check_environment = environment.copy()
+                if name == "display":
+                    check_environment["WINEDLLOVERRIDES"] = "ddraw=n,b"
+                code = run([wine, str(stage / (name + "-test.exe"))] + arguments, stage, check_environment,
+                           logs / (label + ".log"), max(240, args.timeout) if name == "display" else args.timeout)
                 status = "passed" if code == 0 else "failed"
             except subprocess.TimeoutExpired:
                 code, status = None, "timeout"
-            report["checks"].append({"name": name, "status": status, "exit_code": code,
+            report["checks"].append({"name": label, "status": status, "exit_code": code,
                                      "seconds": round(time.monotonic() - started, 3)})
-            print(f"{name}: {status}", flush=True)
+            print(f"{label}: {status}", flush=True)
             result |= status != "passed"
             if status == "timeout":
                 break

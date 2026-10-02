@@ -22,6 +22,8 @@ std::array<std::byte, 5> original_call{};
 bool attached = false;
 thread_local CanvasSource canvas_source = nullptr;
 thread_local CanvasSource canvas_overlay = nullptr;
+thread_local CanvasSource canvas_targets = nullptr;
+thread_local CanvasSource canvas_status = nullptr;
 thread_local HDC presenting = nullptr;
 thread_local bool substituting = false;
 thread_local bool source_reported = false;
@@ -164,13 +166,18 @@ HDC canvas_dc() {
 }
 
 HDC presentation_source(HDC source) {
-    if ((canvas_source || canvas_overlay) && presenting && source == presenting && !substituting) {
+    if ((canvas_source || canvas_overlay || canvas_targets || canvas_status) && presenting &&
+        source == presenting && !substituting) {
         substituting = true;
         try {
-            auto replacement = canvas_source ? canvas_source(source) : source;
-            if (canvas_overlay) {
+            auto replacement = source;
+            for (const auto decorate :
+                 {canvas_source, canvas_overlay, canvas_targets, canvas_status}) {
+                if (!decorate) {
+                    continue;
+                }
                 try {
-                    const auto decorated = canvas_overlay(replacement ? replacement : source);
+                    const auto decorated = decorate(replacement);
                     if (decorated) {
                         replacement = decorated;
                     }
@@ -197,6 +204,16 @@ void set_canvas_source(CanvasSource callback) {
 
 void set_canvas_overlay(CanvasSource callback) {
     canvas_overlay = callback;
+    source_reported = false;
+}
+
+void set_canvas_targets(CanvasSource callback) {
+    canvas_targets = callback;
+    source_reported = false;
+}
+
+void set_canvas_status(CanvasSource callback) {
+    canvas_status = callback;
     source_reported = false;
 }
 
@@ -273,6 +290,8 @@ void detach_native_render() {
     caption_surface::clear();
     canvas_source = nullptr;
     canvas_overlay = nullptr;
+    canvas_targets = nullptr;
+    canvas_status = nullptr;
     presenting = nullptr;
     attached = false;
     image = nullptr;

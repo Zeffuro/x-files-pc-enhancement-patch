@@ -2,6 +2,7 @@
 #include "database/memory.h"
 #include "game/layouts/database/story.h"
 #include "game/layouts/database/variable.h"
+#include "game/profiles/variables.h"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -16,7 +17,9 @@ std::wstring hex(std::uint32_t value, int width) {
     return text.str();
 }
 
-std::wstring variable_name(const NativeDatabaseObject& object) {
+}
+
+std::wstring story_variable_name(const NativeDatabaseObject& object) {
     if (object.bytes.size() < sizeof(native_game::Variable)) {
         return L"<name unavailable>";
     }
@@ -54,9 +57,58 @@ std::wstring variable_name(const NativeDatabaseObject& object) {
     }
     return result;
 }
+
+std::vector<StateVariable> story_state_variables(const NativeDatabaseSnapshot& snapshot,
+                                                 const std::byte* image,
+                                                 const native_game::Profile* profile) {
+    std::vector<StateVariable> result;
+    if (!snapshot.available) {
+        return result;
+    }
+    std::vector<std::pair<std::uint32_t, std::wstring>> registrations;
+    if (image && profile) {
+        for (const auto& slot : native_game::registered_variables) {
+            std::uint32_t pointer = 0;
+            const auto rva = slot.rva(*profile);
+            if (rva &&
+                database_copy(reinterpret_cast<std::uintptr_t>(image + rva), &pointer,
+                              sizeof(pointer)) &&
+                pointer) {
+                registrations.emplace_back(pointer, slot.registration);
+            }
+        }
+    }
+    for (const auto& object : snapshot.objects) {
+        if (object.class_id != 0x53) {
+            continue;
+        }
+        StateVariable row{
+            object.key(), story_variable_name(object), {}, object.variable, object.address,
+            object.bytes};
+        for (const auto& [pointer, registration] : registrations) {
+            if (pointer == object.address) {
+                if (!row.registration.empty()) {
+                    row.registration += L", ";
+                }
+                row.registration += registration;
+            }
+        }
+        result.push_back(std::move(row));
+    }
+    std::sort(result.begin(), result.end(), [](const auto& left, const auto& right) {
+        if (left.name != right.name) {
+            return left.name < right.name;
+        }
+        if (left.key.state_database != right.key.state_database) {
+            return left.key.state_database;
+        }
+        return left.key.id < right.key.id;
+    });
+    return result;
 }
 
-std::vector<StateGroup> story_state_groups(const NativeDatabaseSnapshot& snapshot) {
+std::vector<StateGroup> story_state_groups(const NativeDatabaseSnapshot& snapshot,
+                                           bool include_values) {
     StateGroup coverage{L"Story variable coverage", {}};
     if (!snapshot.available) {
         coverage.values.push_back(L"Cached story variables are unavailable.");
@@ -79,7 +131,10 @@ std::vector<StateGroup> story_state_groups(const NativeDatabaseSnapshot& snapsho
             ++unreadable;
             continue;
         }
-        const auto name = variable_name(object);
+        if (!include_values) {
+            continue;
+        }
+        const auto name = story_variable_name(object);
         const auto& value = *object.variable;
         auto text = name + L": " + std::to_wstring(value.raw_value) + L" (" +
                     hex(static_cast<std::uint32_t>(value.raw_value), 8) + L") / type " +

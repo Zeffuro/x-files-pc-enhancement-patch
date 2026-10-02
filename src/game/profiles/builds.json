@@ -64,7 +64,10 @@
         "selected_inventory": 2853236,
         "queue_mouse_move": 310528,
         "menu_corner": 2443992,
-        "menu_corner_rectangle": 2856152
+        "menu_corner_rectangle": 2856152,
+        "variable_set_value": 1901280,
+        "native_action_write_slot": 2438244,
+        "native_action_write_callback": 210240
       },
       "offsets": {
         "children": 2048,
@@ -137,7 +140,10 @@
         "selected_inventory": 2865524,
         "queue_mouse_move": 309024,
         "menu_corner": 2452264,
-        "menu_corner_rectangle": 2868448
+        "menu_corner_rectangle": 2868448,
+        "variable_set_value": 1913360,
+        "native_action_write_slot": 2446452,
+        "native_action_write_callback": 208784
       },
       "offsets": {
         "children": 2052,
@@ -210,7 +216,10 @@
         "selected_inventory": 2881372,
         "queue_mouse_move": 309216,
         "menu_corner": 2450400,
-        "menu_corner_rectangle": 2869304
+        "menu_corner_rectangle": 2869304,
+        "variable_set_value": 1968000,
+        "native_action_write_slot": 2481108,
+        "native_action_write_callback": 208992
       },
       "offsets": {
         "children": 2052,
@@ -283,7 +292,10 @@
         "selected_inventory": 2869652,
         "queue_mouse_move": 309264,
         "menu_corner": 2456352,
-        "menu_corner_rectangle": 2872576
+        "menu_corner_rectangle": 2872576,
+        "variable_set_value": 1914880,
+        "native_action_write_slot": 2450548,
+        "native_action_write_callback": 209040
       },
       "offsets": {
         "children": 2052,

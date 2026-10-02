@@ -79,6 +79,7 @@ void snapshot(Browser& state, bool reset, bool replacing_assets = false) {
         state.history.clear();
         state.views = {};
         state.database_pane = Pane::fields;
+        state.native_pane = Pane::fields;
         state.asset_panes.clear();
     }
     state.native = std::move(next);

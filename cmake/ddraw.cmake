@@ -19,6 +19,7 @@ ExternalProject_Add(cnc-ddraw
         "-DPATCH_FILE=${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-desktop.patch"
         "-DLOG_PATCH_FILE=${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-logs.patch"
         "-DDVD_PATCH_FILE=${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-dvd.patch"
+        "-DMONITOR_PATCH_FILE=${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-monitor.patch"
         -P "${CMAKE_SOURCE_DIR}/cmake/patch-ddraw.cmake"
     CONFIGURE_COMMAND ""
     BUILD_IN_SOURCE TRUE
@@ -33,6 +34,7 @@ ExternalProject_Add_StepDependencies(cnc-ddraw patch
     "${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-desktop.patch"
     "${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-logs.patch"
     "${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-dvd.patch"
+    "${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-monitor.patch"
     "${CMAKE_SOURCE_DIR}/cmake/patch-ddraw.cmake")
 
 add_custom_target(display-files ALL

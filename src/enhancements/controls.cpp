@@ -341,6 +341,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         transcript::update();
         update_autosave(window, dialog_open || text_entry_busy() || !game_is_foreground(window) ||
                                     transcript::active());
+        update_notification(window);
         if (saves::browser_active() || transcript::active()) {
             update_inventory_focus(window, false);
             update_settings_link(window, false);
@@ -350,7 +351,6 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             poll_controller(window);
             return 0;
         }
-        update_notification(window);
         const bool focused = game_is_foreground(window);
         update_inventory_focus(window, focused && !dialog_open && !text_entry_busy());
         update_settings_link(window, !IsIconic(window));

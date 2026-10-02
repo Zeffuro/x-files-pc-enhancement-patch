@@ -77,6 +77,7 @@ struct BrowserView {
     std::optional<std::size_t> offset;
     Pane pane = Pane::overview;
     Pane database_pane = Pane::fields;
+    Pane native_pane = Pane::fields;
     Pane asset_pane = Pane::overview;
     int sort_column = 0, top = 0;
     bool sort_descending = false, valid = false;
@@ -128,6 +129,7 @@ struct Browser {
     std::optional<std::filesystem::path> pending_asset;
     unsigned mode_index = 0, filter_index = 0;
     Pane database_pane = Pane::fields;
+    Pane native_pane = Pane::fields;
     bool rebuilding = false;
     std::optional<std::size_t> manual_offset;
     std::optional<std::pair<unsigned, std::uint64_t>> described;

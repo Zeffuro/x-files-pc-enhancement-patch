@@ -13,6 +13,13 @@ Run `python src/game/scripts/generate_profiles.py` after editing `profiles/build
 `build_for_hash` identifies an exact executable. Callers must check `Build::profile` before attaching native hooks. Layout views use profile offsets for known build differences. Add measured values only after validating the executable hash and layout. Exposed prefixes are not native allocation sizes.
 
 Profiles cover CD 1.00.12, CD 1.00.19, Japanese CD 1.00.20 and the DVD build.
+The inspector can observe cached variable actions through `native_action_write_slot`.
+Capture validates the original callback and exchanges one aligned vtable pointer.
+The observer preserves native arguments and the raw return value. Its module remains
+resident, and disabling capture leaves a forwarding callback. Records describe the
+value before and after an action, including any preparatory writes. They do not cover
+every variable writer, uncached target, load or intermediate value.
+
 Italian CDs share the CD 1.00.19 executable. Italian and Japanese editions have
 complete seven-disc setup catalogs. Japanese native resource strings use code page 932 to match
 the executable's Shift-JIS font selection. The other profiles use code page 1252.
@@ -71,6 +78,14 @@ accepts 2..1024 counted bytes of printable ASCII ending in NUL. Other names
 remain raw.
 Variable comparisons use class, ID and database identity across explicit refreshes.
 New, unreadable or ambiguous objects do not establish a change baseline.
+
+Game state editing uses the profiled `variable_set_value` scalar dispatcher.
+The verified stdcall takes an object, signed 32-bit value and reserved zero.
+Types 0, 1 and 2 preserve their native type and update dirty tracking, with signed
+byte, integer and Boolean values respectively. Other types and HDB definitions
+remain read-only. Editing requires a held snapshot and session opt-in, then checks
+the current context, unique cached identity and exact copied object before calling
+the setter. Names remain literal authoring text and do not establish game effects.
 
 VCTriggerList and VCActionList expose IDs from an already cached class-0x0b
 resource. VCTrigger links its action-list ID and labels type 8 as Object Activation.

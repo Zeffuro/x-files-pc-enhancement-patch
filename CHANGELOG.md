@@ -1,7 +1,18 @@
 # What's new
 
-## Unreleased
+## 0.4.0
 
+- A separate portable developer-tools download for browsing databases, saves
+  and assets without running the game.
+- A searchable database and asset browser with remembered views and detail tabs.
+- A searchable game-state view with snapshots, change filters and optional
+  guarded editing of supported live values.
+- Pinned state variables and optional change history with available native
+  action and caller details.
+- More reliable variable editing, ASCII character input and remembered database
+  detail tabs.
+- Window maximize and borderless switching stay on the current monitor, including
+  restoring after moving a maximized window to another monitor.
 - Five rolling autosaves during safe exploration, with a setting to turn them off.
 - Optional loading of the newest compatible manual, quick, auto or older save through
   the original Previous button at startup. Return resumes the current session during play.
@@ -10,6 +21,7 @@
   captions from the current play session.
 - A sliding in-game menu for Save, Load, Transcript, Tweaks and Menu, with native hover text
   and a setting to choose which items appear.
+- Settings organized into tabs, with controller remapping and stick calibration.
 
 ## 0.3.0
 

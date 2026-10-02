@@ -18,7 +18,7 @@ def main():
     source = Path(sys.argv[1]).resolve()
     revision = re.search(r"GIT_TAG ([0-9a-f]{40})", (ROOT / "cmake/ddraw.cmake").read_text())[1]
     patches = [ROOT / "patches" / f"cnc-ddraw-{name}.patch"
-               for name in ("desktop", "logs", "dvd")]
+               for name in ("desktop", "logs", "dvd", "monitor")]
     with tempfile.TemporaryDirectory(prefix="xfiles-ddraw-patch-") as temporary:
         work = Path(temporary) / "source"
         run("git", "clone", "--quiet", "--shared", "--no-checkout", str(source), str(work))
@@ -32,6 +32,7 @@ def main():
             run("git", "apply", "--numstat", str(crlf), cwd=work)
         command = ("cmake", f"-DSOURCE_DIR={work}", f"-DPATCH_FILE={patches[0]}",
                    f"-DLOG_PATCH_FILE={patches[1]}", f"-DDVD_PATCH_FILE={patches[2]}",
+                   f"-DMONITOR_PATCH_FILE={patches[3]}",
                    "-P", str(ROOT / "cmake/patch-ddraw.cmake"))
         run(*command)
         first = run("git", "diff", cwd=work)

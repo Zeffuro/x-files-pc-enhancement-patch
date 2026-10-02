@@ -1,4 +1,5 @@
 #include "inspector_internal.h"
+#include "state_capture.h"
 #include "subtitle_editor.h"
 #include "database/browser.h"
 #include "enhancements/game_ui.h"
@@ -31,10 +32,26 @@ LRESULT CALLBACK child_keys(HWND window, UINT message, WPARAM key, LPARAM data, 
         copy_state_item(window);
         return 0;
     }
+    if (message == WM_KEYDOWN && window == state.state_variables && key == 'C' &&
+        (GetKeyState(VK_CONTROL) & 0x8000)) {
+        copy_state_variable(window, state.state_variable_view, state.snapshot);
+        return 0;
+    }
+    if (message == WM_KEYDOWN && window == state.state_history_list && key == 'C' &&
+        (GetKeyState(VK_CONTROL) & 0x8000)) {
+        copy_state_history(true);
+        return 0;
+    }
+    if (message == WM_KEYDOWN && state.showing_state && key == 'F' &&
+        (GetKeyState(VK_CONTROL) & 0x8000)) {
+        SetFocus(state.state_search);
+        SendMessageW(state.state_search, EM_SETSEL, 0, -1);
+        return 0;
+    }
     return DefSubclassProc(window, message, key, data);
 }
 
-HWND child(const wchar_t* type, const wchar_t* caption, DWORD style = 0, int id = 0) {
+HWND child(const wchar_t* type, const wchar_t* caption, DWORD style, int id) {
     const auto control =
         CreateWindowExW(0, type, caption, WS_CHILD | WS_VISIBLE | style, 0, 0, 1, 1, state.window,
                         reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), state.module, nullptr);
@@ -71,11 +88,7 @@ void layout() {
     MoveWindow(state.compact, split - 128, 130, 128, 28, TRUE);
     MoveWindow(state.coverage, 20, 164, split - 20, 220, TRUE);
     MoveWindow(state.list, 20, 200, split - 20, height - 254, TRUE);
-    MoveWindow(state.refresh, 20, 66, 130, 30, TRUE);
-    MoveWindow(state.state_snapshot, 156, 66, 140, 30, TRUE);
-    MoveWindow(state.hotspots, 308, 66, 220, 30, TRUE);
-    MoveWindow(state.state_search, 540, 66, std::max(80, width - 560), 30, TRUE);
-    MoveWindow(state.state_text, 20, 108, width - 40, height - 162, TRUE);
+    layout_state_controls(width, height);
     const int title_left = std::max(right, 620);
     MoveWindow(state.title, title_left, 20, width - title_left - 20, 32, TRUE);
     MoveWindow(state.preview, right, 66, detail_width, 180, TRUE);
@@ -118,20 +131,7 @@ void create_controls() {
                              BS_PUSHLIKE | BS_AUTORADIOBUTTON | WS_TABSTOP, game_state_id);
     state.database_button = child(L"BUTTON", L"Database && assets",
                                   BS_PUSHLIKE | BS_AUTORADIOBUTTON | WS_TABSTOP, database_id);
-    state.refresh = child(L"BUTTON", L"Live updates", BS_AUTOCHECKBOX | WS_TABSTOP, refresh_id);
-    SendMessageW(state.refresh, BM_SETCHECK, BST_CHECKED, 0);
-    state.state_snapshot =
-        child(L"BUTTON", L"Refresh snapshot", BS_PUSHBUTTON | WS_TABSTOP, state_snapshot_id);
-    state.state_search =
-        child(L"EDIT", L"", ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP, state_search_id);
-    SendMessageW(state.state_search, EM_SETCUEBANNER, TRUE,
-                 reinterpret_cast<LPARAM>(L"Search state name or value"));
-    state.hotspots =
-        child(L"BUTTON", L"Show interaction targets", BS_AUTOCHECKBOX | WS_TABSTOP, hotspots_id);
-    state.state_text = child(WC_TREEVIEWW, L"Game state",
-                             WS_BORDER | WS_TABSTOP | TVS_HASBUTTONS | TVS_LINESATROOT |
-                                 TVS_SHOWSELALWAYS | TVS_FULLROWSELECT);
-    TreeView_SetBkColor(state.state_text, GetSysColor(COLOR_BTNFACE));
+    create_state_controls();
     state.filenames = child(L"BUTTON", L"Filename", BS_AUTOCHECKBOX | WS_TABSTOP, filename_id);
     state.labels = child(L"BUTTON", L"Labels", BS_AUTOCHECKBOX | WS_TABSTOP, labels_id);
     state.notes_search = child(L"BUTTON", L"Notes", BS_AUTOCHECKBOX | WS_TABSTOP, notes_search_id);
@@ -245,9 +245,6 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             platform::tool_cursor(state.game, true);
         }
         if (message == WM_ACTIVATE) {
-            if (LOWORD(value) != WA_INACTIVE) {
-                show_hotspots(state.game, false, {});
-            }
             platform::tool_cursor(state.game, LOWORD(value) != WA_INACTIVE);
         }
         if (message == WM_SIZE) {
@@ -361,13 +358,8 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
                 }
                 populate();
             }
-            if (id == refresh_id || id == state_snapshot_id) {
-                state.snapshot = inspect_game();
-                state.state_updated = GetTickCount64();
-                update_game_state_view();
-            }
-            if (id == state_search_id && event == EN_CHANGE) {
-                update_game_state_view();
+            if (state_command(id, event)) {
+                return 0;
             }
             if (id == captions_id && SendMessageW(state.captions, BM_GETCHECK, 0, 0)) {
                 start_caption_index();
@@ -403,6 +395,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
                     show_view();
                     if (state.showing_state) {
                         state.snapshot = inspect_game();
+                        collect_state_history(state.state_history, state.snapshot, true);
                         state.state_updated = GetTickCount64();
                         update_game_state_view();
                     } else if (!state.showing_database) {
@@ -426,6 +419,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         }
         if (message == WM_NOTIFY && !state.rebuilding) {
             const auto* change = reinterpret_cast<NMLISTVIEW*>(data);
+            if (state_notify(*change)) {
+                return 0;
+            }
             if (change->hdr.hwndFrom == state.list && change->hdr.code == LVN_ITEMCHANGING &&
                 (change->uNewState & LVIS_SELECTED) && !(change->uOldState & LVIS_SELECTED)) {
                 if (!leave_notes()) {
@@ -445,6 +441,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             return 0;
         }
         if (message == WM_DESTROY) {
+            release_state_capture();
             state.player.reset();
             state.caption_index.reset();
             state.artwork.reset();

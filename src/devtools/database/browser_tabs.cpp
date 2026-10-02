@@ -19,6 +19,8 @@ void select_pane(Browser& state, Pane pane) {
             if (const auto* row = selected_row(state)) {
                 if (state.mode_index == 7) {
                     state.database_pane = pane;
+                } else if (native_mode(state) && row->object) {
+                    state.native_pane = pane;
                 } else if (state.mode_index == 6 && row->asset) {
                     state.asset_panes[state.assets.assets[*row->asset].type] = pane;
                 }
@@ -71,6 +73,9 @@ void configure_tabs(Browser& state) {
         }
     }
     auto preferred = state.mode_index == 7 && row ? state.database_pane : previous;
+    if (native_mode(state) && row && row->object) {
+        preferred = state.native_pane;
+    }
     if (state.mode_index == 6 && asset) {
         const auto saved = state.asset_panes.find(asset->type);
         preferred = saved != state.asset_panes.end() ? saved->second : Pane::overview;

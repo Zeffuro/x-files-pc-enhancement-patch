@@ -7,13 +7,17 @@ Supports English PC CD/DVD and German, French, Spanish, Italian and Japanese PC 
 You need your own copy of the game.
 
 [Download](https://github.com/Zeffuro/x-files-pc-enhancement-patch/releases) ·
-[Controls and settings](docs/controls.md) · [What's new](CHANGELOG.md) · [Building](docs/building.md)
+[Controls and settings](docs/controls.md) · [Developer tools](docs/developer-tools.md) · [What's new](CHANGELOG.md) · [Building](docs/building.md)
 
 Trying Wine, Steam Proton or Lutris? See [Linux instructions](docs/linux.md).
 
 **Early release. A full playthrough hasn't been tested.**
 
 ## Install
+
+Choose the **xfiles-enhancement** ZIP to install or update the game patch.
+The **xfiles-devtools** ZIP is a separate portable browser for your own game
+databases, saves and assets. See [Developer tools](docs/developer-tools.md).
 
 1. Extract the release ZIP and run **XFilesSetup.exe**.
 2. Choose **Image...** for a DVD image, or **Folder...** for game files or a folder

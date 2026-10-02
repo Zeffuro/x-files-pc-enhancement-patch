@@ -11,6 +11,9 @@
 | F9 | Quick-load during exploration or from the main menu |
 | Hold backtick | Fast-forward a movie |
 
+Maximizing the game or pressing Alt+Enter keeps it on its current monitor.
+Switching back from borderless restores the previous window position and size.
+
 Close movies, conversations and device screens before saving or loading.
 Loading replaces your current progress.
 
@@ -206,75 +209,8 @@ and timing against its audio. The patch doesn't include translations.
 
 ## Developer tools
 
-Press **Ctrl+F11**, use **F10 → Tools**, or right-click the game's title bar and
-choose **Developer tools**.
-
-- **Live movies** shows clips currently open in the game.
-- **Library** lets you browse clips, filter by place or captions, and search text.
-  Expand the tree below the preview to see clip details, authoring labels and playback information.
-- **Play preview** plays a clip independently of the game.
-- **Subtitles** lets you edit captions, set their timing and move between clips.
-  Edits appear in the preview as you type. **Save** applies them without restarting.
-- **Your label** and **Your notes** let you describe clips in your own words.
-- **Game state** shows copied game values, named story variables and inventory.
-  Search a name or value. Clear **Live updates** to hold the snapshot, then use
-  **Refresh snapshot** to capture it again. Variables named `WhereAreWe` keep their
-  original names and raw values. They do not identify your current location.
-  **Show interaction targets** marks places the player can interact with.
-- **Database & assets** browses database records, files, media labels and native reads.
-  **Database tables** and **Asset files** on the left choose what you are browsing.
-  Record types and counts stay visible on the left. Select a type to browse its records
-  and read what it is used for. **Database overview** restores the complete list and file overview.
-  Select a record, then inspect **Overview**, **Fields**, **Links** or **Raw bytes**.
-  **Fields** puts values beside explanations. Select a field to read the full value
-  and meaning below the table. Unknown meanings are identified. **Copy table** copies
-  the displayed fields for pasting into a spreadsheet.
-  Scroll through the complete list. Search and sorting cover all records in the chosen view.
-  Each view remembers its search, filter, selection and detail tab.
-  Press **Ctrl+F** within the browser to focus search and select the current query.
-  Double-click a link or press **Enter** to follow it. **Back** restores the previous view and record.
-  Choose **Asset files** to browse installed files and referenced missing files. **Open preview**
-  opens supported media in the Library. **Auto-refresh** updates cached fields every
-  two seconds. Use **Refresh** to rescan files or before and after a game action,
-  then select **Changed variables** to compare values. Database browsing is read-only.
-  **Database tables** also exposes definitions that the game has not cached. These show
-  saved definitions and decoded fields rather than current runtime values.
-  Select an action or trigger list to see its ordered IDs on **Overview** and follow
-  available records on **Links**.
-  Stored actions show their encoded conditions and supported Statements. Search
-  their operands or follow available variable definitions on **Links**.
-
-To browse without running the game, open **xfiles-devtools.exe** from the patch folder.
-Choose **Open folder...** for extracted assets, even without an HDB, or **Open file...**
-for an HDB, GAM, saved game (`.x`), PFF or individual asset. You can also drop a folder
-or file onto the executable. Both pickers start in the current source folder.
-The standalone browser includes stored records, media labels, text candidates and assets.
-Select a text candidate and open **Text** to read its source with line breaks.
-Candidates can include incomplete HTML or unused text. They are unverified fragments.
-Choose **Assets** to browse game media, data, fonts and localization DLLs. Use the format
-filter or search a filename. Tabs follow the selection. XT text files have a **Read text**
-button and a **Text** tab. **Show font** displays a sample of a TTR or TTF font.
-GAM files and saved games show stored records and variable names and values.
-Choose **Assets → Localization**, select a DLL and choose **Show strings** to browse
-its text. Use the filter in the **Strings** tab to find text, a resource ID or a
-language ID. Select a row to read it or choose **Copy full string**. Unusually long
-strings have a shortened preview. Copied text includes the complete string, with
-control characters shown as escapes.
-**Raw bytes** shows the start of any asset file.
-Select a `.HOT` asset to inspect its clickable rectangles and action IDs, or follow
-its matching media file on **Links**. **Open preview** starts supported media paused.
-For `.PFF` files, use **Assets → Image archives**, select a file and choose **Open archive**.
-Opening a PFF directly also opens its image browser. **Export asset...** saves PNG images
-or original PICT data. **Import asset...** replaces the selected entry in memory.
-**Save archive copy...** saves to a new filename and keeps the installed archive unchanged.
-PNG imports currently need an opaque background.
-
-Use **Fit** to fill the preview area or **Actual size** to view one image pixel per screen
-pixel. Larger images can be scrolled. NMV previews include **Previous**, **Next** and a
-frame list for browsing their still images. Choose a video track to see its frames.
-Selecting a frame pauses playback.
-Sound-only captions are not supported yet.
-For game structures and file details, see [the technical reference](../src/game/README.md).
+Press **Ctrl+F11** or open **F10 → Tools**. See [Developer tools](developer-tools.md)
+for movie previews, state editing, watches, change history and database/asset browsing.
 
 ## Bug reports
 

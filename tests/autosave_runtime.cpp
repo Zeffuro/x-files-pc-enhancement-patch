@@ -42,6 +42,7 @@ std::string native_name;
 std::wstring notification;
 unsigned serialized = 0, published = 0, previews = 0, quick_records = 0, dialogs = 0;
 unsigned native_loads = 0;
+unsigned script_reads = 0;
 
 std::string bytes(const fs::path& path) {
     std::ifstream input(path, std::ios::binary);
@@ -190,6 +191,7 @@ std::vector<RECT> emotion_targets() {
 }
 
 ScriptControls script_controls() {
+    ++script_reads;
     return controls;
 }
 
@@ -365,7 +367,13 @@ void check_reparse_directory() {
 int main() {
     try {
         Fixture fixture;
+        script_reads = 0;
         require(enhancements::safe_save_available(), "Safe exploration was unavailable");
+        require(script_reads == 1, "Safe-save eligibility rescanned native script controls");
+        controls.text_input = true;
+        require(!enhancements::safe_save_available(),
+                "Safe-save eligibility reused stale controls");
+        controls.text_input = false;
         stable_update();
         require(serialized == 1 && published == 1 && previews == 1 &&
                     notification == L"Autosave complete" && native_contract,

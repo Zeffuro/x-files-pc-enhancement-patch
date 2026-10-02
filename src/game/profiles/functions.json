@@ -130,6 +130,16 @@
       "field": "queue_mouse_move",
       "role": "Queue a native pointer update",
       "abi": "__stdcall(void*, const Point*, const Point*)"
+    },
+    {
+      "field": "variable_set_value",
+      "role": "Set a cached scalar variable and mark native state dirty",
+      "abi": "__stdcall(void*, int32, int reserved_zero)"
+    },
+    {
+      "field": "native_action_write_callback",
+      "role": "Dispatch a runtime action with variable arithmetic and assignment",
+      "abi": "__stdcall(void* runtime_action, void* context, void* output)"
     }
   ]
 }

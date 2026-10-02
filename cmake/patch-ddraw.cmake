@@ -1,6 +1,6 @@
 find_package(Git REQUIRED)
 
-foreach(current_patch IN ITEMS "${PATCH_FILE}" "${LOG_PATCH_FILE}" "${DVD_PATCH_FILE}")
+foreach(current_patch IN ITEMS "${PATCH_FILE}" "${LOG_PATCH_FILE}" "${DVD_PATCH_FILE}" "${MONITOR_PATCH_FILE}")
     execute_process(
         COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${current_patch}"
         WORKING_DIRECTORY "${SOURCE_DIR}"
