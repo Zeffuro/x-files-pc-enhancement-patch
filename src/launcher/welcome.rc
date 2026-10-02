@@ -1,6 +1,6 @@
 #include <windows.h>
 
-115 DIALOGEX 0, 0, 390, 409
+115 DIALOGEX 0, 0, 390, 444
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "The X-Files enhancements"
 FONT 9, "Segoe UI"
@@ -30,6 +30,8 @@ BEGIN
     AUTOCHECKBOX "Save browser with thumbnails", 2105, 20, 325, 354, 16
     AUTOCHECKBOX "Dialogue transcript", 2116, 20, 342, 354, 16
     AUTOCHECKBOX "Quick menu", 2117, 20, 359, 354, 16
-    PUSHBUTTON "Not now", IDCANCEL, 186, 384, 90, 20
-    DEFPUSHBUTTON "Start game", IDOK, 284, 384, 90, 20
+    AUTOCHECKBOX "Rolling safe autosaves", 2118, 20, 376, 354, 16
+    AUTOCHECKBOX "Previous loads latest save at startup", 2119, 20, 393, 354, 16
+    PUSHBUTTON "Not now", IDCANCEL, 186, 419, 90, 20
+    DEFPUSHBUTTON "Start game", IDOK, 284, 419, 90, 20
 END

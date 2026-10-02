@@ -59,7 +59,9 @@ BrowserText english() {
             L"Cannot read save",
             L"No preview",
             L"Keep playing",
-            L"Load now"};
+            L"Load now",
+            L"Quicksave",
+            L"Autosaves"};
 }
 
 BrowserText french() {
@@ -87,7 +89,9 @@ BrowserText french() {
             L"Partie illisible",
             L"Aucun aperçu",
             L"Continuer",
-            L"Charger"};
+            L"Charger",
+            L"Sauvegarde rapide",
+            L"Sauvegardes auto"};
 }
 
 BrowserText italian() {
@@ -115,7 +119,9 @@ BrowserText italian() {
             L"Partita illeggibile",
             L"Nessuna anteprima",
             L"Continua",
-            L"Carica"};
+            L"Carica",
+            L"Salvataggio rapido",
+            L"Salvataggi auto"};
 }
 
 BrowserText japanese() {
@@ -143,7 +149,9 @@ BrowserText japanese() {
             L"読み込めません",
             L"プレビューなし",
             L"続ける",
-            L"ロード"};
+            L"ロード",
+            L"クイックセーブ",
+            L"オートセーブ"};
 }
 
 BrowserText german() {
@@ -171,7 +179,9 @@ BrowserText german() {
             L"Spielstand unlesbar",
             L"Keine Vorschau",
             L"Weiterspielen",
-            L"Jetzt laden"};
+            L"Jetzt laden",
+            L"Schnellspeichern",
+            L"Autospeicherstände"};
 }
 
 BrowserText spanish() {
@@ -199,7 +209,9 @@ BrowserText spanish() {
             L"No se puede leer",
             L"Sin vista previa",
             L"Continuar",
-            L"Cargar ahora"};
+            L"Cargar ahora",
+            L"Guardado rápido",
+            L"Guardados auto"};
 }
 }
 

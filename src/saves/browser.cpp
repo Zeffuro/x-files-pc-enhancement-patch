@@ -1,5 +1,6 @@
 #include "browser.h"
 #include "browser_state.h"
+#include "recent.h"
 #include "artwork.h"
 #include "enhancements/game_ui.h"
 #include "enhancements/quick_save.h"
@@ -10,6 +11,7 @@
 #include "settings.h"
 #include "playback/inspection.h"
 #include <algorithm>
+#include <cwctype>
 
 namespace saves {
 namespace {
@@ -48,17 +50,7 @@ void select(unsigned index) {
 }
 
 void change_page(int direction) {
-    const auto pages = browser->existing
-                           ? std::max<std::size_t>(1, (browser->legacy.entries.size() + 5) / 6)
-                           : slot_pages;
-    const auto count = static_cast<int>(pages);
-    const auto page = direction <= -static_cast<int>(slot_pages) ? 0
-                      : direction >= static_cast<int>(slot_pages)
-                          ? count - 1
-                          : (static_cast<int>(browser->page) + direction + count) % count;
-    browser->page = static_cast<unsigned>(page);
-    load_browser_page(*browser);
-    browser->status.clear();
+    change_browser_page(*browser, direction);
 }
 
 void open(bool saving) {
@@ -76,6 +68,15 @@ void open(bool saving) {
     state->scene = last_scene;
     state->scene_reference = last_reference;
     state->legacy = read_catalog(state->root);
+    std::erase_if(state->legacy.entries, [](const Entry& entry) {
+        auto name = entry.path.filename().wstring();
+        std::transform(name.begin(), name.end(), name.begin(), std::towlower);
+        return name == L"quicksave.x" || name == L"quicksave.previous.x";
+    });
+    if (!saving) {
+        state->quicksaves = read_quicksaves(state->root);
+        state->autosaves = read_autosaves(state->root);
+    }
     load_browser_art(*state);
     load_browser_page(*state);
     draw_browser(*state);
@@ -88,6 +89,9 @@ void open(bool saving) {
 void commit(HWND window) {
     const auto state = browser;
     const auto chosen = state->slots[state->selection];
+    if ((state->saving || state->deleting) && state->category != BrowserCategory::manual) {
+        return;
+    }
     if (state->deleting && state->confirm) {
         delete_slot(state->root, chosen.number);
         load_browser_page(*state);
@@ -205,9 +209,7 @@ void action(HWND window, int item) {
     } else if (item == 6 || item == 7) {
         change_page(item == 6 ? -1 : 1);
     } else if (item == 8 && !browser->saving) {
-        browser->existing = !browser->existing;
-        browser->page = 0;
-        load_browser_page(*browser);
+        cycle_browser_category(*browser);
     } else if (item == 9 && browser->saving) {
         browser->naming = true;
         browser->keyboard = true;
@@ -250,6 +252,14 @@ void paste(HWND window) {
 
 bool browser_active() {
     return browser != nullptr;
+}
+
+Thumbnail browser_scene_thumbnail() {
+    return last_scene;
+}
+
+SceneReference browser_scene_reference() {
+    return last_reference;
 }
 
 bool show_browser(bool saving) {

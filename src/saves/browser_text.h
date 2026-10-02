@@ -10,6 +10,7 @@ struct BrowserText {
     std::wstring overwrite_prompt, load_warning, done, clear, space, backspace;
     std::wstring existing, numbered, page, saved, save, load, cancel;
     std::wstring unreadable, no_preview, keep_playing, load_now;
+    std::wstring quicksave, autosaves;
 };
 
 BrowserText load_browser_text(const std::filesystem::path& game);

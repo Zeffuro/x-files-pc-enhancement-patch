@@ -4,6 +4,91 @@
 #include <fstream>
 #include <iostream>
 
+namespace {
+void check_categories(saves::Browser& state) {
+    state.saving = false;
+    state.page = saves::slot_pages - 1;
+    state.selection = 4;
+    for (unsigned i = 0; i < 7; ++i) {
+        state.legacy.entries.push_back({state.root / (std::to_wstring(i) + L".x"),
+                                        L"Existing " + std::to_wstring(i),
+                                        L"date",
+                                        {},
+                                        0,
+                                        true});
+    }
+    state.quicksaves = {
+        {0, L"Quick", L"date", state.root / L"QUICK.x", {}, true, true},
+        {0, L"Previous quick", L"date", state.root / L"QUICK.old.x", {}, true, true}};
+    for (unsigned i = 0; i < 5; ++i) {
+        state.autosaves.push_back({0,
+                                   L"Auto " + std::to_wstring(i),
+                                   L"date",
+                                   state.root / (L"AUTO" + std::to_wstring(i) + L".x"),
+                                   {},
+                                   true,
+                                   i != 4});
+    }
+    saves::cycle_browser_category(state);
+    test::require(state.category == saves::BrowserCategory::existing && state.page == 0 &&
+                      state.focus == 8 && saves::browser_page_count(state) == 2 &&
+                      state.slots[0].name == L"Existing 0",
+                  "Existing category inherited the manual page or lost category focus");
+    saves::change_browser_page(state, 1);
+    state.selection = 0;
+    test::require(state.page == 1 && state.slots[0].name == L"Existing 6" &&
+                      !state.slots[1].occupied && !saves::control_enabled(state, 12),
+                  "Existing page reused a card or enabled removal");
+    saves::cycle_browser_category(state);
+    test::require(state.category == saves::BrowserCategory::quicksave && state.page == 0 &&
+                      state.slots[0].name == L"Quick" && state.slots[1].name == L"Previous quick" &&
+                      !state.slots[2].occupied && !saves::control_enabled(state, 12) &&
+                      !saves::control_enabled(state, 9),
+                  "Quicksave cards were mixed with existing files or made writable");
+    saves::change_browser_page(state, 1);
+    test::require(state.page == 0, "Quicksave navigation created another page");
+    saves::cycle_browser_category(state);
+    state.selection = 4;
+    state.focus = 4;
+    test::require(state.category == saves::BrowserCategory::autosaves &&
+                      state.slots[0].name == L"Auto 0" && state.slots[4].name == L"Auto 4" &&
+                      !state.slots[5].occupied && !saves::control_enabled(state, 11) &&
+                      !saves::control_enabled(state, 12),
+                  "Autosave order, read-only controls or unreadable load handling failed");
+    saves::cycle_browser_focus(state, 1);
+    test::require(saves::control_enabled(state, state.focus),
+                  "Focus moved onto a disabled autosave action");
+    state.confirm = true;
+    const auto category = state.category;
+    saves::cycle_browser_category(state);
+    test::require(state.category == category, "Confirmation allowed a category change");
+    state.confirm = false;
+    saves::cycle_browser_category(state);
+    test::require(state.category == saves::BrowserCategory::manual &&
+                      state.page == saves::slot_pages - 1 && state.selection == 4 &&
+                      state.focus == 8 && state.slots[4].number == 599,
+                  "Manual page and selection were not restored after category cycling");
+    saves::cycle_browser_category(state);
+    test::require(state.page == 1 && state.selection == 0 && state.slots[0].name == L"Existing 6",
+                  "Existing category did not restore its own page and selection");
+    state.saving = true;
+    saves::load_browser_page(state);
+    saves::cycle_browser_category(state);
+    test::require(state.category == saves::BrowserCategory::manual &&
+                      !saves::control_enabled(state, 8) && saves::control_enabled(state, 9),
+                  "Saving browser allowed a non-manual category");
+    state.slots[state.selection].occupied = true;
+    test::require(saves::control_enabled(state, 12) && saves::control_enabled(state, 11),
+                  "Manual save controls lost overwrite or removal access");
+    state.page = state.selection = 0;
+    state.focus = 0;
+    state.legacy = {};
+    state.quicksaves.clear();
+    state.autosaves.clear();
+    state.positions = {};
+}
+}
+
 int wmain(int argc, wchar_t** argv) {
     try {
         saves::Browser state;
@@ -30,6 +115,9 @@ int wmain(int argc, wchar_t** argv) {
         state.root = argc > 1 ? std::filesystem::path(argv[1])
                               : std::filesystem::temp_directory_path() /
                                     (L"xfiles-browser-" + std::to_wstring(GetCurrentProcessId()));
+        if (argc == 1) {
+            check_categories(state);
+        }
         const RECT bounds{0, 0, 640, 480};
         FillRect(state.background.dc, &bounds, static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
         if (argc > 1) {

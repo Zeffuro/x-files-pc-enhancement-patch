@@ -5,7 +5,7 @@
 bool show_welcome(const std::filesystem::path& directory);
 
 struct WelcomeChoices {
-    std::array<bool, 12> enabled{};
+    std::array<bool, 14> enabled{};
     unsigned movie_speed = 2;
     unsigned captions = 0;
     unsigned movie_colors = 0;

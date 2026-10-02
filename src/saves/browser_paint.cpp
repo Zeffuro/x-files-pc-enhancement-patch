@@ -137,12 +137,17 @@ Canvas::~Canvas() {
 }
 
 void load_browser_page(Browser& state) {
+    if (state.saving) {
+        state.category = BrowserCategory::manual;
+    }
+    state.page = std::min(state.page, browser_page_count(state) - 1);
+    state.selection = std::min(state.selection, slots_per_page - 1);
     state.preview.reset();
     state.preview_slot = -1;
     state.preview_failed = false;
     state.hover = -1;
     for (unsigned i = 0; i < slots_per_page; ++i) {
-        if (state.existing) {
+        if (state.category == BrowserCategory::existing) {
             state.slots[i] = {};
             const auto index = state.page * slots_per_page + i;
             if (index < state.legacy.entries.size()) {
@@ -150,14 +155,24 @@ void load_browser_page(Browser& state) {
                 state.slots[i] = {0,  entry.name, entry.modified,        entry.path,
                                   {}, true,       entry.header_supported};
             }
-        } else {
+        } else if (state.category == BrowserCategory::manual) {
             state.slots[i] = read_slot(state.root, state.page * slots_per_page + i + 1);
+        } else {
+            const auto& recent =
+                state.category == BrowserCategory::quicksave ? state.quicksaves : state.autosaves;
+            const auto index = state.page * slots_per_page + i;
+            state.slots[i] = index < recent.size() ? recent[index] : Slot{};
         }
         state.thumbnails[i] = read_thumbnail(state.slots[i].thumbnail);
     }
     state.name = state.slots[state.selection].name;
     state.confirm = false;
     state.naming = false;
+    state.deleting = false;
+    state.keyboard = false;
+    if (!control_enabled(state, state.focus)) {
+        state.focus = static_cast<int>(state.selection);
+    }
 }
 
 void load_browser_art(Browser& state) {
@@ -238,29 +253,30 @@ void draw_browser(Browser& state) {
             vignette(state.output, state.scratch, preview, state.thumbnails[i], selected);
         }
         if (!slot.occupied) {
-            text(dc, preview, state.existing ? L"" : words.empty,
-                 selected ? RGB(160, 200, 217) : RGB(71, 112, 132), DT_CENTER);
+            text(dc, preview, words.empty, selected ? RGB(160, 200, 217) : RGB(71, 112, 132),
+                 DT_CENTER);
         }
         const auto title =
-            state.existing ? slot.name
-                           : (slot.name.empty() ? words.slot + L" " + std::to_wstring(slot.number)
-                                                : slot.name);
+            state.category != BrowserCategory::manual
+                ? slot.name
+                : (slot.name.empty() ? words.slot + L" " + std::to_wstring(slot.number)
+                                     : slot.name);
         text(dc, {box.left, box.top + 82, box.right, box.top + 98}, title, RGB(170, 195, 206),
              DT_CENTER);
         text(dc, {box.left, box.top + 98, box.right, box.bottom},
              slot.occupied && !slot.readable ? words.unreadable : slot.date, RGB(113, 157, 176),
              DT_CENTER);
     }
-    const auto pages = state.existing
-                           ? std::max<std::size_t>(1, (state.legacy.entries.size() + 5) / 6)
-                           : slot_pages;
+    const auto pages = browser_page_count(state);
     button(dc, control_rect(6), L"< " + words.previous, state.focus == 6);
     button(dc, control_rect(7), words.next + L" >", state.focus == 7);
     text(dc, {250, 78, 390, 94}, std::to_wstring(state.page + 1) + L" / " + std::to_wstring(pages),
          RGB(85, 135, 158), DT_CENTER);
     if (!state.saving) {
-        button(dc, control_rect(8), state.existing ? words.numbered : words.existing,
-               state.focus == 8);
+        const std::array<std::wstring, 4> categories{words.numbered, words.existing,
+                                                     words.quicksave, words.autosaves};
+        button(dc, control_rect(8), categories[static_cast<unsigned>(state.category)] + L" >",
+               state.focus == 8, control_enabled(state, 8));
     } else {
         text(dc, {104, 373, 160, 395}, words.name, RGB(82, 135, 157));
         const auto field = control_rect(9);

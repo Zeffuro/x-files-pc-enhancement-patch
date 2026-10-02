@@ -239,6 +239,10 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                            settings().skip_menu_animation ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_SAVE_BROWSER,
                            settings().save_browser ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(window, IDC_AUTOSAVES,
+                           settings().autosaves ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(window, IDC_CONTINUE_LATEST,
+                           settings().continue_latest ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_DIALOGUE_TRANSCRIPT,
                            settings().dialogue_transcript ? BST_CHECKED : BST_UNCHECKED);
             state->tabs.initialize(window);
@@ -389,6 +393,8 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                 IsDlgButtonChecked(window, IDC_SKIP_LOGIN) == BST_CHECKED;
             value.skip_menu_animation = IsDlgButtonChecked(window, IDC_SKIP_MENU) == BST_CHECKED;
             value.save_browser = IsDlgButtonChecked(window, IDC_SAVE_BROWSER) == BST_CHECKED;
+            value.autosaves = IsDlgButtonChecked(window, IDC_AUTOSAVES) == BST_CHECKED;
+            value.continue_latest = IsDlgButtonChecked(window, IDC_CONTINUE_LATEST) == BST_CHECKED;
             value.dialogue_transcript =
                 IsDlgButtonChecked(window, IDC_DIALOGUE_TRANSCRIPT) == BST_CHECKED;
             value.quick_menu = state->draft.quick_menu;

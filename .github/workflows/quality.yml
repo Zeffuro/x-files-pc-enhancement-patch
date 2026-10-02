@@ -37,6 +37,8 @@ jobs:
           g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_object_list.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_asset_list.cpp -o /tmp/xfiles-asset-checks/object-list
           /tmp/xfiles-asset-checks/object-list
           mkdir -p /tmp/xfiles-checks
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/autosave_state.cpp -o /tmp/xfiles-checks/autosave-state
+          /tmp/xfiles-checks/autosave-state
           g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/controller_profile_portable.cpp -o /tmp/xfiles-checks/controller-profile
           /tmp/xfiles-checks/controller-profile
           g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/transcript_history.cpp -o /tmp/xfiles-checks/transcript-history

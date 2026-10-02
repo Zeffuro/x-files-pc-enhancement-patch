@@ -17,6 +17,8 @@
 #include "ui/controller_hints.h"
 #include "text_entry.h"
 #include "quick_save.h"
+#include "autosave.h"
+#include "ui/continue_menu.h"
 #include "ui/notification.h"
 #include "settings.h"
 #include "devtools/inspector.h"
@@ -166,6 +168,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         if (injected_left) {
             cancel_controller_inventory_click();
         }
+        return 0;
+    }
+    if (!dialog_open && !text_entry_busy() && continue_message(window, message, value, data)) {
         return 0;
     }
     if (!dialog_open && !text_entry_busy() &&
@@ -334,6 +339,8 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         saves::update_browser(window);
         quick_menu::update(!dialog_open && !text_entry_busy() && game_is_foreground(window));
         transcript::update();
+        update_autosave(window, dialog_open || text_entry_busy() || !game_is_foreground(window) ||
+                                    transcript::active());
         if (saves::browser_active() || transcript::active()) {
             update_inventory_focus(window, false);
             update_settings_link(window, false);
@@ -470,6 +477,8 @@ void detach_controls() {
     devtools::release_inspector();
     detach_modal_input();
     release_settings_link();
+    release_continue_menu();
+    release_autosave();
     release_text_entry();
     release_highlight();
     release_controller_hints();

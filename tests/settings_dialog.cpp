@@ -56,6 +56,8 @@ bool nested_accept = false;
 unsigned outer_count = 0, nested_count = 0;
 controller::Profile expected, next;
 bool preview = false;
+bool next_continue = false;
+bool next_autosaves = false;
 
 void CALLBACK preview_close(HWND window, UINT, UINT_PTR timer, DWORD) {
     KillTimer(window, timer);
@@ -117,6 +119,13 @@ LRESULT CALLBACK initialized_dialog(int code, WPARAM parameter, LPARAM data) {
                 CheckDlgButton(window, IDC_GAMEPAD, BST_UNCHECKED);
                 SetDlgItemInt(window, IDC_CAPTION_SCALE, 142, FALSE);
                 CheckDlgButton(window, IDC_SKIP_LOGIN, BST_CHECKED);
+                require((IsDlgButtonChecked(window, IDC_CONTINUE_LATEST) == BST_CHECKED) ==
+                                settings().continue_latest &&
+                            IsWindowEnabled(GetDlgItem(window, IDC_CONTINUE_LATEST)),
+                        "Startup Return did not load its independent setting.");
+                CheckDlgButton(window, IDC_AUTOSAVES, next_autosaves ? BST_CHECKED : BST_UNCHECKED);
+                CheckDlgButton(window, IDC_CONTINUE_LATEST,
+                               next_continue ? BST_CHECKED : BST_UNCHECKED);
                 SendMessageW(window, WM_COMMAND, IDC_CONFIGURE_CONTROLLER, 0);
                 require(settings().controller_profile == expected,
                         "Nested OK published its profile before outer OK.");
@@ -174,6 +183,8 @@ void show(bool accept_outer, bool accept_nested, const controller::Profile& edit
 
 void verify_transactions() {
     const auto path = executable_path().parent_path() / L"patch.ini";
+    require(read_settings(path).continue_latest,
+            "Missing startup Return setting did not default to enabled.");
     Settings original;
     original.controller_profile.deadzone = 9000;
     save_settings(original);
@@ -187,12 +198,14 @@ void verify_transactions() {
     edited.invert_y = true;
     show(false, true, edited);
     require(bytes(path) == before && settings().controller_profile == original.controller_profile &&
-                settings().gamepad && settings().caption_style.scale == 100,
+                settings().gamepad && settings().caption_style.scale == 100 &&
+                settings().autosaves && settings().continue_latest,
             "Outer Cancel persisted nested OK or hidden-page edits.");
     show(true, true, edited);
     const auto persisted = read_settings(path);
     require(persisted.controller_profile == edited && !persisted.gamepad &&
-                persisted.caption_style.scale == 142 && persisted.skip_workstation_login,
+                persisted.caption_style.scale == 142 && persisted.skip_workstation_login &&
+                !persisted.autosaves && !persisted.continue_latest,
             "Outer OK lost controller or hidden-page settings.");
     auto discarded = edited;
     controller::bind(discarded, controller::Action::Activate, controller::Binding::B);
@@ -201,6 +214,17 @@ void verify_transactions() {
     require(read_settings(path).controller_profile == edited &&
                 settings().controller_profile == edited,
             "Nested Cancel changed the previously accepted controller profile.");
+    next_continue = true;
+    show(true, false, edited);
+    require(settings().continue_latest && !settings().autosaves &&
+                read_settings(path).continue_latest,
+            "Enabling startup Return required autosaves.");
+    next_continue = false;
+    next_autosaves = true;
+    show(true, false, edited);
+    require(!settings().continue_latest && settings().autosaves &&
+                !read_settings(path).continue_latest,
+            "Disabling startup Return disabled autosaves.");
 }
 
 void isolated_test() {

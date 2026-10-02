@@ -9,6 +9,8 @@
 #include "saves/compatibility.h"
 #include "saves/conversion.h"
 #include "ui/notification.h"
+#include "saves/recent.h"
+#include "autosave.h"
 
 #include <array>
 #include <filesystem>
@@ -70,6 +72,44 @@ struct NativeString {
     }
 };
 
+void native_save(game::Application* app, NativeString& name) {
+    const auto queue = reinterpret_cast<std::byte*>(app) + 0x268;
+    function<void(__stdcall*)(void*, void*)>(game::edition().save_state)(queue, nullptr);
+    function<void(__stdcall*)(void*, void*)>(game::edition().save_file)(&name, queue);
+}
+
+void prepare_save_directory() {
+    std::filesystem::create_directory("saves");
+    const auto attributes = GetFileAttributesW(L"saves");
+    if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        throw std::runtime_error("The saves folder must be a regular folder");
+    }
+}
+
+}
+
+std::filesystem::path save_game_root() {
+    std::wstring executable(32768, L'\0');
+    const auto length =
+        GetModuleFileNameW(nullptr, executable.data(), static_cast<DWORD>(executable.size()));
+    if (!length || length >= executable.size()) {
+        throw std::runtime_error("Cannot locate the game folder");
+    }
+    executable.resize(length);
+    return std::filesystem::path(executable).parent_path();
+}
+
+bool safe_save_available() {
+    return export_save_available() && exploration_available() && !scene_overlay_active() &&
+           !game::script_controls().script_dialog && !game::script_controls().text_input;
+}
+
+void export_safe_save(const std::filesystem::path& path) {
+    if (!safe_save_available()) {
+        throw std::runtime_error("Return to safe exploration before saving");
+    }
+    export_save(path);
 }
 
 void quick_save(HWND window, bool load) {
@@ -103,6 +143,7 @@ void quick_save(HWND window, bool load) {
                         L"The X-Files", MB_OK | MB_ICONINFORMATION);
             return;
         }
+        prepare_save_directory();
         std::string converted;
         if (load) {
             if (const auto error = saves::load_compatibility_error(
@@ -117,7 +158,6 @@ void quick_save(HWND window, bool load) {
                 checkpoint_file = converted;
             }
         }
-        std::filesystem::create_directory("saves");
         constexpr char temporary[] = "saves\\QUICKSAVE.pending.x";
         NativeString name(load ? (converted.empty() ? filename : converted.c_str()) : temporary);
         const auto queue = reinterpret_cast<std::byte*>(app) + 0x268;
@@ -126,6 +166,7 @@ void quick_save(HWND window, bool load) {
                 function<int(__stdcall*)(void*, void*)>(game::edition().load_file)(&name, queue);
             trace_value("quick_load", result);
             if (result) {
+                autosave_loaded();
                 transcript::record_marker(L"Saved game loaded");
                 notify_status(window, L"Quick-save loaded");
             }
@@ -138,8 +179,7 @@ void quick_save(HWND window, bool load) {
             }
         } else {
             std::filesystem::remove(temporary);
-            function<void(__stdcall*)(void*, void*)>(game::edition().save_state)(queue, nullptr);
-            function<void(__stdcall*)(void*, void*)>(game::edition().save_file)(&name, queue);
+            native_save(app, name);
             bool saved = saves::supported_header(temporary);
             if (saved) {
                 if (saves::supported_header(filename)) {
@@ -151,6 +191,11 @@ void quick_save(HWND window, bool load) {
             }
             trace_value("quick_save", saved);
             if (saved) {
+                try {
+                    saves::record_quicksave(save_game_root());
+                } catch (const std::exception&) {
+                    trace_value("quicksave_metadata_failed", 1);
+                }
                 notify_status(window, L"Quick-save complete");
             }
             if (!saved) {
@@ -198,7 +243,7 @@ void export_save(const std::filesystem::path& path) {
     if (std::filesystem::exists(path)) {
         throw std::runtime_error("Choose a new filename; existing saves are kept");
     }
-    std::filesystem::create_directory("saves");
+    prepare_save_directory();
     const auto temporary = "saves\\EXPORT." + std::to_string(GetCurrentProcessId()) + "." +
                            std::to_string(GetTickCount64()) + ".x";
     if (std::filesystem::exists(temporary)) {
@@ -217,9 +262,7 @@ void export_save(const std::filesystem::path& path) {
     } cleanup{temporary};
 
     NativeString name(temporary.c_str());
-    const auto queue = reinterpret_cast<std::byte*>(app) + 0x268;
-    function<void(__stdcall*)(void*, void*)>(game::edition().save_state)(queue, nullptr);
-    function<void(__stdcall*)(void*, void*)>(game::edition().save_file)(&name, queue);
+    native_save(app, name);
     if (!saves::supported_header(temporary)) {
         throw std::runtime_error("The game could not write the save file");
     }
@@ -244,7 +287,7 @@ void load_checkpoint(HWND window, const std::filesystem::path& path) {
         }
     } reset;
 
-    std::filesystem::create_directory("saves");
+    prepare_save_directory();
     const auto name = checkpoint_name();
     // A local ASCII name also supports checkpoints selected from Unicode paths.
     if (!prepare_load_copy(window, path, name)) {
@@ -271,6 +314,7 @@ void update_quick_load() {
         return;
     }
     resume_pending = false;
+    autosave_loaded();
     if (!checkpoint_file.empty()) {
         std::error_code error;
         std::filesystem::remove(checkpoint_file, error);

@@ -14,6 +14,7 @@ import time
 
 
 CHECKS = (
+    "autosave-state", "save-recent", "continue-menu", "autosave-runtime",
     "game-story-state", "game-state-tree",
     "database-flow",
     "database-usability",

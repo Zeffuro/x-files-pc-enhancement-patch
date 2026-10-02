@@ -1,8 +1,10 @@
 #include "slots.h"
+#include "recent.h"
 #include "header.h"
 #include "file_date.h"
 #include "platform/copy_file.h"
 #include <windows.h>
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <stdexcept>
@@ -22,13 +24,16 @@ bool ordinary(const std::filesystem::path& path, bool directory) {
            bool(flags & FILE_ATTRIBUTE_DIRECTORY) == directory;
 }
 
-std::filesystem::path folder(const std::filesystem::path& game, unsigned number, bool create) {
-    if (!number || number > slots_per_page * slot_pages) {
+std::filesystem::path folder(const std::filesystem::path& game, unsigned number, bool create,
+                             SlotKind kind) {
+    if (!number ||
+        number > (kind == SlotKind::Autosave ? autosave_count : slots_per_page * slot_pages)) {
         throw std::runtime_error("Invalid save slot");
     }
     auto path = game;
     for (const auto& part :
-         {std::wstring(L"saves"), std::wstring(L"slots"), std::to_wstring(number)}) {
+         {std::wstring(L"saves"), std::wstring(kind == SlotKind::Autosave ? L"autosave" : L"slots"),
+          std::to_wstring(number)}) {
         path /= part;
         if (create) {
             std::filesystem::create_directory(path);
@@ -82,10 +87,10 @@ void durable(const std::filesystem::path& path) {
 
 }
 
-Slot read_slot(const std::filesystem::path& game, unsigned number) {
+Slot read_slot(const std::filesystem::path& game, unsigned number, SlotKind kind) {
     Slot result;
     result.number = number;
-    const auto directory = folder(game, number, false);
+    const auto directory = folder(game, number, false, kind);
     const auto metadata = directory / L"current";
     result.occupied = std::filesystem::exists(metadata);
     if (!result.occupied) {
@@ -93,6 +98,7 @@ Slot read_slot(const std::filesystem::path& game, unsigned number) {
     }
     try {
         const auto record = read_metadata(metadata);
+        result.saved_at = record.generation;
         result.name = record.name;
         result.file = generation_file(directory, record.generation, L".x");
         result.thumbnail = generation_file(directory, record.generation, L".thumb");
@@ -127,7 +133,8 @@ Thumbnail read_thumbnail(const std::filesystem::path& path) {
 }
 
 void write_slot(const std::filesystem::path& game, unsigned number, const std::wstring& name,
-                const std::filesystem::path& prepared_save, const Thumbnail& thumbnail) {
+                const std::filesystem::path& prepared_save, const Thumbnail& thumbnail,
+                SlotKind kind) {
     if (name.size() > 80 || name.find_first_of(L"\r\n\t") != std::wstring::npos ||
         name.find(L'\0') != std::wstring::npos || !ordinary(prepared_save, false) ||
         !supported_header(prepared_save)) {
@@ -139,7 +146,7 @@ void write_slot(const std::filesystem::path& game, unsigned number, const std::w
             static_cast<std::size_t>(thumbnail.width) * thumbnail.height * 4) {
         throw std::runtime_error("Invalid save thumbnail");
     }
-    const auto directory = folder(game, number, true);
+    const auto directory = folder(game, number, true, kind);
     const auto current = directory / L"current";
     if (std::filesystem::exists(current) && !ordinary(current, false)) {
         throw std::runtime_error("Cannot replace this save slot");
@@ -153,8 +160,11 @@ void write_slot(const std::filesystem::path& game, unsigned number, const std::w
     }
     FILETIME time{};
     GetSystemTimeAsFileTime(&time);
+    static std::uint64_t last_generation = 0;
     const auto generation =
-        (static_cast<std::uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
+        std::max({old_generation + 1, last_generation + 1,
+                  (static_cast<std::uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime});
+    last_generation = generation;
     const auto file = generation_file(directory, generation, L".x");
     const auto image = generation_file(directory, generation, L".thumb");
     const auto pending = generation_file(directory, generation, L".pending");
@@ -212,8 +222,8 @@ void write_slot(const std::filesystem::path& game, unsigned number, const std::w
     }
 }
 
-void delete_slot(const std::filesystem::path& game, unsigned number) {
-    const auto directory = folder(game, number, false);
+void delete_slot(const std::filesystem::path& game, unsigned number, SlotKind kind) {
+    const auto directory = folder(game, number, false, kind);
     const auto current = directory / L"current";
     if (!std::filesystem::exists(current)) {
         return;

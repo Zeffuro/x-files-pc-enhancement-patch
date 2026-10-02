@@ -89,6 +89,8 @@ add_library(quicktime SHARED
     src/enhancements/menu.cpp
     src/enhancements/script_controls.cpp
     src/enhancements/quick_save.cpp
+    src/enhancements/autosave.cpp
+    src/enhancements/ui/continue_menu.cpp
     src/enhancements/modal_input.cpp
     src/enhancements/game_targets.cpp
     src/enhancements/focus.cpp
@@ -106,6 +108,7 @@ add_library(quicktime SHARED
     src/saves/dialogs.cpp
     src/saves/catalog.cpp
     src/saves/slots.cpp
+    src/saves/recent.cpp
     src/saves/artwork.cpp
     src/saves/browser.cpp
     src/saves/browser_paint.cpp

@@ -169,6 +169,22 @@ to the next control. LB/RB changes pages.
 lets you load from a file or export a save. Quick-saving keeps a backup of the
 previous quick-save.
 
+The Load screen cycles between **Numbered slots**, **Existing files**,
+**Quicksave** and **Autosaves**. Quicksaves and autosaves can be loaded without
+overwriting or deleting them from the browser.
+
+**Rolling safe autosaves** is on by default in **F10 → Game**. It keeps five
+checkpoints after returning to safe exploration. Autosaves wait for the scene to
+settle and leave at least 30 seconds between writes. Manual saves and quicksaves
+are kept separately. Turn the option off to stop creating autosaves.
+
+**Previous loads latest save at startup** is on by default in **F10 → Game**.
+At startup, the original **Previous** button loads your newest compatible manual
+save, quicksave, autosave or older save file. Older files use their file date.
+Unreadable or incompatible saves are skipped. This option is independent of
+autosaves. Turn it off to keep the original startup behavior. During a paused
+game, **Return** resumes your current session, including unsaved progress.
+
 On the DVD edition, supported older CD saves can be loaded through experimental
 conversion. A warning explains the limits before loading a separate copy. The
 original file stays unchanged. Some PDA history and password counters use defaults,

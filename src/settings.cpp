@@ -64,6 +64,9 @@ Settings read_settings(const std::filesystem::path& path) {
         GetPrivateProfileIntW(L"Video", L"DVDDeinterlace", 1, path.c_str()) != 0;
     result.save_browser =
         GetPrivateProfileIntW(L"Enhancements", L"SaveBrowser", 0, path.c_str()) != 0;
+    result.autosaves = GetPrivateProfileIntW(L"Enhancements", L"Autosaves", 1, path.c_str()) != 0;
+    result.continue_latest =
+        GetPrivateProfileIntW(L"Enhancements", L"ContinueLatest", 1, path.c_str()) != 0;
     result.dialogue_transcript =
         GetPrivateProfileIntW(L"Enhancements", L"DialogueTranscript", 1, path.c_str()) != 0;
     result.quick_menu = GetPrivateProfileIntW(L"Enhancements", L"QuickMenu", 1, path.c_str()) != 0;
@@ -161,6 +164,10 @@ void save_settings(const Settings& value) {
                                     value.dvd_deinterlace ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"SaveBrowser",
                                     value.save_browser ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"Autosaves", value.autosaves ? L"1" : L"0",
+                                    path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"ContinueLatest",
+                                    value.continue_latest ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"DialogueTranscript",
                                     value.dialogue_transcript ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"QuickMenu", value.quick_menu ? L"1" : L"0",

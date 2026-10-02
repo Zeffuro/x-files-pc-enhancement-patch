@@ -45,7 +45,7 @@ int main() {
         saves::write_slot(root, 1, L"倉庫 - Warehouse", root / "prepared.x", image);
         const auto first = saves::read_slot(root, 1);
         test::require(first.occupied && first.readable && first.name == L"倉庫 - Warehouse" &&
-                          first.date.size() == 16,
+                          first.date.size() == 16 && first.saved_at,
                       "Save name, date or data lost");
         const auto thumb = saves::read_thumbnail(first.thumbnail);
         test::require(thumb.width == 2 && thumb.height == 1 && thumb.pixels == image.pixels,

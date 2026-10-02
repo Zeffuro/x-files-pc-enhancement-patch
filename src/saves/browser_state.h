@@ -8,6 +8,12 @@
 #include <memory>
 
 namespace saves {
+enum class BrowserCategory { manual, existing, quicksave, autosaves };
+
+struct BrowserPosition {
+    unsigned page = 0, selection = 0;
+};
+
 struct Canvas {
     HDC dc = nullptr;
     HBITMAP bitmap = nullptr;
@@ -35,6 +41,9 @@ struct Browser {
     HFONT action_font = nullptr;
     Canvas background, output, scratch;
     Catalog legacy;
+    std::vector<Slot> quicksaves, autosaves;
+    BrowserCategory category = BrowserCategory::manual;
+    std::array<BrowserPosition, 4> positions{};
     std::array<Slot, slots_per_page> slots{};
     std::array<Thumbnail, slots_per_page> thumbnails{};
     Thumbnail scene;
@@ -48,13 +57,16 @@ struct Browser {
     int focus = 0, hover = -1;
     unsigned key = 0;
     bool keyboard = false, deleting = false;
-    bool saving = false, existing = false, naming = false, confirm = false;
+    bool saving = false, naming = false, confirm = false;
     std::wstring name, status;
 };
 
 RECT card_rect(unsigned index);
 RECT control_rect(int item);
 bool control_enabled(const Browser& state, int item);
+unsigned browser_page_count(const Browser& state);
+void change_browser_page(Browser& state, int direction);
+void cycle_browser_category(Browser& state);
 void move_browser_focus(Browser& state, int horizontal, int vertical);
 void cycle_browser_focus(Browser& state, int direction);
 inline constexpr wchar_t name_keys[] = L"1234567890QWERTYUIOPASDFGHJKL-ZXCVBNM,.?";

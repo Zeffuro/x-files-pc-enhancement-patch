@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Five rolling autosaves during safe exploration, with a setting to turn them off.
+- Optional loading of the newest compatible manual, quick, auto or older save through
+  the original Previous button at startup. Return resumes the current session during play.
+- Separate manual, existing, quicksave and autosave views in the save browser.
 - In-game dialogue transcript with selected conversation choices and available
   captions from the current play session.
 - A sliding in-game menu for Save, Load, Transcript, Tweaks and Menu, with native hover text

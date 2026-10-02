@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <algorithm>
 #include <stdexcept>
+#include <string_view>
 
 namespace saves {
 namespace {
@@ -12,6 +13,32 @@ bool ordinary(const std::filesystem::path& path, bool directory) {
     const auto flags = GetFileAttributesW(path.c_str());
     return flags != INVALID_FILE_ATTRIBUTES && !(flags & FILE_ATTRIBUTE_REPARSE_POINT) &&
            bool(flags & FILE_ATTRIBUTE_DIRECTORY) == directory;
+}
+
+bool internal(const std::filesystem::path& path) {
+    const auto name = path.stem().wstring();
+    if (!_wcsicmp(name.c_str(), L"QUICKSAVE.pending")) {
+        return true;
+    }
+    for (const std::wstring_view prefix :
+         {L"CHECKPOINT.LOAD.", L"EXPORT.", L"BROWSER.", L"AUTOSAVE.pending."}) {
+        if (_wcsnicmp(name.c_str(), prefix.data(), prefix.size())) {
+            continue;
+        }
+        const auto suffix = std::wstring_view(name).substr(prefix.size());
+        const auto dot = suffix.find(L'.');
+        if (dot == 0 || dot == std::wstring_view::npos || dot + 1 == suffix.size()) {
+            continue;
+        }
+        const auto digits = [](std::wstring_view text) {
+            return std::all_of(text.begin(), text.end(),
+                               [](wchar_t c) { return c >= L'0' && c <= L'9'; });
+        };
+        if (digits(suffix.substr(0, dot)) && digits(suffix.substr(dot + 1))) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }
@@ -31,7 +58,7 @@ Catalog read_catalog(const std::filesystem::path& game) {
             result.truncated = true;
             break;
         }
-        if (_wcsicmp(file.path().extension().c_str(), L".x")) {
+        if (_wcsicmp(file.path().extension().c_str(), L".x") || internal(file.path())) {
             continue;
         }
         if (!ordinary(file.path(), false)) {

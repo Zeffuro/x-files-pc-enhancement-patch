@@ -226,12 +226,20 @@ Thumbnail capture_scene(HDC, const RECT&) {
     return {};
 }
 
-void delete_slot(const std::filesystem::path&, unsigned) {}
+void delete_slot(const std::filesystem::path&, unsigned, SlotKind) {}
 
 void write_slot(const std::filesystem::path&, unsigned, const std::wstring&,
-                const std::filesystem::path&, const Thumbnail&) {}
+                const std::filesystem::path&, const Thumbnail&, SlotKind) {}
 
-Slot read_slot(const std::filesystem::path&, unsigned) {
+Slot read_slot(const std::filesystem::path&, unsigned, SlotKind) {
+    return {};
+}
+
+std::vector<Slot> read_autosaves(const std::filesystem::path&) {
+    return {};
+}
+
+std::vector<Slot> read_quicksaves(const std::filesystem::path&) {
     return {};
 }
 
