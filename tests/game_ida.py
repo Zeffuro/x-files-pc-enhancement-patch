@@ -89,6 +89,16 @@ class IdaImportTest(unittest.TestCase):
         self.assertEqual(actual["XFiles_remove"], ida.base + 0x32880)
         self.assertEqual(ida.writes, [])
 
+    def test_navigation_cursor_type_names_cover_all_rebased_builds(self):
+        fields = ("world_navigation", "world_navigation_resource", "world_navigation_shape_resource")
+        for build in self.data["builds"]:
+            ida = FakeIda(build["sha256"], base=0x750000)
+            rows = bridge.plan(self.data, ida)[1]
+            actual = {name: ea for _, ea, name, _ in rows}
+            for field in fields:
+                self.assertEqual(actual["XFiles_" + field], ida.base + build["rvas"][field])
+            self.assertEqual(ida.writes, [])
+
     def test_wrong_hash_unmapped_profile_and_architecture_fail_closed(self):
         self.ida.digest = "0" * 64
         with self.assertRaisesRegex(ValueError, "unknown"):
@@ -129,6 +139,23 @@ class IdaImportTest(unittest.TestCase):
         outcomes = bridge.run(adapter=self.ida)
         self.assertTrue(any(row[0] == "ready" for row in outcomes))
         self.assertEqual(self.ida.writes, [])
+
+    def test_shared_type_aliases_keep_one_name_across_all_builds(self):
+        for build in self.data["builds"]:
+            with self.subTest(build=build["id"]):
+                ida = FakeIda(build["sha256"])
+                ea = ida.base + build["rvas"]["credit_group"]
+                self.assertEqual(build["rvas"]["credit_group"], build["rvas"]["cursor_group"])
+                preview = bridge.run(adapter=ida)
+                alias = next(row for row in preview if row[2] == "XFiles_cursor_group")
+                self.assertEqual(alias[0], "alias")
+                self.assertEqual(ida.writes, [])
+                bridge.run(apply=True, adapter=ida)
+                self.assertEqual(ida.names[ea], "XFiles_credit_group")
+                self.assertEqual(len([address for address, _ in ida.writes if address == ea]), 1)
+                writes = len(ida.writes)
+                bridge.run(apply=True, adapter=ida)
+                self.assertEqual(len(ida.writes), writes)
 
     def test_function_catalog_requires_function_start(self):
         ea = self.ida.base + self.build["rvas"]["draw_list"]

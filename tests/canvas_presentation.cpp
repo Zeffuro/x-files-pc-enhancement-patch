@@ -102,6 +102,16 @@ HDC status_after_failure(HDC source) {
     return replacement;
 }
 
+HDC reveal_layer(HDC source) {
+    require(source == replacement, "Reveal skipped the current content source");
+    return source;
+}
+
+HDC reader_layer(HDC source) {
+    require(source == decorated_surface, "Reader was painted below an existing overlay");
+    return replacement;
+}
+
 void native_ui() {
     constexpr auto scene = RGB(60, 90, 120), accent = RGB(40, 220, 180);
     Surface canvas(scene, 640, 480), output(0, 640, 480);
@@ -250,6 +260,13 @@ void run() {
                 "Failed target decoration prevented status composition");
         native_game::set_canvas_targets(nullptr);
         native_game::set_canvas_status(nullptr);
+        native_game::set_canvas_reveal(reveal_layer);
+        native_game::set_canvas_reader(reader_layer);
+        copy();
+        require(GetPixel(output.dc, 2, 2) == overlay,
+                "Readable documents did not compose above the other canvas layers");
+        native_game::set_canvas_reveal(nullptr);
+        native_game::set_canvas_reader(nullptr);
         native_game::set_canvas_overlay(nullptr);
         native_game::set_canvas_source(nullptr);
         copy();

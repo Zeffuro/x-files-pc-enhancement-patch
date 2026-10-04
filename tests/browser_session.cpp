@@ -38,6 +38,8 @@ void __stdcall native_pause(void* state, int paused, void* queue) {
 }
 
 class Fixture {
+    std::array<BYTE, 256> keyboard_state{};
+
 public:
     HWND window = nullptr;
 
@@ -57,6 +59,11 @@ public:
         image[profile.pause + 5] = std::byte{0xc3};
         FlushInstructionCache(GetCurrentProcess(), image, 4096);
         options.save_browser = true;
+        require(GetKeyboardState(keyboard_state.data()) != FALSE,
+                "Cannot preserve the test thread keyboard state");
+        std::array<BYTE, 256> neutral_keys{};
+        require(SetKeyboardState(neutral_keys.data()) != FALSE,
+                "Cannot clear inherited test thread modifiers");
         POINT cursor{};
         require(GetCursorPos(&cursor) != FALSE, "Cannot obtain the existing cursor position");
         window = CreateWindowExW(0, L"STATIC", L"Browser lifecycle test", WS_POPUP, cursor.x - 241,
@@ -68,12 +75,14 @@ public:
     ~Fixture() {
         saves::release_browser();
         DestroyWindow(window);
+        SetKeyboardState(keyboard_state.data());
         VirtualFree(image, 0, MEM_RELEASE);
         image = nullptr;
     }
 
-    bool send(UINT message, WPARAM value = 0) {
-        return saves::browser_message(window, message, value, 0);
+    bool send(UINT message, WPARAM value = 0, LPARAM data = 0,
+              saves::BrowserInput input = saves::BrowserInput::keyboard) {
+        return saves::browser_message(window, message, value, data, input);
     }
 
     void open(bool saving = true) {
@@ -91,7 +100,66 @@ public:
                 "Cannot navigate to the confirmed load action");
         require(send(WM_KEYDOWN, VK_RETURN), "Confirmed load input escaped the browser");
     }
+
+    void name() {
+        for (unsigned i = 0; i < 8; ++i) {
+            require(send(WM_KEYDOWN, VK_TAB), "Name navigation escaped the browser");
+        }
+        require(painted->focus == 9 && send(WM_KEYDOWN, VK_RETURN) && painted->keyboard &&
+                    painted->naming && send(WM_KEYUP, VK_RETURN),
+                "Cannot open the save-name keyboard");
+    }
 };
+
+void check_name_input(Fixture& fixture) {
+    fixture.open();
+    fixture.name();
+    require(fixture.send(WM_CHAR, L'A') && fixture.send(WM_CHAR, L'B') &&
+                fixture.send(WM_CHAR, VK_BACK) && painted->name == L"A",
+            "Physical typing or Backspace changed on the name keyboard");
+    require(fixture.send(WM_KEYDOWN, VK_RIGHT) && painted->key == 1,
+            "Cannot select an onscreen character");
+    require(fixture.send(WM_KEYDOWN, VK_RETURN, 0, saves::BrowserInput::controller) &&
+                painted->name == L"A2" && painted->keyboard && painted->naming,
+            "Controller A did not append the selected onscreen character");
+    require(fixture.send(WM_KEYDOWN, VK_RETURN) && painted->name == L"A2" && !painted->keyboard &&
+                !painted->naming && !painted->confirm && painted->key == saves::name_key_count - 1,
+            "Physical Enter did not select Done without changing the save name");
+    require(fixture.send(WM_CHAR, VK_RETURN) && fixture.send(WM_KEYDOWN, VK_TAB) &&
+                fixture.send(WM_KEYDOWN, VK_TAB) && painted->focus == 11,
+            "Cannot navigate to Save after selecting Done");
+    require(fixture.send(WM_KEYDOWN, VK_RETURN, 1L << 30) && !painted->confirm &&
+                painted->name == L"A2" && fixture.send(WM_KEYUP, VK_RETURN),
+            "Held physical Enter activated Save after leaving naming");
+    require(fixture.send(WM_KEYDOWN, VK_RETURN) && painted->confirm,
+            "A later physical Enter did not retain the overwrite confirmation");
+    require(fixture.send(WM_KEYDOWN, VK_ESCAPE) && fixture.send(WM_KEYDOWN, VK_ESCAPE) &&
+                !saves::browser_active(),
+            "Cannot cancel the save-name input test");
+
+    fixture.open();
+    fixture.name();
+    require(fixture.send(WM_CHAR, L'Z') && fixture.send(WM_KEYDOWN, VK_ESCAPE) &&
+                !painted->keyboard && !painted->naming && painted->name == L"Z" &&
+                saves::browser_active(),
+            "Escape no longer dismisses naming while retaining the draft");
+    require(fixture.send(WM_KEYDOWN, VK_RETURN) && painted->keyboard && painted->naming,
+            "Cannot reopen the name keyboard after Escape");
+    for (unsigned i = 0; i < saves::name_key_count - 1; ++i) {
+        fixture.send(WM_KEYDOWN, VK_TAB, 0, saves::BrowserInput::controller);
+    }
+    require(fixture.send(WM_KEYDOWN, VK_RETURN, 0, saves::BrowserInput::controller) &&
+                !painted->keyboard && !painted->naming && painted->name == L"Z",
+            "Controller A did not retain the onscreen Done action");
+    require(fixture.send(WM_KEYDOWN, VK_RETURN) && painted->keyboard && painted->naming &&
+                fixture.send(WM_KEYDOWN, VK_RETURN) && !painted->keyboard &&
+                fixture.send(WM_KEYDOWN, VK_ESCAPE) && !saves::browser_active(),
+            "Cannot close the browser after physical Done");
+    require(fixture.send(WM_CHAR, VK_RETURN) && fixture.send(WM_KEYDOWN, VK_RETURN, 1L << 30) &&
+                fixture.send(WM_KEYUP, VK_RETURN) && !fixture.send(WM_CHAR, VK_RETURN) &&
+                !fixture.send(WM_KEYDOWN, VK_RETURN),
+            "Done input pairing leaked after close or consumed a later unrelated Enter");
+}
 }
 
 const Settings& settings() {
@@ -208,8 +276,10 @@ void draw_browser(Browser& state) {
 void load_browser_art(Browser&) {}
 
 void load_browser_page(Browser& state) {
-    state.slots[0].file = L"synthetic-save.x";
-    state.slots[0].occupied = state.slots[0].readable = true;
+    for (auto& slot : state.slots) {
+        slot.file = L"synthetic-save.x";
+        slot.occupied = slot.readable = true;
+    }
 }
 
 Catalog read_catalog(const std::filesystem::path&) {
@@ -311,7 +381,10 @@ int main() {
         saves::release_browser();
         require(resumes == 5 && pauses == 5,
                 "Browser cleanup interfered with the new scene owner's resume");
-        std::cout << "Direct browser pause, cancel, input pairing and load ownership passed\n";
+        check_name_input(fixture);
+        require(resumes == 7 && pauses == 7,
+                "Save naming interfered with the gameplay pause lifecycle");
+        std::cout << "Browser pause, input pairing, save naming and load ownership passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

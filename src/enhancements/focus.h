@@ -20,6 +20,7 @@ inline constexpr std::array<RECT, 5> pda_toolbar{{
 std::vector<RECT> main_menu_targets(bool can_save);
 int directional_target(std::span<const RECT> targets, POINT cursor, int horizontal, int vertical);
 int hotspot_target(std::span<const RECT> targets, POINT cursor, int direction);
+int hotspot_target(std::span<const RECT> targets, POINT cursor, int horizontal, int vertical);
 bool exposed_target(const RECT& bounds, std::span<const RECT> occluders, RECT& target);
 bool point_controller(HWND window, const RECT& target, bool activate = false, bool right = false);
 

@@ -4,6 +4,7 @@
 #include "media/ima4.h"
 #include "media/compressed_audio.h"
 #include "media/pcm.h"
+#include "media/tempo.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -79,23 +80,46 @@ Audio::Audio(const media::Movie& movie, const media::Track& track) {
 
 Audio::~Audio() = default;
 
+void Audio::prepare(unsigned speed) {
+    if (speed < 1 || speed > 4) {
+        throw std::runtime_error("Invalid movie audio speed");
+    }
+    if (speed == 1 || prepared_speed_ == speed) {
+        return;
+    }
+    media::Tempo tempo(format_.nSamplesPerSec, format_.nChannels, speed);
+    auto pcm = tempo.push(pcm_);
+    const auto tail = tempo.finish();
+    pcm.insert(pcm.end(), tail.begin(), tail.end());
+    stop();
+    // Destroy the voice before replacing any PCM it may still reference.
+    output_.reset();
+    fast_pcm_ = std::move(pcm);
+    prepared_speed_ = speed;
+}
+
 void Audio::play(std::uint32_t time, std::uint32_t scale, std::int16_t level, unsigned speed) {
     stop();
+    if (speed < 1 || speed > 4) {
+        throw std::runtime_error("Invalid movie audio speed");
+    }
+    prepare(speed);
     speed_ = speed;
     if (pcm_.empty() || !scale) {
         return;
     }
-    const auto offset =
-        static_cast<std::uint64_t>(time) * format_.nSamplesPerSec / scale * format_.nChannels;
-    if (offset >= pcm_.size()) {
+    const auto frames = static_cast<std::uint64_t>(time) * format_.nSamplesPerSec / scale;
+    const auto offset = frames / speed * format_.nChannels;
+    const auto& pcm = speed > 1 ? fast_pcm_ : pcm_;
+    if (offset >= pcm.size()) {
         return;
     }
     if (!output_ || !output_->current_device()) {
         output_ = std::make_unique<Output>(format_);
     }
     volume(level);
-    output_->speed(speed_);
-    output_->play(std::span(pcm_).subspan(static_cast<std::size_t>(offset)));
+    output_->speed(1);
+    output_->play(std::span(pcm).subspan(static_cast<std::size_t>(offset)));
 }
 
 void Audio::stop() {

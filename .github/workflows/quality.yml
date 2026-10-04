@@ -80,6 +80,20 @@ jobs:
           bash -n tools/build-ffmpeg.sh
           python -m compileall -q tools tests
 
+  tempo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: sudo apt-get update -qq && sudo apt-get install -y libavfilter-dev libavutil-dev
+      - name: Pitch-preserving audio
+        run: |
+          mkdir -p /tmp/xfiles-tempo
+          g++ -std=c++20 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isrc/media tests/tempo.cpp src/media/tempo.cpp $(pkg-config --cflags --libs libavfilter libavutil) -o /tmp/xfiles-tempo/tempo
+          ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 /tmp/xfiles-tempo/tempo
+
   fuzz:
     runs-on: ubuntu-latest
     timeout-minutes: 10

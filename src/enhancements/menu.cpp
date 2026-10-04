@@ -2,6 +2,7 @@
 #include "menu.h"
 #include "game_ui.h"
 #include "script_controls.h"
+#include "script_scroll.h"
 #include "identity.h"
 #include "runtime.h"
 
@@ -95,7 +96,20 @@ bool game::saving_available() {
 
 game::ScriptControls game::script_controls() {
     const auto app = image ? *address<Application**>(edition().application) : nullptr;
-    return read_script_controls(app ? app->state : nullptr, image, edition());
+    return read_script_controls(app ? app->state : nullptr, image, edition(),
+                                app ? app->view : nullptr);
+}
+
+bool game::activate_script_button(unsigned resource, const RECT& bounds) {
+    const auto app = image ? *address<Application**>(edition().application) : nullptr;
+    if (!app || !app->state || !app->view || current_input()) {
+        return false;
+    }
+    const auto window = GetActiveWindow();
+    if (!window || GetWindowThreadProcessId(window, nullptr) != GetCurrentThreadId()) {
+        return false;
+    }
+    return scroll_script_button(app->state, app->view, image, edition(), resource, bounds);
 }
 
 bool resume_from_menu() {

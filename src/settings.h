@@ -48,6 +48,11 @@ struct Settings {
     bool autosaves = true;
     bool continue_latest = true;
     bool dialogue_transcript = true;
+    bool hotspot_reveal = true;
+    bool hotspot_exits_only = false;
+    bool hotspot_labels = true;
+    unsigned hotspot_reveal_key = 164;
+    bool readable_documents = true;
     bool quick_menu = true;
     std::array<bool, 5> quick_menu_items{true, true, true, true, true};
     bool menu_black_background = true;

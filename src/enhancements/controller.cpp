@@ -6,6 +6,8 @@
 #include "rumble.h"
 #include "controls.h"
 #include "dialogue.h"
+#include "hotspot_reveal.h"
+#include "documents.h"
 #include "transcript/view.h"
 #include "ui/quick_menu.h"
 #include "inventory.h"
@@ -50,7 +52,7 @@ bool scene_cursor(HWND window, POINT& point) {
 input::Context controller_context(HWND window) {
     input::Context context;
     context.native = reinterpret_cast<std::uintptr_t>(game::current_input());
-    if (saves::browser_active() || transcript::active()) {
+    if (saves::browser_active() || transcript::active() || documents::active()) {
         context.kind = input::ContextKind::browser;
     } else if (quick_menu::expanded()) {
         context.kind = input::ContextKind::menu;
@@ -91,6 +93,7 @@ void suspend_analog_cursor() {
 }
 
 void suspend_controller() {
+    reveal::suspend();
     input::poll(false);
     input::injected_input().recover();
     cancel_controller_inventory_click();
@@ -144,6 +147,8 @@ void poll_controller(HWND window) {
     const bool busy = text_entry_busy();
     const auto& profile = settings().controller_profile;
     auto frame = busy ? input::Frame{} : input::poll(settings().gamepad && focused, profile);
+    reveal::controller(frame.connected && focused && !busy &&
+                       frame.sample.right_trigger > input::trigger_threshold);
     if (frame.device_changed) {
         cancel_controller_inventory_click();
         stop_rumble();
@@ -188,7 +193,7 @@ void poll_controller(HWND window) {
                                     !saves::browser_active() && !game::menu_confirmation_active() &&
                                     game::input_vtable() != game::edition().main_menu);
     const WORD pressed = frame.pressed;
-    if (saves::browser_active() || transcript::active()) {
+    if (saves::browser_active() || transcript::active() || documents::active()) {
         cancel_controller_inventory_click();
         spring_cursor.suspend();
         analog_motion.reset();
@@ -207,10 +212,12 @@ void poll_controller(HWND window) {
             : (pressed & input::button::activate) ? VK_RETURN
                                                   : 0;
         if (key) {
-            if (transcript::active()) {
+            if (documents::active()) {
+                documents::message(window, WM_KEYDOWN, key, 0);
+            } else if (transcript::active()) {
                 transcript::message(window, WM_KEYDOWN, key, 0);
             } else {
-                saves::browser_message(window, WM_KEYDOWN, key, 0);
+                saves::browser_message(window, WM_KEYDOWN, key, 0, saves::BrowserInput::controller);
             }
         }
         return;
@@ -337,11 +344,12 @@ void poll_controller(HWND window) {
                           (directional_buttons & input::button::up ? 1 : 0);
     input::Motion movement{};
     if (jump_mode) {
-        if (step && horizontal_direction) {
+        if (step && (horizontal_direction || vertical_direction)) {
             const auto targets = aim_mode ? aiming : game::world_hotspots(!all_hotspots);
             POINT cursor{};
             if (GetCursorPos(&cursor) && ScreenToClient(window, &cursor)) {
-                const auto next = hotspot_target(targets, cursor, horizontal_direction);
+                const auto next =
+                    hotspot_target(targets, cursor, horizontal_direction, vertical_direction);
                 if (next >= 0) {
                     point_controller(window, targets[next]);
                 }

@@ -15,6 +15,7 @@ struct Dialogue {
     RECT talk{};
     RECT history{};
     RECT panel{};
+    RECT viewport{};
     bool is_history = false;
 };
 
@@ -25,6 +26,7 @@ void update_dialogue(bool focused);
 bool close_dialogue(HWND window);
 const Dialogue* current_dialogue();
 bool navigate_dialogue(HWND window, int direction, int tab);
+bool scroll_dialogue(int direction);
 bool focus_conversation_evidence(HWND window);
 std::vector<RECT> conversation_evidence();
 void begin_dialogue_click(HWND window, UINT message);

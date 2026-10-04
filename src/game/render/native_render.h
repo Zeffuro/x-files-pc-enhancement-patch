@@ -21,6 +21,8 @@ bool native_render_available();
 void set_canvas_source(CanvasSource callback);
 void set_canvas_overlay(CanvasSource callback);
 void set_canvas_targets(CanvasSource callback);
+void set_canvas_reveal(CanvasSource callback);
+void set_canvas_reader(CanvasSource callback);
 void set_canvas_status(CanvasSource callback);
 HDC canvas_dc();
 void invalidate_canvas();

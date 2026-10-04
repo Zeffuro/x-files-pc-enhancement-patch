@@ -54,12 +54,52 @@ struct ScriptControls {
     bool text_input = false;
     std::vector<RECT> text;
     std::vector<Text> fields;
+    std::vector<Text> document_text;
     std::vector<EventTarget> event_targets;
 };
 
 ScriptControls script_controls();
+bool activate_script_button(unsigned resource, const RECT& bounds);
 bool world_navigation_available();
 RECT scene_bounds();
+
+enum class Interaction {
+    unknown,
+    click,
+    item,
+    view,
+    talk,
+    use,
+    move_left,
+    move_right,
+    move_forward,
+    move_back
+};
+
+constexpr int movement_direction(Interaction interaction) {
+    switch (interaction) {
+        case Interaction::move_left:
+            return 1;
+        case Interaction::move_right:
+            return 2;
+        case Interaction::move_forward:
+            return 3;
+        case Interaction::move_back:
+            return 4;
+        default:
+            return 0;
+    }
+}
+
+struct WorldTarget {
+    RECT bounds;
+    RECT exposed;
+    std::uintptr_t identity;
+    bool navigation;
+    Interaction interaction = Interaction::unknown;
+};
+
+std::vector<WorldTarget> world_targets(bool include_occluded = false);
 std::vector<RECT> world_hotspots(bool navigation_only, bool include_occluded = false);
 std::vector<RECT> emotion_targets();
 std::vector<RECT> aiming_targets();

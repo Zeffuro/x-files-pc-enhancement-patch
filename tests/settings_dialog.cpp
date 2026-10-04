@@ -7,6 +7,7 @@
 #include "playback/movie.h"
 #include "playback/output.h"
 #include "settings.h"
+#include "localization/ui.h"
 
 #include <commctrl.h>
 #include <exception>
@@ -58,6 +59,7 @@ controller::Profile expected, next;
 bool preview = false;
 bool next_continue = false;
 bool next_autosaves = false;
+bool next_labels = false;
 
 void CALLBACK preview_close(HWND window, UINT, UINT_PTR timer, DWORD) {
     KillTimer(window, timer);
@@ -116,6 +118,17 @@ LRESULT CALLBACK initialized_dialog(int code, WPARAM parameter, LPARAM data) {
             try {
                 require(TabCtrl_GetItemCount(GetDlgItem(window, IDC_SETTINGS_TABS)) == 4,
                         "Actual settings did not initialize four tabs.");
+                for (unsigned speed = 2; speed <= 4; ++speed) {
+                    wchar_t speed_label[128]{};
+                    SendDlgItemMessageW(window, IDC_MOVIE_SPEED, CB_GETLBTEXT, speed - 2,
+                                        reinterpret_cast<LPARAM>(speed_label));
+                    const auto label = std::to_wstring(speed) + L"x (natural pitch)";
+                    require(std::wstring(speed_label) == ui::translate(label.c_str()),
+                            "Fast-forward did not describe its natural-pitch audio.");
+                }
+                require((IsDlgButtonChecked(window, IDC_MOVIE_SPEED_MUTE) == BST_CHECKED) ==
+                            settings().movie_speed_mute,
+                        "Natural pitch changed the saved mute preference.");
                 CheckDlgButton(window, IDC_GAMEPAD, BST_UNCHECKED);
                 SetDlgItemInt(window, IDC_CAPTION_SCALE, 142, FALSE);
                 CheckDlgButton(window, IDC_SKIP_LOGIN, BST_CHECKED);
@@ -126,6 +139,14 @@ LRESULT CALLBACK initialized_dialog(int code, WPARAM parameter, LPARAM data) {
                 CheckDlgButton(window, IDC_AUTOSAVES, next_autosaves ? BST_CHECKED : BST_UNCHECKED);
                 CheckDlgButton(window, IDC_CONTINUE_LATEST,
                                next_continue ? BST_CHECKED : BST_UNCHECKED);
+                require((IsDlgButtonChecked(window, IDC_HOTSPOT_LABELS) == BST_CHECKED) ==
+                            settings().hotspot_labels,
+                        "Hotspot labels did not load the current setting.");
+                CheckDlgButton(window, IDC_HOTSPOT_LABELS,
+                               next_labels ? BST_CHECKED : BST_UNCHECKED);
+                SendDlgItemMessageW(window, IDC_HOTSPOT_REVEAL, CB_SETCURSEL, 2, 0);
+                SendDlgItemMessageW(window, IDC_HOTSPOT_KEY, CB_SETCURSEL, 1, 0);
+                CheckDlgButton(window, IDC_READABLE_DOCUMENTS, BST_UNCHECKED);
                 SendMessageW(window, WM_COMMAND, IDC_CONFIGURE_CONTROLLER, 0);
                 require(settings().controller_profile == expected,
                         "Nested OK published its profile before outer OK.");
@@ -185,6 +206,8 @@ void verify_transactions() {
     const auto path = executable_path().parent_path() / L"patch.ini";
     require(read_settings(path).continue_latest,
             "Missing startup Return setting did not default to enabled.");
+    require(read_settings(path).hotspot_labels,
+            "Missing hotspot labels setting did not default to enabled.");
     Settings original;
     original.controller_profile.deadzone = 9000;
     save_settings(original);
@@ -199,13 +222,17 @@ void verify_transactions() {
     show(false, true, edited);
     require(bytes(path) == before && settings().controller_profile == original.controller_profile &&
                 settings().gamepad && settings().caption_style.scale == 100 &&
-                settings().autosaves && settings().continue_latest,
+                settings().autosaves && settings().continue_latest && settings().hotspot_reveal &&
+                !settings().hotspot_exits_only && settings().hotspot_reveal_key == VK_LMENU &&
+                settings().hotspot_labels && settings().readable_documents,
             "Outer Cancel persisted nested OK or hidden-page edits.");
     show(true, true, edited);
     const auto persisted = read_settings(path);
     require(persisted.controller_profile == edited && !persisted.gamepad &&
                 persisted.caption_style.scale == 142 && persisted.skip_workstation_login &&
-                !persisted.autosaves && !persisted.continue_latest,
+                !persisted.autosaves && !persisted.continue_latest && persisted.hotspot_reveal &&
+                persisted.hotspot_exits_only && persisted.hotspot_reveal_key == 'H' &&
+                !persisted.hotspot_labels && !persisted.readable_documents,
             "Outer OK lost controller or hidden-page settings.");
     auto discarded = edited;
     controller::bind(discarded, controller::Action::Activate, controller::Binding::B);
@@ -215,10 +242,14 @@ void verify_transactions() {
                 settings().controller_profile == edited,
             "Nested Cancel changed the previously accepted controller profile.");
     next_continue = true;
+    next_labels = true;
     show(true, false, edited);
     require(settings().continue_latest && !settings().autosaves &&
                 read_settings(path).continue_latest,
             "Enabling startup Return required autosaves.");
+    require(settings().hotspot_labels && read_settings(path).hotspot_labels &&
+                GetPrivateProfileIntW(L"Enhancements", L"HotspotLabels", 0, path.c_str()) == 1,
+            "Re-enabling hotspot labels did not persist.");
     next_continue = false;
     next_autosaves = true;
     show(true, false, edited);

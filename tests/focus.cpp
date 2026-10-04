@@ -69,6 +69,26 @@ int main() {
             {{0, 0, 100, 100}, {30, 30, 50, 50}, {60, 30, 80, 50}}};
         require(hotspot_target(nested, {40, 40}, 1) == 0,
                 "A nested hotspot did not use the smallest containing target as its origin.");
+        constexpr std::array<RECT, 3> scene{{
+            {416, 120, 504, 273},
+            {352, 267, 405, 314},
+            {353, 90, 403, 110},
+        }};
+        require(hotspot_target(scene, {460, 196}, 0, 1) == 1,
+                "Down from the person must reach the lower body hotspot.");
+        require(hotspot_target(scene, {378, 290}, 0, -1) == 0,
+                "Up from the body must return to the person before the exit.");
+        require(hotspot_target(scene, {378, 290}, 0, 1) == 2,
+                "Vertical hotspot wrap must reach the opposite edge.");
+        require(hotspot_target(scene, {460, 196}, 0, -1) == 2,
+                "Up from the person must reach the upper exit.");
+        require(hotspot_target(scene, {378, 250}, 0, 1) == 1,
+                "Vertical entry must choose the nearest target below the cursor.");
+        require(hotspot_target(nested, {40, 40}, 0, 1) == 0,
+                "Vertical navigation must start from the smallest containing target.");
+        require(hotspot_target({}, {0, 0}, 0, 1) == -1 &&
+                    hotspot_target(scene, {460, 196}, 0, 0) == -1,
+                "Empty or idle vertical navigation must not select a hotspot.");
         using enhancements::exposed_target;
         RECT exposed{};
         constexpr RECT exit{500, 90, 620, 330};

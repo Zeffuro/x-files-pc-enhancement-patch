@@ -67,14 +67,34 @@
         "menu_corner_rectangle": 2856152,
         "variable_set_value": 1901280,
         "native_action_write_slot": 2438244,
-        "native_action_write_callback": 210240
+        "native_action_write_callback": 210240,
+        "main_text": 2872312,
+        "world_picture": 2449168,
+        "world_hotspot": 2443152,
+        "registry_container": 2462512,
+        "conversation_association": 2505680,
+        "conversation_association_tree": 2505384,
+        "association_id_node": 2497112,
+        "world_hover": 2829004,
+        "default_inventory_action": 2823864,
+        "cursor_object": 2468512,
+        "cursor_resource": 2513448,
+        "cursor_group": 2475456,
+        "cursor_group_list": 2473728,
+        "world_hotspot_resource": 2508504,
+        "world_picture_resource": 2508376,
+        "conversation_resource": 2513560,
+        "world_navigation": 2467712,
+        "world_navigation_resource": 2518888,
+        "world_navigation_shape_resource": 2518776
       },
       "offsets": {
         "children": 2048,
         "control_rectangle": 408,
         "choice_viewport": 152,
         "credit_position": 192,
-        "canvas": 2000
+        "canvas": 2000,
+        "main_text_rectangle": 152
       }
     },
     {
@@ -143,14 +163,34 @@
         "menu_corner_rectangle": 2868448,
         "variable_set_value": 1913360,
         "native_action_write_slot": 2446452,
-        "native_action_write_callback": 208784
+        "native_action_write_callback": 208784,
+        "main_text": 2884960,
+        "world_picture": 2457456,
+        "world_hotspot": 2451416,
+        "registry_container": 2471552,
+        "conversation_association": 2515160,
+        "conversation_association_tree": 2515624,
+        "association_id_node": 2507032,
+        "world_hover": 2841332,
+        "default_inventory_action": 2836200,
+        "cursor_object": 2478616,
+        "cursor_resource": 2523576,
+        "cursor_group": 2485592,
+        "cursor_group_list": 2483864,
+        "world_hotspot_resource": 2518632,
+        "world_picture_resource": 2518504,
+        "conversation_resource": 2523688,
+        "world_navigation": 2477808,
+        "world_navigation_resource": 2529016,
+        "world_navigation_shape_resource": 2528904
       },
       "offsets": {
         "children": 2052,
         "control_rectangle": 412,
         "choice_viewport": 156,
         "credit_position": 196,
-        "canvas": 2004
+        "canvas": 2004,
+        "main_text_rectangle": 156
       }
     },
     {
@@ -219,14 +259,34 @@
         "menu_corner_rectangle": 2869304,
         "variable_set_value": 1968000,
         "native_action_write_slot": 2481108,
-        "native_action_write_callback": 208992
+        "native_action_write_callback": 208992,
+        "main_text": 2893456,
+        "world_picture": 2471832,
+        "world_hotspot": 2460960,
+        "registry_container": 2476520,
+        "conversation_association": 2523008,
+        "conversation_association_tree": 2523472,
+        "association_id_node": 2511312,
+        "world_hover": 2844168,
+        "default_inventory_action": 2843972,
+        "cursor_object": 2457936,
+        "cursor_resource": 2517928,
+        "cursor_group": 2486888,
+        "cursor_group_list": 2487296,
+        "world_hotspot_resource": 2518264,
+        "world_picture_resource": 2522896,
+        "conversation_resource": 2521904,
+        "world_navigation": 2458688,
+        "world_navigation_resource": 2518152,
+        "world_navigation_shape_resource": 2518040
       },
       "offsets": {
         "children": 2052,
         "control_rectangle": 412,
         "choice_viewport": 156,
         "credit_position": 196,
-        "canvas": 2004
+        "canvas": 2004,
+        "main_text_rectangle": 156
       }
     },
     {
@@ -295,14 +355,34 @@
         "menu_corner_rectangle": 2872576,
         "variable_set_value": 1914880,
         "native_action_write_slot": 2450548,
-        "native_action_write_callback": 209040
+        "native_action_write_callback": 209040,
+        "main_text": 2889152,
+        "world_picture": 2461544,
+        "world_hotspot": 2455504,
+        "registry_container": 2475640,
+        "conversation_association": 2519912,
+        "conversation_association_tree": 2519616,
+        "association_id_node": 2511136,
+        "world_hover": 2845440,
+        "default_inventory_action": 2840296,
+        "cursor_object": 2482712,
+        "cursor_resource": 2527680,
+        "cursor_group": 2489688,
+        "cursor_group_list": 2488320,
+        "world_hotspot_resource": 2522736,
+        "world_picture_resource": 2522608,
+        "conversation_resource": 2527792,
+        "world_navigation": 2481896,
+        "world_navigation_resource": 2533120,
+        "world_navigation_shape_resource": 2533008
       },
       "offsets": {
         "children": 2052,
         "control_rectangle": 412,
         "choice_viewport": 156,
         "credit_position": 196,
-        "canvas": 2004
+        "canvas": 2004,
+        "main_text_rectangle": 156
       }
     }
   ]

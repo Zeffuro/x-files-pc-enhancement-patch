@@ -14,6 +14,8 @@ import time
 
 
 CHECKS = (
+    "hotspot-reveal", "hotspot-reveal-input", "world-interactions", "world-cursors", "scrolling", "script-scroll", "readable-documents", "documents-view",
+    "keyboard-navigation", "game-strings",
     "autosave-state", "save-recent", "continue-menu", "autosave-runtime",
     "game-story-state", "game-state-tree", "game-state-variables", "game-story-edit", "game-state-history",
     "game-state-capture", "native-writes", "database-flow",
@@ -22,7 +24,7 @@ CHECKS = (
     "controller-click", "navigation", "native-gun", "options-navigation", "rumble",
     "fast-forward", "dvd-clock", "save-compatibility", "save-conversion",
     "save-storage", "save-slots", "installation", "welcome", "menu-colors",
-    "ui-colors", "movie", "audio", "compressed-audio", "video", "canvas-presentation",
+    "ui-colors", "movie", "audio", "tempo", "playback-audio", "compressed-audio", "video", "canvas-presentation",
     "transcript-history", "transcript-page", "transcript-capture", "transcript-view",
     "browser-session", "scene-overlay", "menu-control", "quick-menu", "quick-menu-navigation",
     "quick-menu-dialog", "settings-tabs", "settings-dialog", "controller-profile", "controller-dialog",

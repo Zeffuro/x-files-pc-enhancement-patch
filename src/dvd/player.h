@@ -11,6 +11,12 @@ public:
     virtual ~Sink() = default;
     virtual void video(const AVFrame& frame) = 0;
     virtual void audio(const AVFrame& frame, int first, int count) = 0;
+    virtual void finish_audio() = 0;
+
+    virtual std::int64_t audio_horizon() const {
+        return 18000;
+    }
+
     virtual bool drained() = 0;
     virtual void pause(bool value) = 0;
     virtual void clear() = 0;
@@ -63,6 +69,7 @@ private:
     std::int64_t audio_read_ = 0;
     bool eof_ = false;
     bool audio_anchored_ = false;
+    bool audio_finished_ = false;
     std::size_t queue_bytes_ = 0;
 };
 

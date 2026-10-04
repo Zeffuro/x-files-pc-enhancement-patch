@@ -91,8 +91,13 @@ void sync_audio(Movie& value) {
             value.audio = std::make_unique<Audio>(*value.media, *selected->media);
             value.audio->balance(selected->balance);
         }
-        value.audio->play(value.time, value.media->timescale, value.volume,
-                          value.fast_forward.active() ? settings().movie_speed : 1);
+        const auto speed = value.fast_forward.active() ? settings().movie_speed : 1;
+        value.audio->stop();
+        const auto before = std::chrono::steady_clock::now();
+        value.audio->prepare(speed);
+        // Preparing cached audio must not advance the movie ahead of its sound.
+        value.started += std::chrono::steady_clock::now() - before;
+        value.audio->play(value.time, value.media->timescale, value.volume, speed);
     } catch (const std::exception& error) {
         unsupported(Selector::StartMovie, error.what(), 0);
     }

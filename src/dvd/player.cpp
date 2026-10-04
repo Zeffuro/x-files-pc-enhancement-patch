@@ -49,6 +49,7 @@ void Player::start(std::int64_t from, std::int64_t to, bool paused) {
         video_read_ = audio_read_ = 0;
         eof_ = false;
         audio_anchored_ = false;
+        audio_finished_ = false;
         status_ = Status::playing;
         pump(from);
         if (paused) {
@@ -167,16 +168,21 @@ void Player::pump(std::int64_t time) {
         return;
     }
     try {
-        if (time < position_ || time > INT64_MAX - 18000) {
+        const auto ahead = sink_.audio_horizon();
+        if (ahead < 18000 || ahead > 90000 || time < position_ || time > INT64_MAX - ahead) {
             throw std::runtime_error("Invalid DVD presentation clock");
         }
         position_ = time;
-        const auto horizon = std::min(time + 18000, to_);
+        const auto horizon = std::min(time + ahead, to_);
         fill(horizon);
         while (!audio_.empty() && (!audio_anchored_ || audio_.front().time < horizon)) {
             submit(audio_.front());
             queue_bytes_ -= audio_.front().bytes;
             audio_.pop_front();
+        }
+        if (eof_ && audio_.empty() && !audio_finished_) {
+            sink_.finish_audio();
+            audio_finished_ = true;
         }
         while (!video_.empty() && video_.front().time <= time) {
             sink_.video(*video_.front().data);
@@ -225,7 +231,7 @@ std::int64_t Player::position() const {
 }
 
 bool Player::audio_finished() const {
-    return eof_ && audio_.empty();
+    return audio_finished_;
 }
 
 }

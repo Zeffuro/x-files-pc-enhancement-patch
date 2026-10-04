@@ -21,6 +21,7 @@ public:
     void video(const AVFrame& frame);
     void caption(std::wstring text, const CaptionStyle& style);
     void audio(const AVFrame& frame, int first_sample, int sample_count);
+    void finish_audio();
     bool drained();
     std::int64_t played() const;
     void pause(bool paused);

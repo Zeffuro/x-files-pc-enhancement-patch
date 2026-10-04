@@ -40,8 +40,8 @@ NavigationStep NavigationRepeat::update(const Sample& sample, bool analog_cursor
                                   (stick_navigation && sample.left_x > threshold ? 1 : 0) -
                                   (stick_navigation && sample.left_x < -threshold ? 1 : 0);
     const auto vertical_input = (buttons & button::down ? 1 : 0) - (buttons & button::up ? 1 : 0) +
-                                (!analog_cursor && sample.left_y < -threshold ? 1 : 0) -
-                                (!analog_cursor && sample.left_y > threshold ? 1 : 0);
+                                (stick_navigation && sample.left_y < -threshold ? 1 : 0) -
+                                (stick_navigation && sample.left_y > threshold ? 1 : 0);
     const int horizontal = std::clamp(horizontal_input, -1, 1);
     const int vertical = std::clamp(vertical_input, -1, 1);
     const bool changed = horizontal != previous_horizontal_ || vertical != previous_vertical_;

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(XFILES_VERSION "0.4.0" CACHE STRING "Release version (major.minor.patch)")
+set(XFILES_VERSION "0.4.1" CACHE STRING "Release version (major.minor.patch)")
 if(NOT XFILES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "XFILES_VERSION must be major.minor.patch")
 endif()
@@ -80,6 +80,14 @@ add_library(quicktime SHARED
     src/enhancements/ui/menu_link.cpp
     src/enhancements/ui/notification.cpp
     src/enhancements/controls.cpp
+    src/enhancements/keyboard_navigation.cpp
+    src/enhancements/hotspot_reveal.cpp
+    src/enhancements/reveal_model.cpp
+    src/enhancements/scrolling.cpp
+    src/enhancements/script_scroll.cpp
+    src/enhancements/documents.cpp
+    src/enhancements/document_text.cpp
+    src/enhancements/ui/document_page.cpp
     src/enhancements/scene_overlay.cpp
     src/enhancements/ui/quick_menu.cpp
     src/enhancements/ui/quick_menu_surface.cpp
@@ -99,6 +107,8 @@ add_library(quicktime SHARED
     src/enhancements/ui/continue_menu.cpp
     src/enhancements/modal_input.cpp
     src/enhancements/game_targets.cpp
+    src/enhancements/world_interactions.cpp
+    src/enhancements/world_cursors.cpp
     src/enhancements/focus.cpp
     src/enhancements/screens.cpp
     src/enhancements/login.cpp
@@ -252,6 +262,7 @@ include(cmake/ffmpeg.cmake)
 include(cmake/zlib.cmake)
 include(cmake/package.cmake)
 add_library(movie STATIC
+    src/media/tempo.cpp
     src/media/mpeg.cpp
     src/media/mpeg_filter.cpp
     src/media/movie.cpp
@@ -277,7 +288,7 @@ add_library(dvd-player STATIC src/dvd/player.cpp src/dvd/files.cpp src/dvd/capti
     src/identity.cpp src/platform/imports.cpp src/diagnostics/log_file.cpp)
 target_include_directories(dvd-player PUBLIC src)
 target_link_libraries(dvd-player PUBLIC movie)
-add_library(dvd-mpeg SHARED src/dvd/adapter.cpp src/dvd/output.cpp src/dvd/input.cpp src/settings.cpp src/dvd/adapter.def)
+add_library(dvd-mpeg SHARED src/dvd/adapter.cpp src/dvd/output.cpp src/dvd/audio.cpp src/dvd/input.cpp src/settings.cpp src/dvd/adapter.def)
 target_link_libraries(dvd-mpeg PRIVATE dvd-player user32 comctl32 gdi32 msimg32 ole32 xaudio2 xinput)
 set_target_properties(dvd-mpeg PROPERTIES OUTPUT_NAME XFilesMpeg)
 add_dependencies(xfiles-patch dvd-mpeg)

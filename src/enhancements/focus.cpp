@@ -64,9 +64,14 @@ int directional_target(std::span<const RECT> targets, POINT cursor, int horizont
 }
 
 int hotspot_target(std::span<const RECT> targets, POINT cursor, int direction) {
-    if (!direction || targets.empty()) {
+    return hotspot_target(targets, cursor, direction, 0);
+}
+
+int hotspot_target(std::span<const RECT> targets, POINT cursor, int horizontal, int vertical) {
+    if ((!horizontal && !vertical) || targets.empty()) {
         return -1;
     }
+    const int direction = horizontal ? horizontal : vertical;
     int current = -1;
     long current_area = std::numeric_limits<long>::max();
     for (std::size_t i = 0; i < targets.size(); ++i) {
@@ -92,10 +97,14 @@ int hotspot_target(std::span<const RECT> targets, POINT cursor, int direction) {
             const long long x = (item.left + item.right) / 2;
             const long long dx = x - cursor.x;
             const long long dy = (item.top + item.bottom) / 2 - cursor.y;
-            if (!wrap && dx * direction <= 0) {
+            const auto along = horizontal ? dx : dy;
+            const auto across = horizontal ? dy : dx;
+            const auto edge = horizontal ? x : (item.top + item.bottom) / 2;
+            if (!wrap && along * direction <= 0) {
                 continue;
             }
-            const auto score = wrap ? x * direction * 1000000 + dy * dy : dx * dx + dy * dy;
+            const auto score = wrap ? edge * direction * 1000000 + across * across
+                                    : along * along + across * across;
             if (score < best) {
                 best = score;
                 next = static_cast<int>(i);

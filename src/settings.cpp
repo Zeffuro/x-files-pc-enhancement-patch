@@ -69,6 +69,18 @@ Settings read_settings(const std::filesystem::path& path) {
         GetPrivateProfileIntW(L"Enhancements", L"ContinueLatest", 1, path.c_str()) != 0;
     result.dialogue_transcript =
         GetPrivateProfileIntW(L"Enhancements", L"DialogueTranscript", 1, path.c_str()) != 0;
+    result.hotspot_reveal =
+        GetPrivateProfileIntW(L"Enhancements", L"HotspotReveal", 1, path.c_str()) != 0;
+    result.hotspot_exits_only =
+        GetPrivateProfileIntW(L"Enhancements", L"HotspotExitsOnly", 0, path.c_str()) != 0;
+    result.hotspot_labels =
+        GetPrivateProfileIntW(L"Enhancements", L"HotspotLabels", 1, path.c_str()) != 0;
+    const auto reveal_key = GetPrivateProfileIntW(L"Input", L"HotspotRevealKey", 164, path.c_str());
+    if (reveal_key == 0 || reveal_key == VK_LMENU || reveal_key == 'H' || reveal_key == 'R') {
+        result.hotspot_reveal_key = reveal_key;
+    }
+    result.readable_documents =
+        GetPrivateProfileIntW(L"Enhancements", L"ReadableDocuments", 1, path.c_str()) != 0;
     result.quick_menu = GetPrivateProfileIntW(L"Enhancements", L"QuickMenu", 1, path.c_str()) != 0;
     for (std::size_t index = 0; index < quick_menu_keys.size(); ++index) {
         result.quick_menu_items[index] =
@@ -151,6 +163,7 @@ void save_settings(const Settings& value) {
     const auto contrast = std::to_wstring(static_cast<int>(value.movie_contrast));
     const auto speed_key = std::to_wstring(value.movie_speed_key);
     const auto speed = std::to_wstring(value.movie_speed);
+    const auto reveal_key = std::to_wstring(value.hotspot_reveal_key);
     if (!WritePrivateProfileStringW(L"Video", L"DVDMovies", value.dvd_movies ? L"1" : L"0",
                                     path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"MovieSpeedKey", speed_key.c_str(), path.c_str()) ||
@@ -170,6 +183,16 @@ void save_settings(const Settings& value) {
                                     value.continue_latest ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"DialogueTranscript",
                                     value.dialogue_transcript ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"HotspotReveal",
+                                    value.hotspot_reveal ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"HotspotExitsOnly",
+                                    value.hotspot_exits_only ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"HotspotLabels",
+                                    value.hotspot_labels ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Input", L"HotspotRevealKey", reveal_key.c_str(),
+                                    path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"ReadableDocuments",
+                                    value.readable_documents ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"QuickMenu", value.quick_menu ? L"1" : L"0",
                                     path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"FocusHighlight", highlight.c_str(), path.c_str()) ||

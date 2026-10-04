@@ -223,9 +223,10 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             }
             SendDlgItemMessageW(window, IDC_MOVIE_CONTRAST, CB_SETCURSEL,
                                 static_cast<WPARAM>(settings().movie_contrast), 0);
-            for (const auto label : {L"2x", L"3x", L"4x"}) {
+            for (const auto label :
+                 {L"2x (natural pitch)", L"3x (natural pitch)", L"4x (natural pitch)"}) {
                 SendDlgItemMessageW(window, IDC_MOVIE_SPEED, CB_ADDSTRING, 0,
-                                    reinterpret_cast<LPARAM>(label));
+                                    reinterpret_cast<LPARAM>(ui::translate(label)));
             }
             SendDlgItemMessageW(window, IDC_MOVIE_SPEED, CB_SETCURSEL, settings().movie_speed - 2,
                                 0);
@@ -245,6 +246,29 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                            settings().continue_latest ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_DIALOGUE_TRANSCRIPT,
                            settings().dialogue_transcript ? BST_CHECKED : BST_UNCHECKED);
+            for (const auto label : {L"Off", L"All interactions", L"Exits only"}) {
+                SendDlgItemMessageW(window, IDC_HOTSPOT_REVEAL, CB_ADDSTRING, 0,
+                                    reinterpret_cast<LPARAM>(ui::translate(label)));
+            }
+            SendDlgItemMessageW(window, IDC_HOTSPOT_REVEAL, CB_SETCURSEL,
+                                !settings().hotspot_reveal      ? 0
+                                : settings().hotspot_exits_only ? 2
+                                                                : 1,
+                                0);
+            for (const auto label : {L"Left Alt", L"H", L"R", L"Controller"}) {
+                SendDlgItemMessageW(window, IDC_HOTSPOT_KEY, CB_ADDSTRING, 0,
+                                    reinterpret_cast<LPARAM>(ui::translate(label)));
+            }
+            SendDlgItemMessageW(window, IDC_HOTSPOT_KEY, CB_SETCURSEL,
+                                settings().hotspot_reveal_key == 'H'   ? 1
+                                : settings().hotspot_reveal_key == 'R' ? 2
+                                : settings().hotspot_reveal_key == 0   ? 3
+                                                                       : 0,
+                                0);
+            CheckDlgButton(window, IDC_READABLE_DOCUMENTS,
+                           settings().readable_documents ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(window, IDC_HOTSPOT_LABELS,
+                           settings().hotspot_labels ? BST_CHECKED : BST_UNCHECKED);
             state->tabs.initialize(window);
             return TRUE;
         }
@@ -397,6 +421,18 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             value.continue_latest = IsDlgButtonChecked(window, IDC_CONTINUE_LATEST) == BST_CHECKED;
             value.dialogue_transcript =
                 IsDlgButtonChecked(window, IDC_DIALOGUE_TRANSCRIPT) == BST_CHECKED;
+            const auto reveal = SendDlgItemMessageW(window, IDC_HOTSPOT_REVEAL, CB_GETCURSEL, 0, 0);
+            value.hotspot_reveal = reveal == 1 || reveal == 2;
+            value.hotspot_exits_only = reveal == 2;
+            value.hotspot_labels = IsDlgButtonChecked(window, IDC_HOTSPOT_LABELS) == BST_CHECKED;
+            const auto reveal_key =
+                SendDlgItemMessageW(window, IDC_HOTSPOT_KEY, CB_GETCURSEL, 0, 0);
+            value.hotspot_reveal_key = reveal_key == 1   ? 'H'
+                                       : reveal_key == 2 ? 'R'
+                                       : reveal_key == 3 ? 0
+                                                         : VK_LMENU;
+            value.readable_documents =
+                IsDlgButtonChecked(window, IDC_READABLE_DOCUMENTS) == BST_CHECKED;
             value.quick_menu = state->draft.quick_menu;
             value.quick_menu_items = state->draft.quick_menu_items;
             value.controller_profile = state->draft.controller_profile;

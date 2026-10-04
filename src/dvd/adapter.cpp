@@ -37,6 +37,16 @@ public:
         }
     }
 
+    void finish_audio() override {
+        if (!muted) {
+            output.finish_audio();
+        }
+    }
+
+    std::int64_t audio_horizon() const override {
+        return !muted ? 18000 * speed : 18000;
+    }
+
     bool drained() override {
         return muted || output.drained();
     }
@@ -54,6 +64,7 @@ public:
     }
 
     Output output;
+    unsigned speed = 1;
     bool muted = false;
     bool retain_video = false;
 };
@@ -219,7 +230,7 @@ public:
                 tail_ = false;
                 held_speed_.clear();
                 device_->muted = false;
-                device_->output.speed(speed_ = 1);
+                device_->output.speed(device_->speed = speed_ = 1);
                 player_->start(clock_.position(), to_ < 0 ? INT64_MAX : ticks(to_),
                                tools_pause_depth != 0);
             }
@@ -272,7 +283,7 @@ public:
                 held_speed_.reset();
             }
             device_->muted = false;
-            device_->output.speed(speed_ = 1);
+            device_->output.speed(device_->speed = speed_ = 1);
             from_ = selector == 11 ? 0 : frame;
             tail_ = false;
             if (selector == 12) {
@@ -445,7 +456,7 @@ private:
         const bool paused = player_->status() == Status::paused;
         speed_ = speed;
         device_->muted = mute;
-        device_->output.speed(speed);
+        device_->output.speed(device_->speed = speed);
 
         // Drop queued PCM and rebase its sample counter at the current media time.
         struct RetainVideo {
@@ -473,7 +484,7 @@ private:
             set_speed(false);
         } else {
             device_->muted = false;
-            device_->output.speed(speed_ = 1);
+            device_->output.speed(device_->speed = speed_ = 1);
         }
     }
 

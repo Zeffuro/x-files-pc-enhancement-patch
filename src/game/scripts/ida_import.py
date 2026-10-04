@@ -45,15 +45,20 @@ def plan(data, adapter, functions=None):
         raise ValueError("This build has no verified native mapping")
     base = adapter.imagebase()
     decisions = []
+    addresses = set()
     for field, rva in build["rvas"].items():
         ea = base + rva
         desired = "XFiles_" + field
+        alias = ea in addresses
+        addresses.add(ea)
         if not adapter.is_mapped(ea):
             status, current = "unmapped", ""
         else:
             current = adapter.name(ea)
             owner = adapter.name_owner(desired)
-            if field in function_fields and not adapter.is_function(ea):
+            if alias:
+                status = "alias"
+            elif field in function_fields and not adapter.is_function(ea):
                 status = "not_function"
             elif current == desired:
                 status = "already"

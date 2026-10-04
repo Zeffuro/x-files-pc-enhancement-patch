@@ -50,6 +50,9 @@ Your saves and settings are kept. Use the release ZIP, not the Source code downl
 - **Alt+Enter** switches between windowed and borderless play.
 - **F5** quick-saves during exploration.
 - **F9** quick-loads during exploration or from the main menu.
+- Hold **Left Alt** or **RT** to reveal nearby interactions and exits.
+- Use the mouse wheel over PDA, workstation or conversation text to scroll.
+- Click PDA or workstation message text to open a larger reader.
 - Rolling autosaves keep five safe exploration checkpoints. At startup, the
   original **Previous** button loads your newest compatible save by default.
   During a paused game, **Return** resumes your current session.

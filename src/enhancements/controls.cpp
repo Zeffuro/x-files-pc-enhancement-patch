@@ -3,10 +3,14 @@
 #include "controller_click.h"
 #include "rumble.h"
 #include "controls.h"
+#include "keyboard_navigation.h"
 #include "ui/settings_dialog.h"
 #include "ui/quick_menu.h"
 #include "ui/menu_link.h"
 #include "dialogue.h"
+#include "hotspot_reveal.h"
+#include "scrolling.h"
+#include "documents.h"
 #include "inventory.h"
 #include "menu.h"
 #include "modal_input.h"
@@ -47,7 +51,8 @@ thread_local bool dialog_open = false;
 thread_local bool f10_down = false;
 thread_local bool escape_consumed = false;
 thread_local bool right_click_consumed = false;
-thread_local std::array<bool, 256> navigation_keys{};
+thread_local NavigationKeys navigation_keys;
+thread_local NavigationKeys native_navigation_keys;
 thread_local HICON large_icon = nullptr;
 thread_local HICON small_icon = nullptr;
 thread_local HICON previous_large_icon = nullptr;
@@ -113,6 +118,8 @@ void finish_inventory_click(HWND window, UINT message, bool injected, std::uint6
 
 void show_settings(HWND window) {
     if (!dialog_open) {
+        scrolling::reset();
+        documents::release();
         playback::suspend_fast_forward_input();
         suspend_controller();
         dialog_open = true;
@@ -144,9 +151,11 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         cancel_controller_inventory_click();
     }
     if (message == WM_KILLFOCUS || (message == WM_ACTIVATEAPP && !value)) {
+        reveal::suspend();
+        scrolling::reset();
         playback::suspend_fast_forward_input();
         suspend_controller();
-        navigation_keys.fill(false);
+        navigation_keys.reset();
         f10_down = escape_consumed = right_click_consumed = settings_clicked = false;
     }
     if (message == WM_KEYDOWN && value == VK_ESCAPE) {
@@ -155,12 +164,23 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         stop_rumble();
         cancel_controller_inventory_click();
     }
-    if (!dialog_open && !text_entry_busy() && transcript::message(window, message, value, data)) {
-        if (message == WM_KEYDOWN && value < navigation_keys.size()) {
-            navigation_keys[value] = true;
+    if (native_navigation_keys.owns(message, value, data) ||
+        ((message == WM_KEYUP || message == WM_SYSKEYUP) &&
+         navigation_keys.owns(message, value, data))) {
+        return 0;
+    }
+    if (!dialog_open && !text_entry_busy() && documents::message(window, message, value, data)) {
+        if (injected_left) {
+            cancel_controller_inventory_click();
         }
-        if (message == WM_KEYUP && value < navigation_keys.size()) {
-            navigation_keys[value] = false;
+        return 0;
+    }
+    if (!dialog_open && !text_entry_busy() && transcript::message(window, message, value, data)) {
+        if (message == WM_KEYDOWN) {
+            navigation_keys.consume(value);
+        }
+        if (message == WM_KEYUP) {
+            navigation_keys.owns(message, value, data);
         }
         if (message == WM_RBUTTONDOWN) {
             right_click_consumed = true;
@@ -178,18 +198,23 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         if (injected_left) {
             cancel_controller_inventory_click();
         }
-        if (message == WM_KEYDOWN && value < navigation_keys.size()) {
-            navigation_keys[value] = true;
+        if (message == WM_KEYDOWN) {
+            navigation_keys.consume(value);
         }
         return 0;
     }
     if (!dialog_open && !text_entry_busy() && quick_menu::message(window, message, value, data)) {
-        if (message == WM_KEYDOWN && value < navigation_keys.size()) {
-            navigation_keys[value] = true;
+        if (message == WM_KEYDOWN) {
+            navigation_keys.consume(value);
         }
         if (injected_left) {
             cancel_controller_inventory_click();
         }
+        return 0;
+    }
+    if (!dialog_open && !text_entry_busy() &&
+        (reveal::message(window, message, value, data) ||
+         scrolling::message(window, message, value, data))) {
         return 0;
     }
     if (message == WM_RBUTTONDOWN && !dialog_open && !text_entry_busy()) {
@@ -231,17 +256,8 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         }
         return 0;
     }
-    if (value < navigation_keys.size() && navigation_keys[value]) {
-        if (message == WM_KEYDOWN && (data & (1L << 30))) {
-            return 0;
-        }
-        if (message == WM_CHAR) {
-            return 0;
-        }
-        if (message == WM_KEYUP) {
-            navigation_keys[value] = false;
-            return 0;
-        }
+    if (navigation_keys.owns(message, value, data)) {
+        return 0;
     }
     if ((message == WM_CHAR || message == WM_KEYUP) && value == VK_ESCAPE && escape_consumed) {
         return 0;
@@ -251,30 +267,18 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             if (!(data & (1L << 30))) {
                 devtools::request_inspector();
             }
-            navigation_keys[value] = true;
+            navigation_keys.consume(value);
             return 0;
         }
         if (value == VK_F5 || value == VK_F9) {
             if (!(data & (1L << 30)) && game_is_foreground(window)) {
                 quick_save(window, value == VK_F9);
             }
-            navigation_keys[value] = true;
+            navigation_keys.consume(value);
             return 0;
         }
-        const int horizontal = (value == VK_RIGHT) - (value == VK_LEFT);
-        const int vertical = (value == VK_DOWN) - (value == VK_UP);
-        if ((horizontal || vertical || value == VK_RETURN || value == VK_BACK || value == VK_TAB) &&
-            navigate_screen(window, horizontal, vertical, value == VK_RETURN, value == VK_BACK,
-                            value == VK_TAB, true)) {
-            navigation_keys[value] = true;
-            return 0;
-        }
-        if (value == VK_TAB && !(data & (1L << 30)) &&
-            (focus_conversation_evidence(window) || navigate_emotions(window, 0, true) ||
-             focus_inventory(window))) {
-            return 0;
-        }
-        if (value == VK_BACK && (leave_inventory(window) || close_dialogue(window))) {
+        if (navigate_keyboard(window, value)) {
+            native_navigation_keys.consume(value);
             return 0;
         }
         if (value == VK_ESCAPE) {
@@ -292,17 +296,6 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             if (escape_consumed) {
                 return 0;
             }
-        }
-        const int direction = (value == VK_DOWN) - (value == VK_UP);
-        const int tab = (value == VK_RIGHT) - (value == VK_LEFT);
-        if (navigate_emotions(window, tab ? tab : direction, false)) {
-            return 0;
-        }
-        if ((direction || tab) && navigate_inventory(window, tab)) {
-            return 0;
-        }
-        if ((direction || tab) && navigate_dialogue(window, direction, tab)) {
-            return 0;
         }
     }
     if ((message == WM_KEYDOWN || message == WM_SYSKEYDOWN) && value == VK_F10) {
@@ -339,10 +332,13 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         saves::update_browser(window);
         quick_menu::update(!dialog_open && !text_entry_busy() && game_is_foreground(window));
         transcript::update();
+        documents::update(window, !dialog_open && !text_entry_busy() && game_is_foreground(window));
+        scrolling::update(!dialog_open && !text_entry_busy() && game_is_foreground(window));
         update_autosave(window, dialog_open || text_entry_busy() || !game_is_foreground(window) ||
-                                    transcript::active());
+                                    transcript::active() || documents::active());
         update_notification(window);
-        if (saves::browser_active() || transcript::active()) {
+        if (saves::browser_active() || transcript::active() || documents::active()) {
+            reveal::update(window, false);
             update_inventory_focus(window, false);
             update_settings_link(window, false);
             update_highlight(window, false);
@@ -372,6 +368,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         } else {
             input::poll(false);
         }
+        reveal::update(window, focused && !dialog_open && !text_entry_busy());
         return 0;
     }
     if (message == WM_NCDESTROY) {
@@ -397,7 +394,9 @@ bool game_is_foreground(HWND window) {
 }
 
 HWND playback_input_window() {
-    return !dialog_open && !text_entry_busy() && !transcript::active() ? game_window : nullptr;
+    return !dialog_open && !text_entry_busy() && !transcript::active() && !documents::active()
+               ? game_window
+               : nullptr;
 }
 
 void begin_controller_inventory_click(HWND window, POINT scene_cursor, POINT item_cursor) {
@@ -470,10 +469,15 @@ void attach_controls(HWND window) {
 }
 
 void detach_controls() {
+    native_navigation_keys.reset();
+    navigation_keys.reset();
     suspend_controller();
     detach_rumble();
     saves::release_browser();
     transcript::release();
+    documents::release(true);
+    scrolling::reset();
+    reveal::release();
     devtools::release_inspector();
     detach_modal_input();
     release_settings_link();

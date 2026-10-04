@@ -1,5 +1,17 @@
 # What's new
 
+## 0.4.1
+
+- Natural-pitch sound during 2x, 3x and 4x movie fast-forward on CD and DVD.
+- Hold a key or controller button to reveal interactions and exits, with optional labels.
+- Mouse-wheel scrolling in conversations, PDA and workstation screens keeps the pointer still.
+- Click PDA or workstation messages for a larger reader with adjustable text size.
+- Keyboard navigation for conversations, evidence, inventory and devices.
+  Enter also confirms save names.
+- Controller D-pad selection of hotspots while holding Targets.
+- Fixed a crash when loading original audio files.
+- Restored missing English DVD retry and laptop lockout messages.
+
 ## 0.4.0
 
 - A separate portable developer-tools download for browsing databases, saves

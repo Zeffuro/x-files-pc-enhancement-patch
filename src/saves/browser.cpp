@@ -6,6 +6,7 @@
 #include "enhancements/quick_save.h"
 #include "enhancements/scene_overlay.h"
 #include "enhancements/controls.h"
+#include "enhancements/keyboard_navigation.h"
 #include "game/render/native_render.h"
 #include "runtime.h"
 #include "settings.h"
@@ -18,6 +19,7 @@ namespace {
 std::shared_ptr<Browser> browser;
 bool committing = false;
 bool consumed_left = false;
+enhancements::NavigationKeys naming_keys;
 enhancements::SceneOverlay scene_pause;
 Thumbnail last_scene;
 SceneReference last_reference;
@@ -359,11 +361,15 @@ void update_browser(HWND) {
     }
 }
 
-bool browser_message(HWND window, UINT message, WPARAM value, LPARAM) {
+bool browser_message(HWND window, UINT message, WPARAM value, LPARAM data, BrowserInput input) {
     try {
         if (message == WM_KILLFOCUS || (message == WM_ACTIVATEAPP && !value)) {
             pressed = menu_pressed = -1;
+            naming_keys.reset();
             return false;
+        }
+        if (input == BrowserInput::keyboard && naming_keys.owns(message, value, data)) {
+            return true;
         }
         if (message == WM_LBUTTONUP && consumed_left && !browser) {
             consumed_left = false;
@@ -451,7 +457,11 @@ bool browser_message(HWND window, UINT message, WPARAM value, LPARAM) {
                 browser->key = static_cast<unsigned>(
                     (static_cast<int>(browser->key) + step + name_key_count) % name_key_count);
             } else if (browser->keyboard && value == VK_RETURN) {
-                action(window, 100 + browser->key);
+                action(window, 100 + (input == BrowserInput::controller ? browser->key
+                                                                        : name_key_count - 1));
+                if (input == BrowserInput::keyboard) {
+                    naming_keys.consume(VK_RETURN);
+                }
             } else if (browser->keyboard && value == VK_ESCAPE) {
                 browser->keyboard = browser->naming = false;
             } else if (value == VK_ESCAPE) {
@@ -525,5 +535,6 @@ void release_browser() {
     last_reference = {};
     menu_pressed = pressed = -1;
     consumed_left = false;
+    naming_keys.reset();
 }
 }

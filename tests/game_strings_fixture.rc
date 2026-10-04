@@ -1,0 +1,17 @@
+#ifdef GAME_STRINGS_LOCALIZED_FIXTURE
+LANGUAGE 7, 1
+#else
+LANGUAGE 9, 1
+#endif
+STRINGTABLE
+BEGIN
+    1 "English messages"
+    12 "Do you want to save your current game"
+#ifdef GAME_STRINGS_TEXT_FIXTURE
+    1100 "faith"
+    1102 "nuclear"
+#endif
+#if defined(GAME_STRINGS_LOCALIZED_FIXTURE) && !defined(GAME_STRINGS_MISSING_FIXTURE)
+    1101 "Zuviele Anmeldeversuche, System gesperrt."
+#endif
+END

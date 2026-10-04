@@ -23,6 +23,8 @@ bool attached = false;
 thread_local CanvasSource canvas_source = nullptr;
 thread_local CanvasSource canvas_overlay = nullptr;
 thread_local CanvasSource canvas_targets = nullptr;
+thread_local CanvasSource canvas_reveal = nullptr;
+thread_local CanvasSource canvas_reader = nullptr;
 thread_local CanvasSource canvas_status = nullptr;
 thread_local HDC presenting = nullptr;
 thread_local bool substituting = false;
@@ -166,13 +168,14 @@ HDC canvas_dc() {
 }
 
 HDC presentation_source(HDC source) {
-    if ((canvas_source || canvas_overlay || canvas_targets || canvas_status) && presenting &&
-        source == presenting && !substituting) {
+    if ((canvas_source || canvas_overlay || canvas_targets || canvas_reveal || canvas_reader ||
+         canvas_status) &&
+        presenting && source == presenting && !substituting) {
         substituting = true;
         try {
             auto replacement = source;
-            for (const auto decorate :
-                 {canvas_source, canvas_overlay, canvas_targets, canvas_status}) {
+            for (const auto decorate : {canvas_source, canvas_reveal, canvas_overlay,
+                                        canvas_targets, canvas_reader, canvas_status}) {
                 if (!decorate) {
                     continue;
                 }
@@ -209,6 +212,16 @@ void set_canvas_overlay(CanvasSource callback) {
 
 void set_canvas_targets(CanvasSource callback) {
     canvas_targets = callback;
+    source_reported = false;
+}
+
+void set_canvas_reveal(CanvasSource callback) {
+    canvas_reveal = callback;
+    source_reported = false;
+}
+
+void set_canvas_reader(CanvasSource callback) {
+    canvas_reader = callback;
     source_reported = false;
 }
 
@@ -291,6 +304,8 @@ void detach_native_render() {
     canvas_source = nullptr;
     canvas_overlay = nullptr;
     canvas_targets = nullptr;
+    canvas_reveal = nullptr;
+    canvas_reader = nullptr;
     canvas_status = nullptr;
     presenting = nullptr;
     attached = false;

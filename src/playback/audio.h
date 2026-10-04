@@ -16,6 +16,7 @@ public:
     Audio& operator=(const Audio&) = delete;
 
     void play(std::uint32_t time, std::uint32_t scale, std::int16_t volume, unsigned speed = 1);
+    void prepare(unsigned speed);
     void stop();
     void volume(std::int16_t value);
     void balance(std::int16_t value);
@@ -23,6 +24,8 @@ public:
 
 private:
     std::vector<std::int16_t> pcm_;
+    std::vector<std::int16_t> fast_pcm_;
+    unsigned prepared_speed_ = 0;
     WAVEFORMATEX format_{};
     std::unique_ptr<Output> output_;
     std::int16_t volume_ = 256;

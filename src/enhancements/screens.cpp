@@ -181,7 +181,8 @@ bool navigate_screen(HWND window, int horizontal, int vertical, bool activate, b
         const bool login = workstation && has(resource::workstation_login);
         const bool generic =
             !options && pda == Pda::none && !phone && !save && !load && !help && !workstation;
-        if ((generic && script.buttons.empty()) || (generic && script.text_input && keyboard) ||
+        if ((generic && script.buttons.empty()) ||
+            (keyboard && script.text_input && (generic || pda == Pda::notes)) ||
             ((save || login ||
               (workstation &&
                (has(resource::workstation_search) || has(resource::workstation_media)))) &&

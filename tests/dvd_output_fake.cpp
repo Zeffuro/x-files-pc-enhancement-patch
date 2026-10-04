@@ -1,5 +1,8 @@
 #include "dvd/output.h"
 #include "dvd/input.h"
+#include "media/tempo.h"
+#include <cstring>
+#include <vector>
 
 #include <algorithm>
 extern "C" {
@@ -21,6 +24,7 @@ struct Output::State {
     unsigned speed = 1;
     bool underrun = GetEnvironmentVariableW(L"XFILES_DVD_TEST_UNDERRUN", nullptr, 0) != 0;
     std::int64_t samples = 0;
+    std::unique_ptr<media::Tempo> tempo;
     std::int64_t elapsed = 0;
     ULONGLONG start = GetTickCount64();
 
@@ -49,10 +53,34 @@ void Output::caption(std::wstring text, const CaptionStyle&) {
     SetWindowTextW(state_->window, text.c_str());
 }
 
-void Output::audio(const AVFrame&, int, int count) {
+void Output::audio(const AVFrame& frame, int first, int count) {
     state_->time();
-    state_->samples += count;
+    if (state_->speed > 1) {
+        if (!state_->tempo) {
+            state_->tempo = std::make_unique<media::Tempo>(48000, 2, state_->speed);
+        }
+        std::vector<std::int16_t> pcm(static_cast<std::size_t>(count) * 2);
+        if (frame.format == AV_SAMPLE_FMT_S16) {
+            std::memcpy(pcm.data(), frame.extended_data[0] + first * 4, pcm.size() * 2);
+        } else {
+            const auto* input = reinterpret_cast<const std::int32_t*>(frame.extended_data[0]);
+            for (std::size_t i = 0; i < pcm.size(); ++i) {
+                pcm[i] = static_cast<std::int16_t>(input[first * 2 + i] >> 16);
+            }
+        }
+        state_->samples +=
+            static_cast<std::int64_t>(state_->tempo->push(pcm).size() / 2) * state_->speed;
+    } else {
+        state_->samples += count;
+    }
     SetPropW(state_->window, L"XFilesDvdTestAudio", reinterpret_cast<HANDLE>(1));
+}
+
+void Output::finish_audio() {
+    if (state_->tempo) {
+        state_->samples +=
+            static_cast<std::int64_t>(state_->tempo->finish().size() / 2) * state_->speed;
+    }
 }
 
 bool Output::drained() {
@@ -80,6 +108,7 @@ void Output::clear() {
 }
 
 void Output::discard_audio() {
+    state_->tempo.reset();
     state_->samples = state_->elapsed = 0;
     state_->start = GetTickCount64();
     RemovePropW(state_->window, L"XFilesDvdTestAudio");

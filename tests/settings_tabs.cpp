@@ -38,6 +38,39 @@ void check_language(ui::Language language) {
     } cleanup{window};
 
     ui::translate_dialog(window, language);
+    const auto speed = GetDlgItem(window, IDC_MOVIE_SPEED);
+    const auto mute = GetDlgItem(window, IDC_MOVIE_SPEED_MUTE);
+    RECT speed_bounds{}, mute_bounds{};
+    GetWindowRect(speed, &speed_bounds);
+    GetWindowRect(mute, &mute_bounds);
+    require(speed_bounds.right < mute_bounds.left,
+            "The natural-pitch speed label overlaps its mute option.");
+    const auto dc = GetDC(window);
+    const auto font = reinterpret_cast<HFONT>(SendMessageW(window, WM_GETFONT, 0, 0));
+    const auto previous = SelectObject(dc, font);
+    for (const auto entry :
+         {std::pair{speed, L"2x (natural pitch)"}, std::pair{speed, L"3x (natural pitch)"},
+          std::pair{speed, L"4x (natural pitch)"}, std::pair{mute, L"Mute"}}) {
+        const std::wstring label = ui::translate(entry.second, language);
+        SIZE size{};
+        RECT bounds{};
+        GetTextExtentPoint32W(dc, label.c_str(), static_cast<int>(label.size()), &size);
+        GetClientRect(entry.first, &bounds);
+        require(size.cx + 24 <= bounds.right, "Translated natural-pitch or mute label is clipped.");
+    }
+    SelectObject(dc, previous);
+    ReleaseDC(window, dc);
+    RECT language_bounds{}, game_bounds{};
+    GetWindowRect(GetDlgItem(window, IDC_INTERFACE_LANGUAGE), &language_bounds);
+    GetWindowRect(GetDlgItem(window, IDC_SETTINGS_GAME), &game_bounds);
+    require(language_bounds.bottom <= game_bounds.bottom,
+            "Language selector extends below the Game settings group.");
+    for (const auto id : {IDC_READABLE_DOCUMENTS, IDC_HOTSPOT_LABELS}) {
+        RECT bounds{}, intersection{};
+        GetWindowRect(GetDlgItem(window, id), &bounds);
+        require(!IntersectRect(&intersection, &bounds, &language_bounds),
+                "The language selector overlaps the document or hotspot label option.");
+    }
     std::array<std::vector<HWND>, 4> pages;
     unsigned page = 4;
     for (auto child = GetWindow(window, GW_CHILD); child; child = GetWindow(child, GW_HWNDNEXT)) {

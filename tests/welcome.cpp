@@ -25,9 +25,15 @@ LRESULT CALLBACK initialized_dialog(int code, WPARAM parameter, LPARAM data) {
         try {
             test::require(IsDlgButtonChecked(window, 2119) == BST_CHECKED,
                           "Startup Return is not recommended at first launch");
+            test::require(IsDlgButtonChecked(window, 2120) == BST_CHECKED &&
+                              IsDlgButtonChecked(window, 2121) == BST_CHECKED,
+                          "Investigation aids are not recommended at first launch");
             SendMessageW(window, WM_COMMAND, 2107, 0);
             test::require(IsDlgButtonChecked(window, 2119) == BST_UNCHECKED,
                           "Original preset did not disable startup Return");
+            test::require(IsDlgButtonChecked(window, 2120) == BST_UNCHECKED &&
+                              IsDlgButtonChecked(window, 2121) == BST_UNCHECKED,
+                          "Original preset retained investigation aids");
             SendMessageW(window, WM_COMMAND, 2106, 0);
             test::require(IsDlgButtonChecked(window, 2119) == BST_CHECKED,
                           "Recommended preset did not restore startup Return");
@@ -68,6 +74,11 @@ void verify_dialog(const std::filesystem::path& root, int preset, bool accept) {
         test::require(GetPrivateProfileIntW(L"Enhancements", L"ContinueLatest", 2, path.c_str()) ==
                           (preset == 2106 ? 1u : 0u),
                       "Welcome preset did not persist startup Return");
+        test::require(GetPrivateProfileIntW(L"Enhancements", L"HotspotReveal", 2, path.c_str()) ==
+                              (preset == 2106 ? 1u : 0u) &&
+                          GetPrivateProfileIntW(L"Enhancements", L"ReadableDocuments", 2,
+                                                path.c_str()) == (preset == 2106 ? 1u : 0u),
+                      "Welcome preset did not persist investigation aids");
     } else {
         test::require(bytes(path) == before, "Canceled welcome published startup Return edits");
     }

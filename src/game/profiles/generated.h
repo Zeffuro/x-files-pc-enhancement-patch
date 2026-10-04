@@ -24,10 +24,29 @@ struct Profile {
     std::uint32_t script_control;
     std::uint32_t input_graphic;
     std::uint32_t text;
+    std::uint32_t main_text;
     std::uint32_t movie;
     std::uint32_t action_movie;
     std::uint32_t emotion;
     std::uint32_t picture;
+    std::uint32_t world_picture;
+    std::uint32_t world_hotspot;
+    std::uint32_t registry_container;
+    std::uint32_t conversation_association;
+    std::uint32_t conversation_association_tree;
+    std::uint32_t association_id_node;
+    std::uint32_t world_hover;
+    std::uint32_t default_inventory_action;
+    std::uint32_t cursor_object;
+    std::uint32_t cursor_resource;
+    std::uint32_t cursor_group;
+    std::uint32_t cursor_group_list;
+    std::uint32_t world_hotspot_resource;
+    std::uint32_t world_picture_resource;
+    std::uint32_t conversation_resource;
+    std::uint32_t world_navigation;
+    std::uint32_t world_navigation_resource;
+    std::uint32_t world_navigation_shape_resource;
     std::uint32_t viewport;
     std::uint32_t lookup;
     std::uint32_t release;
@@ -53,6 +72,7 @@ struct Profile {
     std::uint32_t text_out;
     std::uint32_t string_resource;
     std::uint32_t asset_reference;
+    std::uint32_t main_text_rectangle;
     std::uint32_t credit_group;
     std::uint32_t credit_update;
     std::uint32_t credit_draw;
@@ -101,10 +121,29 @@ inline constexpr Profile profile_cd_10012{
     .script_control = 0x257510,
     .input_graphic = 0x25a290,
     .text = 0x25c1e0,
+    .main_text = 0x2bd3f8,
     .movie = 0x258d20,
     .action_movie = 0x254020,
     .emotion = 0x2545e0,
     .picture = 0x25cd10,
+    .world_picture = 0x255f10,
+    .world_hotspot = 0x254790,
+    .registry_container = 0x259330,
+    .conversation_association = 0x263bd0,
+    .conversation_association_tree = 0x263aa8,
+    .association_id_node = 0x261a58,
+    .world_hover = 0x2b2acc,
+    .default_inventory_action = 0x2b16b8,
+    .cursor_object = 0x25aaa0,
+    .cursor_resource = 0x265a28,
+    .cursor_group = 0x25c5c0,
+    .cursor_group_list = 0x25bf00,
+    .world_hotspot_resource = 0x2646d8,
+    .world_picture_resource = 0x264658,
+    .conversation_resource = 0x265a98,
+    .world_navigation = 0x25a780,
+    .world_navigation_resource = 0x266f68,
+    .world_navigation_shape_resource = 0x266ef8,
     .viewport = 0x2c11e8,
     .lookup = 0x41ed0,
     .release = 0x2b790,
@@ -130,6 +169,7 @@ inline constexpr Profile profile_cd_10012{
     .text_out = 0x1650c0,
     .string_resource = 0x30d50,
     .asset_reference = 0x263f40,
+    .main_text_rectangle = 0x98,
     .credit_group = 0x25c5c0,
     .credit_update = 0x5e40,
     .credit_draw = 0x5c00,
@@ -170,10 +210,29 @@ inline constexpr Profile profile_cd_10019{
     .script_control = 0x2595a8,
     .input_graphic = 0x25c9f0,
     .text = 0x25e978,
+    .main_text = 0x2c0560,
     .movie = 0x25b058,
     .action_movie = 0x256038,
     .emotion = 0x256618,
     .picture = 0x25f4a8,
+    .world_picture = 0x257f70,
+    .world_hotspot = 0x2567d8,
+    .registry_container = 0x25b680,
+    .conversation_association = 0x2660d8,
+    .conversation_association_tree = 0x2662a8,
+    .association_id_node = 0x264118,
+    .world_hover = 0x2b5af4,
+    .default_inventory_action = 0x2b46e8,
+    .cursor_object = 0x25d218,
+    .cursor_resource = 0x2681b8,
+    .cursor_group = 0x25ed58,
+    .cursor_group_list = 0x25e698,
+    .world_hotspot_resource = 0x266e68,
+    .world_picture_resource = 0x266de8,
+    .conversation_resource = 0x268228,
+    .world_navigation = 0x25cef0,
+    .world_navigation_resource = 0x2696f8,
+    .world_navigation_shape_resource = 0x269688,
     .viewport = 0x2c4388,
     .lookup = 0x41970,
     .release = 0x2b530,
@@ -199,6 +258,7 @@ inline constexpr Profile profile_cd_10019{
     .text_out = 0x1680f0,
     .string_resource = 0x30760,
     .asset_reference = 0x2666d0,
+    .main_text_rectangle = 0x9c,
     .credit_group = 0x25ed58,
     .credit_update = 0x5c40,
     .credit_draw = 0x5a00,
@@ -239,10 +299,29 @@ inline constexpr Profile profile_dvd_20000{
     .script_control = 0x25d830,
     .input_graphic = 0x25eae8,
     .text = 0x25f928,
+    .main_text = 0x2c2690,
     .movie = 0x25d270,
     .action_movie = 0x25dee8,
     .emotion = 0x258310,
     .picture = 0x25f5a0,
+    .world_picture = 0x25b798,
+    .world_hotspot = 0x258d20,
+    .registry_container = 0x25c9e8,
+    .conversation_association = 0x267f80,
+    .conversation_association_tree = 0x268150,
+    .association_id_node = 0x2651d0,
+    .world_hover = 0x2b6608,
+    .default_inventory_action = 0x2b6544,
+    .cursor_object = 0x258150,
+    .cursor_resource = 0x266ba8,
+    .cursor_group = 0x25f268,
+    .cursor_group_list = 0x25f400,
+    .world_hotspot_resource = 0x266cf8,
+    .world_picture_resource = 0x267f10,
+    .conversation_resource = 0x267b30,
+    .world_navigation = 0x258440,
+    .world_navigation_resource = 0x266c88,
+    .world_navigation_shape_resource = 0x266c18,
     .viewport = 0x2c10e8,
     .lookup = 0x41a30,
     .release = 0x2b610,
@@ -268,6 +347,7 @@ inline constexpr Profile profile_dvd_20000{
     .text_out = 0x146aa0,
     .string_resource = 0x30830,
     .asset_reference = 0x266328,
+    .main_text_rectangle = 0x9c,
     .credit_group = 0x25f268,
     .credit_update = 0x5c40,
     .credit_draw = 0x5a00,
@@ -308,10 +388,29 @@ inline constexpr Profile profile_cd_10020{
     .script_control = 0x25a5a0,
     .input_graphic = 0x25d9e8,
     .text = 0x25f978,
+    .main_text = 0x2c15c0,
     .movie = 0x25c050,
     .action_movie = 0x257030,
     .emotion = 0x257610,
     .picture = 0x2604a8,
+    .world_picture = 0x258f68,
+    .world_hotspot = 0x2577d0,
+    .registry_container = 0x25c678,
+    .conversation_association = 0x267368,
+    .conversation_association_tree = 0x267240,
+    .association_id_node = 0x265120,
+    .world_hover = 0x2b6b00,
+    .default_inventory_action = 0x2b56e8,
+    .cursor_object = 0x25e218,
+    .cursor_resource = 0x2691c0,
+    .cursor_group = 0x25fd58,
+    .cursor_group_list = 0x25f800,
+    .world_hotspot_resource = 0x267e70,
+    .world_picture_resource = 0x267df0,
+    .conversation_resource = 0x269230,
+    .world_navigation = 0x25dee8,
+    .world_navigation_resource = 0x26a700,
+    .world_navigation_shape_resource = 0x26a690,
     .viewport = 0x2c53e8,
     .lookup = 0x41a70,
     .release = 0x2b630,
@@ -337,6 +436,7 @@ inline constexpr Profile profile_cd_10020{
     .text_out = 0x168650,
     .string_resource = 0x30850,
     .asset_reference = 0x2676d8,
+    .main_text_rectangle = 0x9c,
     .credit_group = 0x25fd58,
     .credit_update = 0x5c40,
     .credit_draw = 0x5a00,

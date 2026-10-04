@@ -16,6 +16,7 @@ namespace enhancements {
 namespace {
 
 using DrawList = int(__stdcall*)(game::Container*, void*, void*);
+using ScrollList = void(__stdcall*)(game::ChoiceList*);
 
 ImportHooks imports;
 DrawList original_draw = nullptr;
@@ -23,6 +24,8 @@ DrawList* draw_slot = nullptr;
 game::ChoiceList* talk_list = nullptr;
 game::ChoiceList* history_list = nullptr;
 game::Application** application = nullptr;
+ScrollList scroll_up = nullptr;
+ScrollList scroll_down = nullptr;
 RECT close_button{};
 thread_local game::Container* visible_container = nullptr;
 thread_local Dialogue* collecting = nullptr;
@@ -113,9 +116,10 @@ int __stdcall draw_list(game::Container* object, void* context, void* clip) {
     frame.history = history_list->tab_for(game::edition());
     frame.is_history = list == history_list;
     frame.panel = list->panel_for(game::edition());
+    frame.viewport = list->viewport_for(game::edition()).bounds;
     int result;
     {
-        Capture capture(frame, list->viewport_for(game::edition()).bounds);
+        Capture capture(frame, frame.viewport);
         result = original_draw(object, context, clip);
     }
     std::vector<std::pair<RECT, std::wstring>> rows;
@@ -174,6 +178,7 @@ void attach_dialogue(HWND window) {
         }
         text_code_page = identity.build->id == native_game::BuildId::cd_10020 ? 932 : 1252;
         set_game_string_code_page(text_code_page);
+        set_game_string_dvd_fallback(identity.build->id == native_game::BuildId::dvd_20000);
         auto* base = reinterpret_cast<std::byte*>(GetModuleHandleW(nullptr));
         const auto& addresses = *identity.build->profile;
         draw_slot = reinterpret_cast<DrawList*>(base + addresses.draw_slot);
@@ -181,6 +186,29 @@ void attach_dialogue(HWND window) {
         talk_list = reinterpret_cast<game::ChoiceList*>(base + addresses.talk_list);
         history_list = reinterpret_cast<game::ChoiceList*>(base + addresses.history_list);
         application = reinterpret_cast<game::Application**>(base + addresses.application);
+        std::uint32_t up = 0, down = 0;
+        switch (identity.build->id) {
+            case native_game::BuildId::cd_10012:
+                up = 0x150c40;
+                down = 0x150da0;
+                break;
+            case native_game::BuildId::cd_10019:
+                up = 0x153c60;
+                down = 0x153dc0;
+                break;
+            case native_game::BuildId::cd_10020:
+                up = 0x154200;
+                down = 0x154360;
+                break;
+            case native_game::BuildId::dvd_20000:
+                up = 0x13a9d0;
+                down = 0x13ab30;
+                break;
+            default:
+                break;
+        }
+        scroll_up = up ? reinterpret_cast<ScrollList>(base + up) : nullptr;
+        scroll_down = down ? reinterpret_cast<ScrollList>(base + down) : nullptr;
         if (*draw_slot != original_draw ||
             !imports.install(GetModuleHandleW(nullptr), "USER32.dll", resolve) ||
             !replace_draw(draw_list)) {
@@ -193,11 +221,13 @@ void attach_dialogue(HWND window) {
 }
 
 void detach_dialogue() {
+    set_game_string_dvd_fallback(false);
     if (draw_slot) {
         replace_draw(original_draw);
         draw_slot = nullptr;
     }
     imports.remove();
+    scroll_up = scroll_down = nullptr;
     clear_dialogue();
 }
 
@@ -350,6 +380,21 @@ bool navigate_dialogue(HWND window, int direction, int tab) {
         }
     }
     point_at(window, dialogue->choices[selected], false);
+    return true;
+}
+
+bool scroll_dialogue(int direction) {
+    const auto frame = current_dialogue();
+    if (!frame || !direction || !scroll_up || !scroll_down) {
+        return false;
+    }
+    const auto list = static_cast<game::ChoiceList*>(visible_container->current());
+    if (list != (frame->is_history ? history_list : talk_list)) {
+        return false;
+    }
+    pending_choice.cancel();
+    // Native arrow callbacks clamp and redraw without activating a response.
+    (direction < 0 ? scroll_up : scroll_down)(list);
     return true;
 }
 

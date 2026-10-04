@@ -1,5 +1,7 @@
 #include "game_ui.h"
 #include "focus.h"
+#include "world_interactions.h"
+#include "world_cursors.h"
 
 #include <algorithm>
 #include <memory>
@@ -49,26 +51,25 @@ RECT scene_bounds() {
     return image ? reinterpret_cast<Rectangle*>(image + edition().viewport)->bounds : RECT{};
 }
 
-std::vector<RECT> world_hotspots(bool navigation_only, bool include_occluded) {
-    std::vector<RECT> result;
+std::vector<WorldTarget> world_targets(bool include_occluded) {
+    std::vector<WorldTarget> result;
     if (!world_navigation_available()) {
         return result;
     }
     const auto image = executable_image();
     const auto app = application();
     std::vector<RECT> occluders;
-    const auto add = [&](const RECT& bounds, bool navigation) {
+    const auto add = [&](const RECT& bounds, bool navigation, const void* identity,
+                         Interaction kind) {
+        navigation = navigation || movement_direction(kind) != 0;
         RECT clipped{};
         const auto& viewport = reinterpret_cast<Rectangle*>(image + edition().viewport)->bounds;
         if (IntersectRect(&clipped, &bounds, &viewport) && clipped.left >= 0 && clipped.top >= 0 &&
             clipped.right <= 640 && clipped.bottom <= 480) {
             RECT exposed{};
-            if (!navigation_only || navigation) {
-                if (include_occluded) {
-                    result.push_back(clipped);
-                } else if (exposed_target(clipped, occluders, exposed)) {
-                    result.push_back(exposed);
-                }
+            if (include_occluded || exposed_target(clipped, occluders, exposed)) {
+                result.push_back({clipped, include_occluded ? clipped : exposed,
+                                  reinterpret_cast<std::uintptr_t>(identity), navigation, kind});
             }
             occluders.push_back(clipped);
         }
@@ -79,13 +80,15 @@ std::vector<RECT> world_hotspots(bool navigation_only, bool include_occluded) {
         const auto methods = *reinterpret_cast<void***>(object);
         const auto resource = reinterpret_cast<Resource>(methods[1])(object);
         if (resource) {
-            add(reinterpret_cast<Rectangle*>(resource + 0x30)->bounds, false);
+            add(reinterpret_cast<Rectangle*>(resource + 0x30)->bounds, false, object,
+                world_interaction(object, resource, app, image, edition()));
         }
     });
     visit(app->state, 0x194, [&](std::byte* object) {
         const auto resource = *reinterpret_cast<std::byte**>(object + 0x18);
         if (resource) {
-            add(reinterpret_cast<Rectangle*>(resource + 0x2c)->bounds, false);
+            add(reinterpret_cast<Rectangle*>(resource + 0x2c)->bounds, false, object,
+                world_interaction(object, resource, app, image, edition()));
         }
     });
     visit(app->state, 0x68, [&](std::byte* object) {
@@ -100,9 +103,20 @@ std::vector<RECT> world_hotspots(bool navigation_only, bool include_occluded) {
             reinterpret_cast<Lookup>(image + edition().lookup)(resource, nullptr),
             reinterpret_cast<Release>(image + edition().release));
         if (shape) {
-            add(reinterpret_cast<Rectangle*>(shape.get() + 0x2c)->bounds, true);
+            add(reinterpret_cast<Rectangle*>(shape.get() + 0x2c)->bounds, true, object,
+                navigation_cursor_interaction(object, resource, shape.get(), image, edition()));
         }
     });
+    return result;
+}
+
+std::vector<RECT> world_hotspots(bool navigation_only, bool include_occluded) {
+    std::vector<RECT> result;
+    for (const auto& target : world_targets(include_occluded)) {
+        if (!navigation_only || target.navigation) {
+            result.push_back(target.exposed);
+        }
+    }
     std::sort(result.begin(), result.end(), [](const RECT& a, const RECT& b) {
         const auto ax = a.left + a.right, bx = b.left + b.right;
         return ax == bx ? a.top + a.bottom < b.top + b.bottom : ax < bx;

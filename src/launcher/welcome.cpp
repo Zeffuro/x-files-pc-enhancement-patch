@@ -26,7 +26,9 @@ constexpr std::array choices{Choice{2101, L"Input", L"Gamepad", true},
                              Choice{2116, L"Enhancements", L"DialogueTranscript", true},
                              Choice{2117, L"Enhancements", L"QuickMenu", true},
                              Choice{2118, L"Enhancements", L"Autosaves", true},
-                             Choice{2119, L"Enhancements", L"ContinueLatest", true}};
+                             Choice{2119, L"Enhancements", L"ContinueLatest", true},
+                             Choice{2120, L"Enhancements", L"HotspotReveal", true},
+                             Choice{2121, L"Enhancements", L"ReadableDocuments", true}};
 
 }
 
@@ -85,7 +87,8 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
             CheckDlgButton(window, choice.control,
                            choice.recommended ? BST_CHECKED : BST_UNCHECKED);
         }
-        for (const auto label : {L"2x", L"3x", L"4x"}) {
+        for (const auto label :
+             {L"2x (natural pitch)", L"3x (natural pitch)", L"4x (natural pitch)"}) {
             SendDlgItemMessageW(window, 2113, CB_ADDSTRING, 0,
                                 reinterpret_cast<LPARAM>(ui::translate(label)));
         }

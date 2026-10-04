@@ -33,6 +33,13 @@ int main() {
             ui::save_language(path, selected);
             require(ui::read_language(path) == selected);
             require(ui::language_name(selected) != nullptr);
+            for (const auto label :
+                 {L"Click", L"Interact", L"View", L"Talk", L"Use", L"Target", L"Hotspot",
+                  L"Show hotspot labels", L"Mute", L"2x (natural pitch)", L"3x (natural pitch)",
+                  L"4x (natural pitch)"}) {
+                const std::wstring translated = ui::translate(label, selected);
+                require(!translated.empty() && (index == 0 || translated != label));
+            }
         }
         require(std::wstring(ui::translate(L"Install", ui::Language::German)) == L"Installieren");
         require(std::wstring(ui::translate(L"Install", ui::Language::Japanese)) == L"インストール");

@@ -208,6 +208,12 @@ int main() {
         require(!empty.tracks[0].sample_at(0, 100), "Empty track produced a sample.");
         rejected(empty_text_track(10));
         auto data = fixture();
+        auto short_media = data;
+        short_media[3] = 12;
+        rejected(std::move(short_media));
+        auto trailing_audio = data;
+        append(trailing_audio, Data{0x91, 0x91, 0x91, 0x19, 0, 0, 0, 0});
+        rejected(std::move(trailing_audio));
         for (const bool wrapped : {false, true}) {
             const media::Movie compressed(compressed_fixture(wrapped));
             require(compressed.tracks.size() == 1 && compressed.duration == 65 &&

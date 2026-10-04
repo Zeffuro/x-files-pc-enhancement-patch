@@ -88,7 +88,7 @@ void stick_navigation_modes() {
     nav = repeat.update(sample, true, false, false, 102);
     require(nav.horizontal == 0 && nav.vertical == 0 && nav.step);
     nav = repeat.update(sample, true, true, false, 103);
-    require(nav.horizontal == 1 && nav.vertical == 0 && nav.step);
+    require(nav.horizontal == 1 && nav.vertical == 1 && nav.step);
     nav = repeat.update(sample, true, true, true, 104);
     require(nav.horizontal == 0 && nav.vertical == 0 && nav.step);
 }

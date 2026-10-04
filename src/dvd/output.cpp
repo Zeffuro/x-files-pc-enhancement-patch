@@ -1,34 +1,20 @@
 #include "output.h"
 #include "canvas.h"
+#include "audio.h"
 #include "playback/caption_paint.h"
-#include "platform/test_environment.h"
 
 #include <algorithm>
-#include <atomic>
-#include <cstring>
-#include <deque>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <wrl/client.h>
-#include <xaudio2.h>
 
 extern "C" {
 #include <libavutil/frame.h>
-#include <libavutil/samplefmt.h>
-#include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 }
 
 namespace dvd {
 namespace {
-
-void check(HRESULT result, const char* operation) {
-    if (FAILED(result)) {
-        throw std::runtime_error(std::string(operation) + " failed (" +
-                                 std::to_string(static_cast<unsigned long>(result)) + ")");
-    }
-}
 
 void check(int result, const char* operation) {
     if (result < 0) {
@@ -53,8 +39,6 @@ int colour_space(AVColorSpace space) {
 
 constexpr int max_width = 720;
 constexpr int max_height = 576;
-constexpr std::size_t max_audio_bytes = 4 * 1024 * 1024;
-constexpr std::size_t max_audio_buffers = 48;
 
 SIZE physical_client_size(HWND window) {
     WINDOWINFO info{sizeof(info)};
@@ -69,29 +53,6 @@ SIZE physical_client_size(HWND window) {
     return {static_cast<LONG>(width), static_cast<LONG>(height)};
 }
 
-struct AudioCallback final : IXAudio2VoiceCallback {
-    std::atomic<std::uint64_t> completed{0};
-    std::atomic<HRESULT> error{S_OK};
-
-    void STDMETHODCALLTYPE OnVoiceProcessingPassStart(UINT32) override {}
-
-    void STDMETHODCALLTYPE OnVoiceProcessingPassEnd() override {}
-
-    void STDMETHODCALLTYPE OnStreamEnd() override {}
-
-    void STDMETHODCALLTYPE OnBufferStart(void*) override {}
-
-    void STDMETHODCALLTYPE OnBufferEnd(void*) override {
-        completed.fetch_add(1, std::memory_order_release);
-    }
-
-    void STDMETHODCALLTYPE OnLoopEnd(void*) override {}
-
-    void STDMETHODCALLTYPE OnVoiceError(void*, HRESULT result) override {
-        error.store(result, std::memory_order_release);
-    }
-};
-
 }
 
 struct Output::State {
@@ -102,9 +63,6 @@ struct Output::State {
     void layout();
     void paint(HDC dc);
     void present();
-    void ensure_audio();
-    void reclaim();
-    void reset_audio() noexcept;
 
     HWND parent = nullptr;
     HWND window = nullptr;
@@ -120,17 +78,7 @@ struct Output::State {
     int width = 0;
     int height = 0;
     SwsContext* scaler = nullptr;
-    SwrContext* resampler = nullptr;
-    Microsoft::WRL::ComPtr<IXAudio2> engine;
-    IXAudio2MasteringVoice* master = nullptr;
-    IXAudio2SourceVoice* voice = nullptr;
-    AudioCallback callback;
-    std::deque<std::unique_ptr<std::vector<std::uint8_t>>> buffers;
-    std::size_t queued_bytes = 0;
-    std::uint64_t reclaimed = 0;
-    bool audio_apartment = false;
-    bool paused = false;
-    unsigned speed = 1;
+    Audio audio;
     std::wstring caption;
     CaptionStyle caption_style;
 };
@@ -164,8 +112,6 @@ Output::State::State(HWND owner) : parent(owner) {
 }
 
 Output::State::~State() {
-    reset_audio();
-    swr_free(&resampler);
     sws_freeContext(scaler);
     if (window) {
         DestroyWindow(window);
@@ -298,73 +244,6 @@ void Output::State::paint(HDC dc) {
     }
 }
 
-void Output::State::ensure_audio() {
-    if (voice) {
-        return;
-    }
-    if (!engine) {
-        const auto apartment = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        if (FAILED(apartment) && apartment != RPC_E_CHANGED_MODE) {
-            check(apartment, "Audio apartment");
-        }
-        audio_apartment = SUCCEEDED(apartment);
-        check(XAudio2Create(&engine), "XAudio2 engine");
-        check(engine->CreateMasteringVoice(&master), "XAudio2 mastering voice");
-        if (platform::test_audio_muted()) {
-            check(master->SetVolume(0), "Mute DVD test audio");
-        }
-    }
-    WAVEFORMATEX format{};
-    format.wFormatTag = WAVE_FORMAT_PCM;
-    format.nChannels = 2;
-    format.nSamplesPerSec = 48000;
-    format.wBitsPerSample = 16;
-    format.nBlockAlign = 4;
-    format.nAvgBytesPerSec = 48000 * format.nBlockAlign;
-    callback.error.store(S_OK);
-    check(engine->CreateSourceVoice(&voice, &format, 0, 4.0f, &callback), "XAudio2 source voice");
-    check(voice->SetFrequencyRatio(static_cast<float>(speed)), "DVD audio speed");
-    if (!paused) {
-        check(voice->Start(), "Start DVD audio");
-    }
-}
-
-void Output::State::reclaim() {
-    if (!voice) {
-        return;
-    }
-    check(callback.error.load(std::memory_order_acquire), "DVD audio voice");
-    const auto completed = callback.completed.load(std::memory_order_acquire);
-    while (reclaimed < completed) {
-        queued_bytes -= buffers.front()->size();
-        buffers.pop_front();
-        ++reclaimed;
-    }
-}
-
-void Output::State::reset_audio() noexcept {
-    if (voice) {
-        voice->Stop();
-        voice->FlushSourceBuffers();
-        voice->DestroyVoice();
-        voice = nullptr;
-    }
-    buffers.clear();
-    queued_bytes = 0;
-    callback.completed.store(0);
-    reclaimed = 0;
-    callback.error.store(S_OK);
-    if (master) {
-        master->DestroyVoice();
-        master = nullptr;
-    }
-    engine.Reset();
-    if (audio_apartment) {
-        CoUninitialize();
-        audio_apartment = false;
-    }
-}
-
 Output::Output(HWND parent) : state_(std::make_unique<State>(parent)) {}
 
 Output::~Output() = default;
@@ -423,54 +302,11 @@ void Output::video(const AVFrame& frame) {
 }
 
 void Output::audio(const AVFrame& frame, int first_sample, int sample_count) {
-    if (frame.sample_rate != 48000 || frame.ch_layout.nb_channels != 2 ||
-        (frame.format != AV_SAMPLE_FMT_S16 && frame.format != AV_SAMPLE_FMT_S32) ||
-        first_sample < 0 || sample_count < 0 || first_sample > frame.nb_samples ||
-        sample_count > frame.nb_samples - first_sample || !frame.extended_data ||
-        !frame.extended_data[0]) {
-        throw std::runtime_error("Unsupported DVD audio frame");
-    }
-    if (!sample_count) {
-        return;
-    }
-    const auto bytes = static_cast<std::size_t>(sample_count) * 4;
-    state_->reclaim();
-    if (bytes > max_audio_bytes || state_->buffers.size() >= max_audio_buffers ||
-        state_->queued_bytes > max_audio_bytes - bytes) {
-        throw std::runtime_error("DVD audio queue is full");
-    }
-    auto pcm = std::make_unique<std::vector<std::uint8_t>>(bytes);
-    if (frame.format == AV_SAMPLE_FMT_S16) {
-        std::memcpy(pcm->data(),
-                    frame.extended_data[0] + static_cast<std::size_t>(first_sample) * 4, bytes);
-    } else {
-        if (!state_->resampler) {
-            check(swr_alloc_set_opts2(&state_->resampler, &frame.ch_layout, AV_SAMPLE_FMT_S16,
-                                      48000, &frame.ch_layout, AV_SAMPLE_FMT_S32, 48000, 0,
-                                      nullptr),
-                  "DVD audio converter");
-            check(swr_init(state_->resampler), "Initialize DVD audio converter");
-        }
-        auto* output = pcm->data();
-        const auto* input = frame.extended_data[0] + static_cast<std::size_t>(first_sample) * 8;
-        const auto converted =
-            swr_convert(state_->resampler, &output, sample_count, &input, sample_count);
-        check(converted, "Convert DVD audio");
-        if (converted != sample_count) {
-            throw std::runtime_error("DVD audio converter delayed samples");
-        }
-    }
-    state_->ensure_audio();
-    state_->buffers.push_back(std::move(pcm));
-    XAUDIO2_BUFFER buffer{};
-    buffer.AudioBytes = static_cast<UINT32>(bytes);
-    buffer.pAudioData = state_->buffers.back()->data();
-    const auto result = state_->voice->SubmitSourceBuffer(&buffer);
-    if (FAILED(result)) {
-        state_->buffers.pop_back();
-        check(result, "Submit DVD audio");
-    }
-    state_->queued_bytes += bytes;
+    state_->audio.push(frame, first_sample, sample_count);
+}
+
+void Output::finish_audio() {
+    state_->audio.finish();
 }
 
 void Output::caption(std::wstring text, const CaptionStyle& style) {
@@ -484,40 +320,23 @@ void Output::caption(std::wstring text, const CaptionStyle& style) {
 }
 
 bool Output::drained() {
-    state_->reclaim();
-    return state_->buffers.empty();
+    return state_->audio.drained();
 }
 
 std::int64_t Output::played() const {
-    if (!state_->voice) {
-        return 0;
-    }
-    XAUDIO2_VOICE_STATE status{};
-    state_->voice->GetState(&status);
-    const auto samples = status.SamplesPlayed;
-    return static_cast<std::int64_t>((samples / 8) * 15 + (samples % 8) * 15 / 8);
+    return state_->audio.played();
 }
 
 void Output::pause(bool paused) {
-    if (state_->paused == paused) {
-        return;
-    }
-    if (state_->voice) {
-        check(paused ? state_->voice->Stop() : state_->voice->Start(),
-              paused ? "Pause DVD audio" : "Resume DVD audio");
-    }
-    state_->paused = paused;
+    state_->audio.pause(paused);
 }
 
 void Output::speed(unsigned multiplier) {
-    if (state_->voice) {
-        check(state_->voice->SetFrequencyRatio(static_cast<float>(multiplier)), "DVD audio speed");
-    }
-    state_->speed = multiplier;
+    state_->audio.speed(multiplier);
 }
 
 void Output::clear() {
-    state_->reset_audio();
+    state_->audio.clear();
     state_->pixels.clear();
     state_->width = 0;
     state_->height = 0;
@@ -526,7 +345,7 @@ void Output::clear() {
 }
 
 void Output::discard_audio() {
-    state_->reset_audio();
+    state_->audio.clear();
 }
 
 void Output::show(bool visible) {

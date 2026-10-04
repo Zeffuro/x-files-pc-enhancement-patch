@@ -52,6 +52,25 @@ struct Atom {
     Bytes body;
 };
 
+Bytes legacy_movie_data(Bytes bytes) {
+    struct LegacyAudio {
+        std::size_t length, offset;
+        std::uint32_t declared, checksum;
+    };
+
+    // These original audio files have unindexed trailing bytes after a complete mdat.
+    for (const auto& file : {LegacyAudio{234463, 687, 184714, 0x75ed33a8},
+                             LegacyAudio{1880515, 987, 987912, 0x3922a6fb}}) {
+        if (bytes.size() != file.length || u32(bytes, file.offset) != file.declared ||
+            tag(bytes, file.offset + 4) != "mdat" ||
+            crc32(0, bytes.data(), static_cast<uInt>(bytes.size())) != file.checksum) {
+            continue;
+        }
+        return bytes.first(file.offset + file.declared);
+    }
+    return bytes;
+}
+
 std::vector<Atom> atoms(Bytes bytes) {
     std::vector<Atom> result;
     while (!bytes.empty()) {
@@ -365,7 +384,7 @@ Movie Movie::open(const std::filesystem::path& path) {
 }
 
 Movie::Movie(std::vector<std::uint8_t> data) : data_(std::move(data)) {
-    const auto root = atoms(data_);
+    const auto root = atoms(legacy_movie_data(data_));
     std::vector<Bytes> media_data;
     for (const auto& entry : root) {
         if (entry.type == "mdat") {
