@@ -557,8 +557,15 @@ LRESULT CALLBACK accessibility(HWND window, UINT message, WPARAM value, LPARAM d
     if (message == WM_GETOBJECT && static_cast<LONG>(data) == UiaRootObjectId) {
         return UiaReturnRawElementProvider(window, value, data, provider);
     }
-    if (message == LVM_SETITEMCOUNT || message == LVM_SORTITEMS || message == LVM_SORTITEMSEX) {
+    const bool replaced = message == LVM_SETITEMCOUNT || message == LVM_SORTITEMS ||
+                          message == LVM_SORTITEMSEX || message == LVM_INSERTITEMA ||
+                          message == LVM_INSERTITEMW || message == LVM_DELETEITEM ||
+                          message == LVM_DELETEALLITEMS;
+    if (replaced) {
         ++target.revision;
+    }
+    if (message == WM_SETREDRAW) {
+        target.redraw = value != 0;
     }
     if (message == WM_DESTROY) {
         UiaReturnRawElementProvider(window, 0, 0, nullptr);
@@ -569,9 +576,11 @@ LRESULT CALLBACK accessibility(HWND window, UINT message, WPARAM value, LPARAM d
         provider->Release();
     }
     const auto result = DefSubclassProc(window, message, value, data);
-    if (message == LVM_SETITEMCOUNT || message == LVM_SCROLL || message == LVM_SETITEMSTATE ||
-        message == WM_VSCROLL || message == WM_HSCROLL || message == WM_MOUSEWHEEL ||
-        message == WM_KEYDOWN || message == WM_LBUTTONUP || message == WM_SIZE) {
+    if (target.redraw &&
+        (message == LVM_SETITEMCOUNT || message == LVM_SCROLL || message == LVM_SETITEMSTATE ||
+         message == WM_VSCROLL || message == WM_HSCROLL || message == WM_MOUSEWHEEL ||
+         message == WM_KEYDOWN || message == WM_LBUTTONUP || message == WM_SIZE ||
+         (message == WM_SETREDRAW && value))) {
         notify(provider);
     }
     return result;

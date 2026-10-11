@@ -1,5 +1,4 @@
 #include "catalog.h"
-#include "disc_image.h"
 
 #include <windows.h>
 #include <algorithm>
@@ -88,18 +87,6 @@ std::wstring media_relative(const std::filesystem::path& path) {
         name.erase(0, 8);
     }
     return name;
-}
-
-MediaSetId detect_media_set(const std::vector<MediaFile>& files) {
-    std::map<std::wstring, std::set<std::string>> hashes;
-    for (const auto& file : files) {
-        const auto name = media_relative(file.relative);
-        if (std::find(std::begin(identity_files), std::end(identity_files), name) !=
-            std::end(identity_files)) {
-            hashes[name].insert(media_file_sha256(file));
-        }
-    }
-    return identify_media_set(hashes);
 }
 
 MediaSetId identify_media_set(const std::map<std::wstring, std::set<std::string>>& hashes) {

@@ -54,7 +54,7 @@ bool navigate_keyboard(HWND window, WPARAM key) {
         return leave_inventory(window) || close_dialogue(window);
     }
     if (key == VK_RETURN) {
-        if (inventory_focused(window)) {
+        if (!current_dialogue() && inventory_focused(window)) {
             return activate_group(window, inventory_bounds(game::current_view()));
         }
         if (const auto* dialogue = current_dialogue()) {
@@ -70,7 +70,7 @@ bool navigate_keyboard(HWND window, WPARAM key) {
         return !emotions.empty() && activate_group(window, emotions);
     }
     return navigate_emotions(window, horizontal ? horizontal : vertical, false) ||
-           navigate_inventory(window, horizontal ? horizontal : vertical) ||
+           (!current_dialogue() && navigate_inventory(window, horizontal, vertical)) ||
            navigate_dialogue(window, vertical, horizontal);
 }
 

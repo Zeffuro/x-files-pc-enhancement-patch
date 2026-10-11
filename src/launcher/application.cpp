@@ -1,5 +1,6 @@
 #include "application.h"
 #include "configuration.h"
+#include "compatibility.h"
 #include "welcome.h"
 #include "process.h"
 #include "runtime.h"
@@ -59,15 +60,19 @@ int execute_game(const StagedGame& game, const Session& session, bool diagnostic
 
 int resume_game(const std::filesystem::path& directory) {
     const auto game = std::filesystem::canonical(directory);
-    if (std::filesystem::exists(game / L"installing.txt")) {
-        throw std::runtime_error("Setup did not finish. Run Setup again using a new folder.");
+    const auto report = inspect_installation(game);
+    if (!report.problems.empty()) {
+        MessageBoxW(nullptr, report.text().c_str(), L"The X-Files installation check",
+                    MB_OK | MB_ICONERROR);
+        return 1;
     }
-    const auto identity = identify(game / L"XFiles.exe");
-    if (!identity.edition) {
-        throw std::runtime_error("This game executable is not supported. Run Setup with "
-                                 "a supported PC CD or DVD copy.");
+    if (!report.warnings.empty() &&
+        MessageBoxW(nullptr, (report.text() + L"\n\nStart the game anyway?").c_str(),
+                    L"The X-Files installation check",
+                    MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) {
+        return 0;
     }
-    const auto session = read_session(game);
+    const auto& session = report.session;
     initialize_configuration(game);
     if (!show_welcome(game)) {
         return 0;
@@ -76,5 +81,5 @@ int resume_game(const std::filesystem::path& directory) {
         preferences::Store store(game / L"preferences.ini");
         store.set("Exe Full Path", (game / L"XFiles.exe").string());
     }
-    return execute_game({game, identity}, session);
+    return execute_game({game, report.identity}, session);
 }

@@ -44,11 +44,15 @@ public:
     }
 
     std::int64_t audio_horizon() const override {
-        return !muted ? 18000 * speed : 18000;
+        return !silent() ? 18000 * speed : 18000;
     }
 
     bool drained() override {
-        return muted || output.drained();
+        return silent() || output.drained();
+    }
+
+    bool silent() const {
+        return muted || !output.audio_available();
     }
 
     void pause(bool value) override {
@@ -541,11 +545,11 @@ private:
                 set_speed(false);
             }
             const auto time = clock_.advance(GetTickCount64(), device_->output.played(), speed_,
-                                             device_->muted, tail_);
+                                             device_->silent(), tail_);
             player_->pump(time);
             update_caption();
             tail_ = player_->audio_finished() && device_->drained();
-            if (!device_->muted && !player_->audio_finished() && device_->drained()) {
+            if (!device_->silent() && !player_->audio_finished() && device_->drained()) {
                 throw std::runtime_error("DVD audio cannot advance within the playback buffer");
             }
             if (player_->status() != Status::playing) {

@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <optional>
+#include <span>
 
 namespace enhancements {
 
@@ -15,6 +16,8 @@ struct InventoryEntry {
 
 std::vector<InventoryEntry> inventory_items(const game::MainView* view);
 std::vector<RECT> inventory_bounds(const game::MainView* view);
+std::vector<RECT> evidence_bounds(const game::MainView* view);
+int inventory_target(std::span<const RECT> items, POINT cursor, int horizontal, int vertical);
 std::optional<RECT> inventory_item_bounds(const game::MainView* view, unsigned resource);
 bool focus_inventory_item(HWND window, unsigned resource);
 bool reveal_inventory(HWND window);
@@ -23,7 +26,7 @@ bool focus_inventory(HWND window);
 void update_inventory_focus(HWND window, bool enabled);
 bool leave_inventory(HWND window);
 bool inventory_focused(HWND window);
-bool navigate_inventory(HWND window, int direction);
+bool navigate_inventory(HWND window, int horizontal, int vertical = 0);
 void clear_inventory_focus();
 
 }

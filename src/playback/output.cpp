@@ -3,6 +3,7 @@
 #include "settings.h"
 #include "runtime.h"
 #include "platform/test_environment.h"
+#include "platform/audio_endpoint.h"
 
 #include <xaudio2.h>
 #include <mmdeviceapi.h>
@@ -32,12 +33,17 @@ struct Apartment {
 };
 
 struct Engine {
-    Apartment apartment;
+    platform::AudioEndpoint endpoint;
     ComPtr<IXAudio2> audio;
     IXAudio2MasteringVoice* master = nullptr;
     std::wstring device = settings().audio_device;
 
     Engine() {
+        if (!endpoint.available()) {
+            trace_value("audio_endpoint_unavailable",
+                        static_cast<std::uint32_t>(endpoint.result()));
+            return;
+        }
         check(XAudio2Create(&audio));
         auto result = audio->CreateMasteringVoice(
             &master, XAUDIO2_DEFAULT_CHANNELS, XAUDIO2_DEFAULT_SAMPLERATE, 0,
@@ -65,7 +71,11 @@ std::shared_ptr<Engine> audio_engine() {
     auto engine = cached.lock();
     if (!engine || engine->device != settings().audio_device) {
         engine = std::make_shared<Engine>();
-        cached = engine;
+        if (engine->endpoint.available()) {
+            cached = engine;
+        } else {
+            cached.reset();
+        }
     }
     return engine;
 }
@@ -84,7 +94,9 @@ struct Output::State {
 };
 
 Output::Output(const WAVEFORMATEX& format) : state_(std::make_unique<State>()) {
-    check(state_->engine->audio->CreateSourceVoice(&state_->voice, &format, 0, 4.0f));
+    if (state_->engine->audio) {
+        check(state_->engine->audio->CreateSourceVoice(&state_->voice, &format, 0, 4.0f));
+    }
 }
 
 Output::~Output() = default;
@@ -95,7 +107,7 @@ bool Output::current_device() const {
 
 void Output::play(std::span<const std::int16_t> samples) {
     stop();
-    if (samples.empty()) {
+    if (!state_->voice || samples.empty()) {
         return;
     }
     XAUDIO2_BUFFER buffer{};
@@ -107,11 +119,17 @@ void Output::play(std::span<const std::int16_t> samples) {
 }
 
 void Output::stop() {
+    if (!state_->voice) {
+        return;
+    }
     check(state_->voice->Stop());
     check(state_->voice->FlushSourceBuffers());
 }
 
 void Output::volume(std::int16_t level, std::int16_t balance) {
+    if (!state_->voice) {
+        return;
+    }
     const auto gains = stereo_volume(level, balance);
     const float channels[]{static_cast<float>(gains & 0xffff) / 65535,
                            static_cast<float>(gains >> 16) / 65535};
@@ -119,6 +137,9 @@ void Output::volume(std::int16_t level, std::int16_t balance) {
 }
 
 void Output::speed(unsigned multiplier) {
+    if (!state_->voice) {
+        return;
+    }
     check(state_->voice->SetFrequencyRatio(static_cast<float>(multiplier)));
 }
 

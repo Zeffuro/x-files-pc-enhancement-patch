@@ -16,6 +16,8 @@ struct IgnoreCase {
 using Value = std::variant<DWORD, std::string>;
 using Values = std::map<std::string, Value, IgnoreCase>;
 
+Values read_file(const std::filesystem::path& path);
+
 class Store {
 public:
     explicit Store(const std::filesystem::path& path);

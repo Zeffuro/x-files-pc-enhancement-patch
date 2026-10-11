@@ -1,4 +1,5 @@
 #include "disc_image.h"
+#include "catalog.h"
 #include "identity.h"
 #include "platform/copy_file.h"
 
@@ -374,6 +375,20 @@ std::string media_file_sha256(const MediaFile& file) {
         result += hex[byte & 15];
     }
     return result;
+}
+
+MediaSetId detect_media_set(const std::vector<MediaFile>& files) {
+    std::map<std::wstring, std::set<std::string>> hashes;
+    constexpr const wchar_t* names[] = {L"xfiles.exe",  L"xfiles.hdb",  L"xfiles.gam",
+                                        L"xfilesc.dll", L"xfilese.dll", L"xfiless.dll",
+                                        L"xfilest.dll"};
+    for (const auto& file : files) {
+        const auto name = media_relative(file.relative);
+        if (std::find(std::begin(names), std::end(names), name) != std::end(names)) {
+            hashes[name].insert(media_file_sha256(file));
+        }
+    }
+    return identify_media_set(hashes);
 }
 
 void copy_media_file(const MediaFile& file, const fs::path& output,

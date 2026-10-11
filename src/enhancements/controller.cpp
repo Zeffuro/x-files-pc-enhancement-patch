@@ -311,14 +311,14 @@ void poll_controller(HWND window) {
         }
         return;
     }
-    const bool inventory = inventory_focused(window);
+    const bool dialogue = current_dialogue() != nullptr;
+    const bool inventory = !dialogue && inventory_focused(window);
     if (step &&
         navigate_emotions(window, horizontal_direction ? horizontal_direction : vertical_direction,
                           false)) {
         motion.reset();
         return;
     }
-    const bool dialogue = !inventory && current_dialogue() != nullptr;
     constexpr WORD navigation_buttons = input::button::up | input::button::down |
                                         input::button::left | input::button::right |
                                         input::button::previous | input::button::next;
@@ -326,7 +326,9 @@ void poll_controller(HWND window) {
     if (inventory) {
         const int direction =
             (pressed & input::button::right ? 1 : 0) - (pressed & input::button::left ? 1 : 0);
-        navigate_inventory(window, direction);
+        const int vertical =
+            (pressed & input::button::down ? 1 : 0) - (pressed & input::button::up ? 1 : 0);
+        navigate_inventory(window, direction, vertical);
     }
     if (dialogue) {
         const int direction =

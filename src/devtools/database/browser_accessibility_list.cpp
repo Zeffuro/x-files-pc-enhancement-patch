@@ -64,7 +64,8 @@ void notify(IRawElementProviderSimple* provider) {
 
 std::wstring row_name(HWND window, int index) {
     std::wstring result;
-    for (int column = 0; column < 4; ++column) {
+    const auto columns = Header_GetItemCount(ListView_GetHeader(window));
+    for (int column = 0; column < columns; ++column) {
         std::wstring buffer(8192, L'\0');
         LVITEMW item{};
         item.mask = LVIF_TEXT;
@@ -111,7 +112,13 @@ void execute(HWND window, Target& target, Request& request) {
         return;
     }
     if (request.action == Action::name) {
-        request.name = request.index < 0 ? L"Database records" : row_name(window, request.index);
+        if (request.index < 0) {
+            std::wstring title(GetWindowTextLengthW(window) + 1, L'\0');
+            title.resize(GetWindowTextW(window, title.data(), static_cast<int>(title.size())));
+            request.name = title.empty() ? L"Database records" : std::move(title);
+        } else {
+            request.name = row_name(window, request.index);
+        }
         return;
     }
     if (request.action == Action::select || request.action == Action::add ||

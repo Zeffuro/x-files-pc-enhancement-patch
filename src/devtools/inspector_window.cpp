@@ -2,6 +2,7 @@
 #include "state_capture.h"
 #include "subtitle_editor.h"
 #include "database/browser.h"
+#include "database/browser_accessibility.h"
 #include "enhancements/game_ui.h"
 #include "platform/tool_cursor.h"
 #include "platform/tool_theme.h"
@@ -67,50 +68,6 @@ HWND child(const wchar_t* type, const wchar_t* caption, DWORD style, int id) {
     return control;
 }
 
-void layout() {
-    RECT r{};
-    GetClientRect(state.window, &r);
-    const int width = r.right, height = r.bottom, split = width / 2, right = split + 20,
-              detail_width = width - right - 20;
-    MoveWindow(state.live, 20, 18, 144, 34, TRUE);
-    MoveWindow(state.library, 170, 18, 130, 34, TRUE);
-    MoveWindow(state.search_label, 20, 70, 62, 24, TRUE);
-    MoveWindow(state.search, 86, 66, split - 86, 30, TRUE);
-    MoveWindow(state.game_state, 306, 18, 130, 34, TRUE);
-    MoveWindow(state.database_button, 442, 18, 158, 34, TRUE);
-    MoveWindow(state.database, 20, 66, width - 40, height - 120, TRUE);
-    MoveWindow(state.filenames, 20, 100, 94, 24, TRUE);
-    MoveWindow(state.labels, 118, 100, 85, 24, TRUE);
-    MoveWindow(state.notes_search, 207, 100, 82, 24, TRUE);
-    MoveWindow(state.captions, 293, 100, 100, 24, TRUE);
-    MoveWindow(state.group, 20, 130, 152, 240, TRUE);
-    MoveWindow(state.place, 178, 130, std::max(130, split - 314), 260, TRUE);
-    MoveWindow(state.compact, split - 128, 130, 128, 28, TRUE);
-    MoveWindow(state.coverage, 20, 164, split - 20, 220, TRUE);
-    MoveWindow(state.list, 20, 200, split - 20, height - 254, TRUE);
-    layout_state_controls(width, height);
-    const int title_left = std::max(right, 620);
-    MoveWindow(state.title, title_left, 20, width - title_left - 20, 32, TRUE);
-    MoveWindow(state.preview, right, 66, detail_width, 180, TRUE);
-    MoveWindow(state.clock, right, 252, detail_width, 24, TRUE);
-    MoveWindow(state.play, right, 280, 118, 30, TRUE);
-    MoveWindow(state.stop, right + 124, 280, 66, 30, TRUE);
-    MoveWindow(state.subtitle, right + 196, 280, 110, 30, TRUE);
-    MoveWindow(state.seek, right + 312, 280, std::max(40, detail_width - 312), 30, TRUE);
-    MoveWindow(state.caption, right, 314, detail_width, 38, TRUE);
-    MoveWindow(state.details, right, 355, detail_width, 123, TRUE);
-    MoveWindow(state.label_heading, right, 483, detail_width, 22, TRUE);
-    MoveWindow(state.label, right, 508, detail_width, 28, TRUE);
-    MoveWindow(state.notes_heading, right, 540, detail_width, 22, TRUE);
-    MoveWindow(state.notes, right, 565, detail_width, std::max(36, height - 665), TRUE);
-    MoveWindow(state.save, right, height - 86, 154, 32, TRUE);
-    MoveWindow(state.status, 20, height - 38, width - 40, 30, TRUE);
-    const int clip_width = state.compact_view ? 128 : 222;
-    ListView_SetColumnWidth(state.list, 0, clip_width);
-    ListView_SetColumnWidth(state.list, 1, std::max(100, split - clip_width - 134));
-    ListView_SetColumnWidth(state.list, 2, 110);
-}
-
 void create_controls() {
     platform::ToolTheme theme(state.module);
     INITCOMMONCONTROLSEX controls{sizeof(controls),
@@ -161,9 +118,11 @@ void create_controls() {
     state.search = child(L"EDIT", L"", WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, search_id);
     SendMessageW(state.search, EM_SETCUEBANNER, TRUE,
                  reinterpret_cast<LPARAM>(L"Search filename, place, label or notes"));
-    state.list =
-        child(WC_LISTVIEWW, L"",
-              WS_BORDER | WS_TABSTOP | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS, list_id);
+    state.list = child(WC_LISTVIEWW, L"Clip library",
+                       WS_BORDER | WS_TABSTOP | LVS_REPORT | LVS_OWNERDATA | LVS_SINGLESEL |
+                           LVS_SHOWSELALWAYS,
+                       list_id);
+    database_browser::install_list_accessibility(state.list);
     ListView_SetExtendedListViewStyle(state.list,
                                       LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_LABELTIP);
     set_list_density();
@@ -185,6 +144,8 @@ void create_controls() {
     state.subtitle = child(L"BUTTON", L"Subtitles...", BS_PUSHBUTTON | WS_TABSTOP, subtitle_id);
     state.seek = child(TRACKBAR_CLASSW, L"", TBS_HORZ | WS_TABSTOP, seek_id);
     SendMessageW(state.seek, TBM_SETRANGE, TRUE, MAKELPARAM(0, 1000));
+    create_frame_controls();
+    create_layout_controls();
     state.details = child(WC_TREEVIEWW, L"Clip details",
                           WS_BORDER | WS_TABSTOP | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT |
                               TVS_SHOWSELALWAYS | TVS_FULLROWSELECT);
@@ -273,6 +234,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         }
         if (message == WM_DRAWITEM) {
             const auto* item = reinterpret_cast<DRAWITEMSTRUCT*>(data);
+            if (paint_splitter(*item)) {
+                return TRUE;
+            }
             if (item->hwndItem == state.preview) {
                 const auto* movie = selected_movie();
                 paint_frame(item->hDC, item->rcItem,
@@ -287,6 +251,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         }
         if (message == WM_COMMAND && !state.rebuilding) {
             const auto id = LOWORD(value), event = HIWORD(value);
+            if (frame_command(id, event)) {
+                return 0;
+            }
             if (id == IDCANCEL) {
                 SendMessageW(window, WM_CLOSE, 0, 0);
                 return 0;
@@ -317,6 +284,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
                                 movies.push_back(row.path);
                             }
                         }
+                        state.frame_player = nullptr;
                         edit_subtitles(state.window, state.game, state.module, state.catalog.root,
                                        state.selected, state.player, movies);
                         state.rebuilding = true;
@@ -377,6 +345,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             }
             if (id == live_id || id == library_id || id == game_state_id || id == database_id) {
                 if (leave_notes()) {
+                    state.frame_player = nullptr;
                     state.player.reset();
                     state.showing_state = id == game_state_id;
                     state.showing_database = id == database_id;
@@ -417,21 +386,56 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             }
             return 0;
         }
+        if (message == WM_NOTIFY) {
+            const auto* header = reinterpret_cast<NMHDR*>(data);
+            if (frame_notify(header)) {
+                return 0;
+            }
+            if (header->hwndFrom == state.list && header->code == LVN_ODFINDITEMW) {
+                return find_row(*reinterpret_cast<const NMLVFINDITEMW*>(data));
+            }
+            if (header->hwndFrom == state.list && header->code == LVN_GETDISPINFOW) {
+                auto& item = reinterpret_cast<NMLVDISPINFOW*>(data)->item;
+                if (item.iItem >= 0 &&
+                    static_cast<std::size_t>(item.iItem) < state.row_cells.size()) {
+                    if ((item.mask & LVIF_TEXT) && item.iSubItem >= 0 && item.iSubItem < 3) {
+                        wcsncpy_s(item.pszText, static_cast<std::size_t>(item.cchTextMax),
+                                  state.row_cells[item.iItem][item.iSubItem].c_str(), _TRUNCATE);
+                    }
+                    if (item.mask & LVIF_IMAGE) {
+                        item.iImage = state.compact_view ? I_IMAGENONE : item.iItem % 64;
+                    }
+                }
+                return 0;
+            }
+        }
         if (message == WM_NOTIFY && !state.rebuilding) {
             const auto* change = reinterpret_cast<NMLISTVIEW*>(data);
             if (state_notify(*change)) {
                 return 0;
             }
-            if (change->hdr.hwndFrom == state.list && change->hdr.code == LVN_ITEMCHANGING &&
-                (change->uNewState & LVIS_SELECTED) && !(change->uOldState & LVIS_SELECTED)) {
-                if (!leave_notes()) {
-                    return TRUE;
-                }
-            }
             if (change->hdr.hwndFrom == state.list && change->hdr.code == LVN_ITEMCHANGED &&
+                (change->uChanged & LVIF_STATE) && !(change->uOldState & LVIS_SELECTED) &&
                 (change->uNewState & LVIS_SELECTED) && change->iItem >= 0 &&
                 static_cast<std::size_t>(change->iItem) < state.rows.size()) {
-                select(state.rows[change->iItem]);
+                const auto requested = state.rows[change->iItem];
+                if (!leave_notes()) {
+                    state.rebuilding = true;
+                    ListView_SetItemState(state.list, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+                    for (std::size_t i = 0; i < state.rows.size(); ++i) {
+                        const auto& row = state.rows[i];
+                        if (row.path == state.selected &&
+                            (!row.movie || row.movie == state.selected_movie)) {
+                            ListView_SetItemState(state.list, static_cast<int>(i),
+                                                  LVIS_SELECTED | LVIS_FOCUSED,
+                                                  LVIS_SELECTED | LVIS_FOCUSED);
+                            break;
+                        }
+                    }
+                    state.rebuilding = false;
+                    return 0;
+                }
+                select(requested);
             }
         }
         if (message == WM_CLOSE) {
@@ -442,6 +446,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         }
         if (message == WM_DESTROY) {
             release_state_capture();
+            state.frame_player = nullptr;
             state.player.reset();
             state.caption_index.reset();
             state.artwork.reset();

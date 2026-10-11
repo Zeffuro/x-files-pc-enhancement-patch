@@ -76,6 +76,8 @@ Settings read_settings(const std::filesystem::path& path) {
     result.hotspot_labels =
         GetPrivateProfileIntW(L"Enhancements", L"HotspotLabels", 1, path.c_str()) != 0;
     const auto reveal_key = GetPrivateProfileIntW(L"Input", L"HotspotRevealKey", 164, path.c_str());
+    result.hotspot_reveal_toggle =
+        GetPrivateProfileIntW(L"Input", L"HotspotRevealToggle", 0, path.c_str()) != 0;
     if (reveal_key == 0 || reveal_key == VK_LMENU || reveal_key == 'H' || reveal_key == 'R') {
         result.hotspot_reveal_key = reveal_key;
     }
@@ -191,6 +193,8 @@ void save_settings(const Settings& value) {
                                     value.hotspot_labels ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"HotspotRevealKey", reveal_key.c_str(),
                                     path.c_str()) ||
+        !WritePrivateProfileStringW(L"Input", L"HotspotRevealToggle",
+                                    value.hotspot_reveal_toggle ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"ReadableDocuments",
                                     value.readable_documents ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"QuickMenu", value.quick_menu ? L"1" : L"0",

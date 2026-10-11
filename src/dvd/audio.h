@@ -13,6 +13,7 @@ public:
     void push(const AVFrame& frame, int first, int count);
     void finish();
     bool drained();
+    bool available() const;
     std::int64_t played() const;
     void pause(bool paused);
     void speed(unsigned multiplier);

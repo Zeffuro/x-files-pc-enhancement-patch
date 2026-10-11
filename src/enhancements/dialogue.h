@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <string>
 
@@ -12,6 +13,7 @@ struct Dialogue {
     std::array<RECT, 32> choices{};
     std::array<std::wstring, 32> text{};
     std::size_t count = 0;
+    std::array<std::uintptr_t, 32> rows{};
     RECT talk{};
     RECT history{};
     RECT panel{};

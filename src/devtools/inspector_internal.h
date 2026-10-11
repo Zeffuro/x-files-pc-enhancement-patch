@@ -55,7 +55,13 @@ enum : int {
     state_capture_id,
     state_history_filter_id,
     state_history_clear_id,
-    state_history_copy_id
+    state_history_copy_id,
+    frame_previous_id,
+    frame_next_id,
+    frame_tracks_id,
+    frame_list_id,
+    column_splitter_id,
+    preview_splitter_id
 };
 
 struct Row {
@@ -72,6 +78,17 @@ struct State {
     PreviewDetailsTree preview_details;
     HWND clock = nullptr, caption = nullptr, play = nullptr, stop = nullptr, seek = nullptr,
          subtitle = nullptr;
+    HWND frame_previous = nullptr, frame_next = nullptr, frame_tracks = nullptr,
+         frame_list = nullptr;
+    std::vector<std::size_t> frame_track_indices;
+    std::vector<std::wstring> frame_cells;
+    std::optional<std::size_t> frame_track;
+    const Preview* frame_player = nullptr;
+    bool frame_selecting = false, frame_controls_visible = false;
+    HWND column_splitter = nullptr, preview_splitter = nullptr, dragging_splitter = nullptr;
+    double column_fraction = 0.5, preview_fraction = 0.5;
+    int column_width = 0, preview_height = 0, splitter_origin = 0;
+    POINT splitter_start{};
     HWND filenames = nullptr, labels = nullptr, notes_search = nullptr, captions = nullptr;
     HWND game_state = nullptr, refresh = nullptr, hotspots = nullptr, state_text = nullptr;
     HWND state_search = nullptr, state_snapshot = nullptr;
@@ -116,6 +133,7 @@ struct State {
     ClipNotes annotations;
     std::vector<playback::MovieSnapshot> movies;
     std::vector<Row> rows;
+    std::vector<std::array<std::wstring, 3>> row_cells;
     std::filesystem::path selected;
     std::uint64_t selected_movie = 0;
 };
@@ -132,6 +150,7 @@ void update_preview_details();
 void update_game_state_view();
 void update_state_selection();
 void populate();
+int find_row(const NMLVFINDITEMW& find);
 void update_artwork();
 void set_list_density();
 void update_save();
@@ -140,8 +159,16 @@ bool leave_notes();
 void select(const Row& row);
 void open_database_asset(const std::filesystem::path& path);
 void tick_preview();
+void create_frame_controls();
+void update_frame_controls();
+bool frame_command(int id, int event);
+bool frame_notify(const NMHDR* notification);
+void show_frame_controls(bool visible);
+bool frame_navigation_active();
 void start_caption_index();
 void layout();
+void create_layout_controls();
+bool paint_splitter(const DRAWITEMSTRUCT& item);
 HWND child(const wchar_t* type, const wchar_t* caption, DWORD style = 0, int id = 0);
 void create_controls();
 LRESULT CALLBACK window_proc(HWND, UINT, WPARAM, LPARAM);

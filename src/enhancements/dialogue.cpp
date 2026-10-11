@@ -6,11 +6,13 @@
 #include "platform/imports.h"
 #include "runtime.h"
 #include "focus.h"
+#include "inventory.h"
 #include "transcript/capture.h"
 #include "transcript/selection.h"
 
 #include <algorithm>
 #include <cstring>
+#include <optional>
 
 namespace enhancements {
 namespace {
@@ -40,6 +42,23 @@ thread_local bool evidence_focus = false;
 UINT text_code_page = 1252;
 thread_local transcript::Selection pending_choice;
 thread_local void* pending_input = nullptr;
+thread_local unsigned draw_generation = 0;
+
+struct ScrollNavigation {
+    HWND window;
+    game::Container* container;
+    game::ChoiceList* list;
+    void* input;
+    std::uintptr_t anchor;
+    std::wstring text;
+    POINT cursor;
+    int direction;
+    unsigned generation;
+    unsigned remaining;
+    ULONGLONG deadline;
+};
+
+thread_local std::optional<ScrollNavigation> scroll_navigation;
 
 struct Capture {
     Dialogue* previous;
@@ -73,10 +92,11 @@ int WINAPI draw_text(HDC dc, LPCSTR text, int length, LPRECT bounds, UINT format
     if (collecting && result && !(format & DT_CALCRECT) && text && length != 0 && bounds) {
         RECT clipped{};
         if (IntersectRect(&clipped, bounds, &viewport) &&
-            clipped.bottom - clipped.top >= bounds->bottom - bounds->top &&
             collecting->count < collecting->choices.size()) {
             const auto index = collecting->count++;
             collecting->choices[index] = clipped;
+            // Native rows own distinct text buffers that survive scroll redraws.
+            collecting->rows[index] = reinterpret_cast<std::uintptr_t>(text);
             const auto size = length < 0 ? static_cast<int>(std::strlen(text)) : length;
             const auto count = MultiByteToWideChar(text_code_page, 0, text, size, nullptr, 0);
             if (count > 0) {
@@ -122,24 +142,33 @@ int __stdcall draw_list(game::Container* object, void* context, void* clip) {
         Capture capture(frame, frame.viewport);
         result = original_draw(object, context, clip);
     }
-    std::vector<std::pair<RECT, std::wstring>> rows;
+
+    struct Row {
+        RECT bounds;
+        std::wstring text;
+        std::uintptr_t identity;
+    };
+
+    std::vector<Row> rows;
     for (std::size_t i = 0; i < frame.count; ++i) {
-        rows.emplace_back(frame.choices[i], std::move(frame.text[i]));
+        rows.push_back({frame.choices[i], std::move(frame.text[i]), frame.rows[i]});
     }
     std::sort(rows.begin(), rows.end(),
-              [](const auto& a, const auto& b) { return a.first.top < b.first.top; });
+              [](const auto& a, const auto& b) { return a.bounds.top < b.bounds.top; });
     rows.erase(std::unique(rows.begin(), rows.end(),
                            [](const auto& a, const auto& b) {
-                               return a.first.top == b.first.top &&
-                                      a.first.bottom == b.first.bottom;
+                               return a.bounds.top == b.bounds.top &&
+                                      a.bounds.bottom == b.bounds.bottom;
                            }),
                rows.end());
     frame.count = rows.size();
     for (std::size_t i = 0; i < rows.size(); ++i) {
-        frame.choices[i] = rows[i].first;
-        frame.text[i] = std::move(rows[i].second);
+        frame.choices[i] = rows[i].bounds;
+        frame.text[i] = std::move(rows[i].text);
+        frame.rows[i] = rows[i].identity;
     }
     visible = frame;
+    ++draw_generation;
     visible_container = object;
     close_button = list->close_for(game::edition());
     return result;
@@ -157,6 +186,63 @@ bool point_at(HWND window, const RECT& bounds, bool activate) {
         return input::injected_input().click(false, controller_event).started();
     }
     return true;
+}
+
+bool advance_scroll(ScrollNavigation& request) {
+    if (!scroll_up || !scroll_down || !request.remaining) {
+        return false;
+    }
+    const auto position =
+        reinterpret_cast<const std::byte*>(request.list) + game::edition().choice_viewport + 0x9c;
+    std::uint32_t before = 0, after = 0;
+    std::memcpy(&before, position, sizeof(before));
+    request.generation = draw_generation;
+    --request.remaining;
+    pending_choice.cancel();
+    (request.direction < 0 ? scroll_up : scroll_down)(request.list);
+    std::memcpy(&after, position, sizeof(after));
+    return before != after;
+}
+
+void resume_scroll() {
+    if (!scroll_navigation) {
+        return;
+    }
+    const auto frame = current_dialogue();
+    POINT cursor{};
+    if (!frame || visible_container != scroll_navigation->container ||
+        visible_container->current() != scroll_navigation->list ||
+        game::current_input() != scroll_navigation->input ||
+        GetTickCount64() >= scroll_navigation->deadline || !GetCursorPos(&cursor) ||
+        !ScreenToClient(scroll_navigation->window, &cursor) ||
+        cursor.x != scroll_navigation->cursor.x || cursor.y != scroll_navigation->cursor.y) {
+        scroll_navigation.reset();
+        return;
+    }
+    if (draw_generation == scroll_navigation->generation || !frame->count) {
+        return;
+    }
+    auto request = *scroll_navigation;
+    const auto begin = frame->rows.begin();
+    const auto end = begin + frame->count;
+    const auto anchor = std::find(begin, end, request.anchor);
+    int selected = request.direction > 0 ? 0 : static_cast<int>(frame->count) - 1;
+    if (anchor != end) {
+        if (frame->text[anchor - begin] != request.text) {
+            scroll_navigation.reset();
+            return;
+        }
+        selected = static_cast<int>(anchor - begin) + request.direction;
+        if (selected < 0 || selected >= static_cast<int>(frame->count)) {
+            if (advance_scroll(request)) {
+                scroll_navigation = std::move(request);
+                return;
+            }
+            selected = static_cast<int>(anchor - begin);
+        }
+    }
+    scroll_navigation.reset();
+    point_at(request.window, visible.choices[selected], false);
 }
 
 }
@@ -249,6 +335,7 @@ const Dialogue* current_dialogue() {
 }
 
 void clear_dialogue() {
+    scroll_navigation.reset();
     visible_container = nullptr;
     visible = {};
     return_valid = false;
@@ -259,6 +346,7 @@ void clear_dialogue() {
 void update_dialogue(bool focused) {
     if (!focused) {
         pending_choice.cancel();
+        scroll_navigation.reset();
     }
     if (closing_until) {
         POINT cursor{};
@@ -277,6 +365,9 @@ void update_dialogue(bool focused) {
         }
     }
     current_dialogue();
+    if (focused) {
+        resume_scroll();
+    }
     finish_dialogue_click(0);
 }
 
@@ -285,6 +376,7 @@ void begin_dialogue_click(HWND window, UINT message) {
         return;
     }
     pending_choice.cancel();
+    scroll_navigation.reset();
     const auto frame = current_dialogue();
     POINT point{};
     if (!frame || !GetCursorPos(&point) || !ScreenToClient(window, &point)) {
@@ -319,10 +411,12 @@ void finish_dialogue_click(UINT message) {
 }
 
 void cancel_dialogue_click() {
+    scroll_navigation.reset();
     pending_choice.cancel();
 }
 
 bool close_dialogue(HWND window) {
+    scroll_navigation.reset();
     pending_choice.cancel();
     if (!current_dialogue()) {
         return false;
@@ -340,26 +434,41 @@ bool close_dialogue(HWND window) {
 }
 
 bool navigate_dialogue(HWND window, int direction, int tab) {
+    if (tab) {
+        scroll_navigation.reset();
+    } else {
+        resume_scroll();
+        if (scroll_navigation) {
+            return true;
+        }
+    }
     const auto* dialogue = current_dialogue();
     if (!dialogue) {
         return false;
     }
-    if (evidence_focus) {
-        const auto items = conversation_evidence();
-        POINT cursor{};
-        if (!items.empty() && GetCursorPos(&cursor) && ScreenToClient(window, &cursor) &&
-            std::any_of(items.begin(), items.end(),
-                        [&](const RECT& item) { return PtInRect(&item, cursor) != FALSE; })) {
-            if (direction || tab) {
-                const auto next = hotspot_target(items, cursor, tab ? tab : direction);
-                if (next >= 0) {
-                    point_at(window, items[next], false);
-                }
-            }
-            return true;
-        }
-        evidence_focus = false;
+    const auto items = conversation_evidence();
+    POINT cursor{};
+    if (!GetCursorPos(&cursor) || !ScreenToClient(window, &cursor)) {
+        return true;
     }
+    const auto evidence = std::find_if(items.begin(), items.end(), [&](const RECT& item) {
+        return PtInRect(&item, cursor) != FALSE;
+    });
+    if (evidence != items.end()) {
+        evidence_focus = true;
+        auto targets = items;
+        if (direction && !tab) {
+            targets.insert(targets.end(), dialogue->choices.begin(),
+                           dialogue->choices.begin() + dialogue->count);
+        }
+        const auto next = inventory_target(targets, cursor, tab, direction);
+        if (next >= 0) {
+            evidence_focus = static_cast<std::size_t>(next) < items.size();
+            point_at(window, targets[next], false);
+        }
+        return true;
+    }
+    evidence_focus = false;
     if (tab) {
         point_at(window, tab < 0 ? dialogue->talk : dialogue->history, true);
         return true;
@@ -367,14 +476,42 @@ bool navigate_dialogue(HWND window, int direction, int tab) {
     if (!direction || !dialogue->count) {
         return true;
     }
-    POINT cursor{};
-    if (!GetCursorPos(&cursor) || !ScreenToClient(window, &cursor)) {
-        return true;
-    }
     const auto count = static_cast<int>(dialogue->count);
     int selected = direction > 0 ? 0 : count - 1;
     for (int index = 0; index < count; ++index) {
         if (PtInRect(&dialogue->choices[index], cursor)) {
+            const auto boundary = index + direction < 0 || index + direction >= count;
+            if (boundary && scroll_up && scroll_down) {
+                const auto list = static_cast<game::ChoiceList*>(visible_container->current());
+                if (list == (dialogue->is_history ? history_list : talk_list)) {
+                    ScrollNavigation request{window,
+                                             visible_container,
+                                             list,
+                                             game::current_input(),
+                                             dialogue->rows[index],
+                                             dialogue->text[index],
+                                             cursor,
+                                             direction,
+                                             draw_generation,
+                                             32,
+                                             GetTickCount64() + 1000};
+                    if (advance_scroll(request)) {
+                        scroll_navigation = std::move(request);
+                        resume_scroll();
+                        return true;
+                    }
+                    if (direction > 0) {
+                        return true;
+                    }
+                }
+            }
+            if (index == 0 && direction < 0) {
+                const auto next = inventory_target(items, cursor, 0, -1);
+                if (next >= 0) {
+                    evidence_focus = point_at(window, items[next], false);
+                    return true;
+                }
+            }
             selected = (index + direction + count) % count;
             break;
         }
@@ -384,6 +521,7 @@ bool navigate_dialogue(HWND window, int direction, int tab) {
 }
 
 bool scroll_dialogue(int direction) {
+    scroll_navigation.reset();
     const auto frame = current_dialogue();
     if (!frame || !direction || !scroll_up || !scroll_down) {
         return false;
@@ -403,40 +541,11 @@ std::vector<RECT> conversation_evidence() {
     if (!current_dialogue() || !view) {
         return {};
     }
-    const auto& children = view->children_for(game::edition());
-    std::vector<RECT> result;
-    if (children.count > 64) {
-        return result;
-    }
-    // Conversation evidence uses three native icon groups, distinct from the inventory.
-    for (const auto& icons : view->conversation_icons) {
-        const auto group = &icons.inventory;
-        bool shown = false;
-        auto child = children.first;
-        for (unsigned i = 0; child && i < children.count; ++i, child = child->next) {
-            shown |= child->value && child->value->object == group;
-        }
-        if (!shown || group->items.count > 64) {
-            continue;
-        }
-        auto node = group->items.first;
-        for (unsigned i = 0; node && i < group->items.count; ++i, node = node->next) {
-            if (node->value && node->value->icon) {
-                const auto bounds = node->value->icon->rectangle.bounds;
-                if (bounds.left >= 0 && bounds.top >= 0 && bounds.right <= 640 &&
-                    bounds.bottom <= 480 && !IsRectEmpty(&bounds)) {
-                    result.push_back(bounds);
-                }
-            }
-        }
-    }
-    std::sort(result.begin(), result.end(), [](const RECT& a, const RECT& b) {
-        return a.top == b.top ? a.left < b.left : a.top < b.top;
-    });
-    return result;
+    return evidence_bounds(view);
 }
 
 bool focus_conversation_evidence(HWND window) {
+    scroll_navigation.reset();
     const auto dialogue = current_dialogue();
     if (!dialogue) {
         return false;

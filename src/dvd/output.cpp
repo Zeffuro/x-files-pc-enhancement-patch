@@ -323,6 +323,10 @@ bool Output::drained() {
     return state_->audio.drained();
 }
 
+bool Output::audio_available() const {
+    return state_->audio.available();
+}
+
 std::int64_t Output::played() const {
     return state_->audio.played();
 }

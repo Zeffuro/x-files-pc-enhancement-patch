@@ -35,8 +35,8 @@ int main() {
             require(ui::language_name(selected) != nullptr);
             for (const auto label :
                  {L"Click", L"Interact", L"View", L"Talk", L"Use", L"Target", L"Hotspot",
-                  L"Show hotspot labels", L"Mute", L"2x (natural pitch)", L"3x (natural pitch)",
-                  L"4x (natural pitch)"}) {
+                  L"Show hotspot labels", L"Hotspot reveal", L"Toggle reveal key", L"Mute",
+                  L"2x (natural pitch)", L"3x (natural pitch)", L"4x (natural pitch)"}) {
                 const std::wstring translated = ui::translate(label, selected);
                 require(!translated.empty() && (index == 0 || translated != label));
             }

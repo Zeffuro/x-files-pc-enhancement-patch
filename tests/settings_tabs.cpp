@@ -58,6 +58,25 @@ void check_language(ui::Language language) {
         GetClientRect(entry.first, &bounds);
         require(size.cx + 24 <= bounds.right, "Translated natural-pitch or mute label is clipped.");
     }
+    RECT autosave_bounds{}, toggle_bounds{}, continue_bounds{}, overlap{};
+    GetWindowRect(GetDlgItem(window, IDC_AUTOSAVES), &autosave_bounds);
+    GetWindowRect(GetDlgItem(window, IDC_HOTSPOT_TOGGLE), &toggle_bounds);
+    GetWindowRect(GetDlgItem(window, IDC_CONTINUE_LATEST), &continue_bounds);
+    require(!IntersectRect(&overlap, &autosave_bounds, &toggle_bounds) &&
+                !IntersectRect(&overlap, &toggle_bounds, &continue_bounds) &&
+                !IntersectRect(&overlap, &autosave_bounds, &continue_bounds),
+            "Reveal toggle overlaps another Game setting.");
+    for (const auto id : {IDC_AUTOSAVES, IDC_HOTSPOT_TOGGLE}) {
+        const auto control = GetDlgItem(window, id);
+        wchar_t label[256]{};
+        GetWindowTextW(control, label, 256);
+        RECT bounds{};
+        GetClientRect(control, &bounds);
+        const auto height = bounds.bottom;
+        bounds.right -= 24;
+        DrawTextW(dc, label, -1, &bounds, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
+        require(bounds.bottom <= height, "Translated autosave or toggle setting is clipped.");
+    }
     SelectObject(dc, previous);
     ReleaseDC(window, dc);
     RECT language_bounds{}, game_bounds{};

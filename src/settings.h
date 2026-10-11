@@ -52,6 +52,7 @@ struct Settings {
     bool hotspot_exits_only = false;
     bool hotspot_labels = true;
     unsigned hotspot_reveal_key = 164;
+    bool hotspot_reveal_toggle = false;
     bool readable_documents = true;
     bool quick_menu = true;
     std::array<bool, 5> quick_menu_items{true, true, true, true, true};

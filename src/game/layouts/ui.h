@@ -84,7 +84,9 @@ struct MainView {
     std::byte before_conversation_icons[0x58];
     ConversationIcons conversation_icons[3];
     Inventory inventory;
-    std::byte before_children[0x450];
+    std::byte before_evidence[0x58];
+    Inventory evidence;
+    std::byte before_children[0x3e0];
     List<ChildView> children;
 
     const List<ChildView>& children_for(const Profile& profile) const {
@@ -136,6 +138,7 @@ static_assert(offsetof(Application, preferences) == 0xf4);
 static_assert(offsetof(ChoiceList, viewport) == profile_dvd_20000.choice_viewport);
 static_assert(offsetof(ChoiceList, tab) == 0xb0);
 static_assert(offsetof(MainView, inventory) == 0x39c);
+static_assert(offsetof(MainView, evidence) == 0x40c);
 static_assert(sizeof(ConversationIcons) == 0x38);
 static_assert(offsetof(MainView, conversation_icons) == 0x2f4);
 static_assert(offsetof(MainView, children) == profile_dvd_20000.children);

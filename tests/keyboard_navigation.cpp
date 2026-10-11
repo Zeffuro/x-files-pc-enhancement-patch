@@ -19,7 +19,7 @@ enhancements::Dialogue test_dialogue;
 std::vector<RECT> test_icons, test_evidence, test_emotions;
 Settings test_options;
 std::uintptr_t test_input = 0;
-int inventory_direction = 0, dialogue_direction = 0, dialogue_tab = 0;
+int inventory_direction = 0, inventory_vertical = 0, dialogue_direction = 0, dialogue_tab = 0;
 unsigned groups = 0, closes = 0;
 
 struct Click {
@@ -114,8 +114,9 @@ bool leave_inventory(HWND) {
     return result;
 }
 
-bool navigate_inventory(HWND, int direction) {
+bool navigate_inventory(HWND, int direction, int vertical) {
     inventory_direction = direction;
+    inventory_vertical = vertical;
     return inventory;
 }
 
@@ -221,7 +222,7 @@ void reset() {
     test_held.fill(false);
     test_cursor = {500, 350};
     groups = closes = 0;
-    inventory_direction = dialogue_direction = dialogue_tab = 0;
+    inventory_direction = inventory_vertical = dialogue_direction = dialogue_tab = 0;
 }
 
 void selected(const RECT& bounds, bool activate, const char* reason) {
@@ -259,14 +260,23 @@ void conversation_inventory() {
 
     reset();
     test_icons = {{10, 420, 40, 470}, {80, 420, 120, 470}};
-    require(key(VK_TAB) && inventory && key(VK_UP) && inventory_direction == -1,
+    require(key(VK_TAB) && inventory && key(VK_UP) && inventory_direction == 0 &&
+                inventory_vertical == -1,
             "Tab/Up did not focus and navigate inventory");
-    require(key(VK_DOWN) && inventory_direction == 1 && key(VK_LEFT) && inventory_direction == -1 &&
+    require(key(VK_DOWN) && inventory_vertical == 1 && key(VK_LEFT) && inventory_direction == -1 &&
                 key(VK_RIGHT) && inventory_direction == 1,
             "Inventory arrows did not share a consistent direction");
     test_cursor = {95, 440};
     require(key(VK_RETURN), "Enter did not consume inventory activation");
     selected(test_icons[1], true, "Inventory activation lost the selected native icon");
+    dialogue_visible = true;
+    test_dialogue.choices[0] = {230, 300, 450, 316};
+    test_dialogue.count = 1;
+    test_cursor = {340, 308};
+    require(key(VK_RETURN), "Stale inventory focus consumed dialogue Enter");
+    selected(test_dialogue.choices[0], true,
+             "Dialogue Enter lost priority over stale inventory focus");
+    dialogue_visible = false;
     require(key(VK_TAB) && !inventory, "Tab did not return from inventory");
 
     reset();

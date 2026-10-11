@@ -51,6 +51,7 @@ Your saves and settings are kept. Use the release ZIP, not the Source code downl
 - **F5** quick-saves during exploration.
 - **F9** quick-loads during exploration or from the main menu.
 - Hold **Left Alt** or **RT** to reveal nearby interactions and exits.
+  **F10 → Game → Toggle reveal key** lets you press once to show cues and again to hide them.
 - Use the mouse wheel over PDA, workstation or conversation text to scroll.
 - Click PDA or workstation message text to open a larger reader.
 - Rolling autosaves keep five safe exploration checkpoints. At startup, the

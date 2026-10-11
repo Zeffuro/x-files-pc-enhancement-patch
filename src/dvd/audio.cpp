@@ -1,6 +1,7 @@
 #include "audio.h"
 #include "media/tempo.h"
 #include "platform/test_environment.h"
+#include "platform/audio_endpoint.h"
 
 #include <atomic>
 #include <cstring>
@@ -72,6 +73,7 @@ struct Audio::State {
     void submit(std::vector<std::int16_t> pcm);
 
     SwrContext* resampler = nullptr;
+    std::unique_ptr<platform::AudioEndpoint> endpoint;
     Microsoft::WRL::ComPtr<IXAudio2> engine;
     IXAudio2MasteringVoice* master = nullptr;
     IXAudio2SourceVoice* voice = nullptr;
@@ -79,7 +81,7 @@ struct Audio::State {
     std::deque<std::unique_ptr<std::vector<std::int16_t>>> buffers;
     std::size_t queued_bytes = 0;
     std::uint64_t reclaimed = 0;
-    bool audio_apartment = false;
+    bool unavailable = false;
     bool paused = false;
     unsigned speed = 1;
     std::unique_ptr<media::Tempo> tempo;
@@ -87,15 +89,15 @@ struct Audio::State {
 };
 
 void Audio::State::ensure_audio() {
-    if (voice) {
+    if (voice || unavailable) {
         return;
     }
     if (!engine) {
-        const auto apartment = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        if (FAILED(apartment) && apartment != RPC_E_CHANGED_MODE) {
-            check(apartment, "Audio apartment");
+        endpoint = std::make_unique<platform::AudioEndpoint>();
+        if (!endpoint->available()) {
+            unavailable = true;
+            return;
         }
-        audio_apartment = SUCCEEDED(apartment);
         check(XAudio2Create(&engine), "XAudio2 engine");
         check(engine->CreateMasteringVoice(&master), "XAudio2 mastering voice");
         if (platform::test_audio_muted()) {
@@ -150,10 +152,8 @@ void Audio::State::reset_audio() noexcept {
         master = nullptr;
     }
     engine.Reset();
-    if (audio_apartment) {
-        CoUninitialize();
-        audio_apartment = false;
-    }
+    endpoint.reset();
+    unavailable = false;
 }
 
 void Audio::State::submit(std::vector<std::int16_t> pcm) {
@@ -167,6 +167,9 @@ void Audio::State::submit(std::vector<std::int16_t> pcm) {
         throw std::runtime_error("DVD audio queue is full");
     }
     ensure_audio();
+    if (unavailable) {
+        return;
+    }
     buffers.push_back(std::make_unique<std::vector<std::int16_t>>(std::move(pcm)));
     XAUDIO2_BUFFER buffer{};
     buffer.AudioBytes = static_cast<UINT32>(bytes);
@@ -190,7 +193,7 @@ void Audio::push(const AVFrame& frame, int first, int count) {
         !frame.extended_data || !frame.extended_data[0] || state_->finished) {
         throw std::runtime_error("Unsupported DVD audio frame");
     }
-    if (!count) {
+    if (!count || state_->unavailable) {
         return;
     }
     const auto bytes = static_cast<std::size_t>(count) * 4;
@@ -238,6 +241,10 @@ void Audio::finish() {
 bool Audio::drained() {
     state_->reclaim();
     return state_->buffers.empty();
+}
+
+bool Audio::available() const {
+    return !state_->unavailable;
 }
 
 std::int64_t Audio::played() const {

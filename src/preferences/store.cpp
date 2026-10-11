@@ -44,17 +44,22 @@ Store::Store(const std::filesystem::path& path)
     if (lock_.get() == INVALID_HANDLE_VALUE) {
         file_error("Cannot lock preferences");
     }
+    values_ = read_file(path_);
+}
+
+Values read_file(const std::filesystem::path& path) {
+    Values values;
     std::error_code error;
-    if (!std::filesystem::exists(path_, error)) {
+    if (!std::filesystem::exists(path, error)) {
         if (error) {
             throw std::system_error(error);
         }
-        return;
+        return values;
     }
-    if (std::filesystem::file_size(path_) > 65536) {
+    if (std::filesystem::file_size(path) > 65536) {
         throw std::runtime_error("Preferences file is too large.");
     }
-    std::ifstream input(path_);
+    std::ifstream input(path);
     if (!input) {
         throw std::runtime_error("Cannot read preferences.");
     }
@@ -92,13 +97,14 @@ Store::Store(const std::filesystem::path& path)
             }
             value = number;
         }
-        if (!values_.emplace(std::move(name), std::move(value)).second) {
+        if (!values.emplace(std::move(name), std::move(value)).second) {
             throw std::runtime_error("Duplicate preference name.");
         }
     }
     if (!input.eof()) {
         throw std::runtime_error("Cannot finish reading preferences.");
     }
+    return values;
 }
 
 const Value* Store::find(const std::string& name) const {

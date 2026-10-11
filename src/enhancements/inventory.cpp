@@ -3,11 +3,15 @@
 #include "game/layouts/database/asset_reference.h"
 
 #include <algorithm>
+#include <array>
+#include <cstring>
+#include <limits>
 
 namespace enhancements {
 namespace {
 
 thread_local bool focused = false;
+thread_local const game::MainView* focused_view = nullptr;
 thread_local POINT return_point{};
 thread_local game::MainView* revealing = nullptr;
 thread_local POINT reveal_pointer{};
@@ -23,25 +27,37 @@ template <class T> const void* field(const T* object, std::size_t offset) {
     return reinterpret_cast<const void*>(reinterpret_cast<std::uintptr_t>(object) + offset);
 }
 
-bool visible_inventory(const game::MainView* view) {
+std::vector<const void*> visible_groups(const game::MainView* view) {
     game::List<game::ChildView> children{};
     if (!view || !read(field(view, game::edition().children), children) || children.count > 64) {
-        return false;
+        return {};
     }
+    std::vector<const void*> result, visited;
     auto* address = children.first;
     for (unsigned i = 0; address && i < children.count; ++i) {
         game::List<game::ChildView>::Node node{};
         game::ChildView child{};
-        if (!read(address, node)) {
-            break;
+        if (std::find(visited.begin(), visited.end(), address) != visited.end() ||
+            !read(address, node) || !read(node.value, child)) {
+            return {};
         }
-        if (read(node.value, child) &&
-            child.object == field(view, offsetof(game::MainView, inventory))) {
-            return true;
-        }
+        visited.push_back(address);
+        result.push_back(child.object);
         address = node.next;
     }
-    return false;
+    game::List<game::ChildView> current{};
+    if (address || result.size() != children.count ||
+        !read(field(view, game::edition().children), current) ||
+        std::memcmp(&current, &children, sizeof(current))) {
+        return {};
+    }
+    return result;
+}
+
+bool visible_inventory(const game::MainView* view) {
+    const auto groups = visible_groups(view);
+    return view && std::find(groups.begin(), groups.end(),
+                             field(view, offsetof(game::MainView, inventory))) != groups.end();
 }
 
 bool move_cursor(HWND window, POINT point) {
@@ -51,6 +67,13 @@ bool move_cursor(HWND window, POINT point) {
 bool point_at(HWND window, const RECT& bounds) {
     return move_cursor(window,
                        {(bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2});
+}
+
+bool focus_item(HWND window, const game::MainView* view, const RECT& bounds) {
+    focused =
+        game::current_view() == view && point_at(window, bounds) && game::current_view() == view;
+    focused_view = focused ? view : nullptr;
+    return focused;
 }
 
 std::vector<InventoryEntry> collect_inventory(const game::MainView* view, bool details) {
@@ -85,6 +108,57 @@ std::vector<InventoryEntry> collect_inventory(const game::MainView* view, bool d
     }
     return result;
 }
+
+std::vector<RECT> visible_bounds(const game::MainView* view, std::span<const std::size_t> offsets) {
+    const auto groups = visible_groups(view);
+    std::vector<RECT> result;
+    for (const auto offset : offsets) {
+        const auto owner = field(view, offset);
+        game::Inventory group{};
+        if (std::find(groups.begin(), groups.end(), owner) == groups.end() || !read(owner, group) ||
+            group.items.count > 64) {
+            continue;
+        }
+        std::vector<RECT> bounds;
+        std::vector<const void*> visited;
+        auto* address = group.items.first;
+        for (unsigned i = 0; address && i < group.items.count; ++i) {
+            game::List<game::InventoryItem>::Node node{};
+            game::InventoryItem item{};
+            game::InventoryIcon icon{};
+            if (std::find(visited.begin(), visited.end(), address) != visited.end() ||
+                !read(address, node)) {
+                break;
+            }
+            visited.push_back(address);
+            address = node.next;
+            if (!read(node.value, item) || !read(item.icon, icon)) {
+                continue;
+            }
+            const auto& r = icon.rectangle.bounds;
+            if (r.left >= 0 && r.top >= 0 && r.right <= 640 && r.bottom <= 480 &&
+                r.right > r.left && r.bottom > r.top) {
+                bounds.push_back(r);
+            }
+        }
+        game::Inventory current{};
+        if (address || visited.size() != group.items.count || !read(owner, current) ||
+            std::memcmp(&current, &group, sizeof(current))) {
+            continue;
+        }
+        result.insert(result.end(), bounds.begin(), bounds.end());
+    }
+    if (visible_groups(view) != groups) {
+        return {};
+    }
+    std::sort(result.begin(), result.end(), [](const RECT& a, const RECT& b) {
+        return a.top == b.top ? a.left < b.left : a.top < b.top;
+    });
+    result.erase(std::unique(result.begin(), result.end(),
+                             [](const RECT& a, const RECT& b) { return EqualRect(&a, &b); }),
+                 result.end());
+    return result;
+}
 }
 
 std::vector<InventoryEntry> inventory_items(const game::MainView* view) {
@@ -92,28 +166,74 @@ std::vector<InventoryEntry> inventory_items(const game::MainView* view) {
 }
 
 std::vector<RECT> inventory_bounds(const game::MainView* view) {
-    if (!visible_inventory(view)) {
-        return {};
+    constexpr std::array offsets{offsetof(game::MainView, inventory),
+                                 offsetof(game::MainView, evidence)};
+    return view ? visible_bounds(view, offsets) : std::vector<RECT>{};
+}
+
+std::vector<RECT> evidence_bounds(const game::MainView* view) {
+    constexpr std::array offsets{
+        offsetof(game::MainView, conversation_icons),
+        offsetof(game::MainView, conversation_icons) + sizeof(game::ConversationIcons),
+        offsetof(game::MainView, conversation_icons) + 2 * sizeof(game::ConversationIcons),
+        offsetof(game::MainView, evidence)};
+    return view ? visible_bounds(view, offsets) : std::vector<RECT>{};
+}
+
+int inventory_target(std::span<const RECT> items, POINT cursor, int horizontal, int vertical) {
+    if (items.empty() || (!horizontal && !vertical)) {
+        return -1;
     }
-    const auto items = collect_inventory(view, false);
-    if (items.size() > 64) {
-        return {};
-    }
-    std::vector<RECT> result;
-    for (const auto& item : items) {
-        const auto& bounds = item.bounds;
-        if (bounds.left >= 0 && bounds.top >= 0 && bounds.right <= 640 && bounds.bottom <= 480 &&
-            bounds.right > bounds.left && bounds.bottom > bounds.top) {
-            result.push_back(bounds);
+    int current = -1;
+    for (std::size_t i = 0; i < items.size(); ++i) {
+        if (PtInRect(&items[i], cursor)) {
+            current = static_cast<int>(i);
+            cursor = {(items[i].left + items[i].right) / 2, (items[i].top + items[i].bottom) / 2};
+            break;
         }
     }
-    std::sort(result.begin(), result.end(),
-              [](const RECT& a, const RECT& b) { return a.left < b.left; });
-    return result;
+    int next = current;
+    long long best = std::numeric_limits<long long>::max();
+    for (std::size_t i = 0; i < items.size(); ++i) {
+        if (static_cast<int>(i) == current) {
+            continue;
+        }
+        const auto& item = items[i];
+        const long long dx = (item.left + item.right) / 2 - cursor.x;
+        const long long dy = (item.top + item.bottom) / 2 - cursor.y;
+        const bool same_row =
+            current < 0 || (item.top < items[current].bottom && item.bottom > items[current].top);
+        if ((horizontal && (!same_row || dx * horizontal <= 0)) ||
+            (!horizontal && (dy * vertical <= 0 || (current >= 0 && same_row)))) {
+            continue;
+        }
+        const auto score = dx * dx + dy * dy;
+        if (score < best) {
+            best = score;
+            next = static_cast<int>(i);
+        }
+    }
+    if (horizontal && next == current && current >= 0) {
+        long edge =
+            horizontal > 0 ? std::numeric_limits<long>::max() : std::numeric_limits<long>::min();
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            const auto& item = items[i];
+            if (item.top >= items[current].bottom || item.bottom <= items[current].top) {
+                continue;
+            }
+            const auto x = (item.left + item.right) / 2;
+            if ((horizontal > 0 && x < edge) || (horizontal < 0 && x > edge)) {
+                edge = x;
+                next = static_cast<int>(i);
+            }
+        }
+    }
+    return next;
 }
 
 bool inventory_focused(HWND window) {
-    if (!focused) {
+    if (!focused || focused_view != game::current_view()) {
+        focused = false;
         return false;
     }
     const auto items = inventory_bounds(game::current_view());
@@ -127,13 +247,14 @@ bool inventory_focused(HWND window) {
 }
 
 std::optional<RECT> inventory_item_bounds(const game::MainView* view, unsigned resource) {
-    const auto visible = inventory_bounds(view);
-    if (visible.empty()) {
+    constexpr std::array offsets{offsetof(game::MainView, inventory)};
+    const auto primary_bounds = view ? visible_bounds(view, offsets) : std::vector<RECT>{};
+    if (primary_bounds.empty()) {
         return std::nullopt;
     }
     for (const auto& item : inventory_items(view)) {
         if (item.resource == resource &&
-            std::any_of(visible.begin(), visible.end(),
+            std::any_of(primary_bounds.begin(), primary_bounds.end(),
                         [&](const RECT& bounds) { return EqualRect(&bounds, &item.bounds); })) {
             return item.bounds;
         }
@@ -142,7 +263,8 @@ std::optional<RECT> inventory_item_bounds(const game::MainView* view, unsigned r
 }
 
 bool focus_inventory_item(HWND window, unsigned resource) {
-    const auto item = inventory_item_bounds(game::current_view(), resource);
+    const auto view = game::current_view();
+    const auto item = inventory_item_bounds(view, resource);
     const auto scene = game::scene_bounds();
     if (!item || IsRectEmpty(&scene) || !GetCursorPos(&return_point) ||
         !ScreenToClient(window, &return_point)) {
@@ -151,8 +273,7 @@ bool focus_inventory_item(HWND window, unsigned resource) {
     if (!PtInRect(&scene, return_point)) {
         return_point = {(scene.left + scene.right) / 2, (scene.top + scene.bottom) / 2};
     }
-    focused = point_at(window, *item);
-    return focused;
+    return focus_item(window, view, *item);
 }
 
 bool reveal_inventory(HWND window) {
@@ -180,15 +301,19 @@ bool focus_inventory(HWND window) {
     if (revealing || inventory_focused(window)) {
         return leave_inventory(window);
     }
-    const auto items = inventory_bounds(game::current_view());
+    const auto view = game::current_view();
+    const auto items = inventory_bounds(view);
     if (items.empty()) {
         return reveal_inventory(window);
     }
     if (!GetCursorPos(&return_point) || !ScreenToClient(window, &return_point)) {
         return false;
     }
-    focused = point_at(window, items.front());
-    return focused;
+    const auto first =
+        std::min_element(items.begin(), items.end(), [](const RECT& a, const RECT& b) {
+            return a.top == b.top ? a.left < b.left : a.top > b.top;
+        });
+    return focus_item(window, view, *first);
 }
 
 void update_inventory_focus(HWND window, bool enabled) {
@@ -204,8 +329,13 @@ void update_inventory_focus(HWND window, bool enabled) {
     }
     const auto items = inventory_bounds(revealing);
     if (!items.empty()) {
+        const auto view = revealing;
         revealing = nullptr;
-        focused = point_at(window, items.front());
+        const auto first =
+            std::min_element(items.begin(), items.end(), [](const RECT& a, const RECT& b) {
+                return a.top == b.top ? a.left < b.left : a.top > b.top;
+            });
+        focus_item(window, view, *first);
     }
 }
 
@@ -223,22 +353,19 @@ bool leave_inventory(HWND window) {
     return true;
 }
 
-bool navigate_inventory(HWND window, int direction) {
+bool navigate_inventory(HWND window, int horizontal, int vertical) {
     if (!inventory_focused(window)) {
         return false;
     }
-    const auto items = inventory_bounds(game::current_view());
+    const auto view = game::current_view();
+    const auto items = inventory_bounds(view);
     POINT cursor{};
-    if (!direction || !GetCursorPos(&cursor) || !ScreenToClient(window, &cursor)) {
+    if ((!horizontal && !vertical) || !GetCursorPos(&cursor) || !ScreenToClient(window, &cursor)) {
         return true;
     }
-    for (std::size_t index = 0; index < items.size(); ++index) {
-        if (PtInRect(&items[index], cursor)) {
-            const auto count = static_cast<int>(items.size());
-            const auto next = (static_cast<int>(index) + direction + count) % count;
-            point_at(window, items[next]);
-            break;
-        }
+    const auto next = inventory_target(items, cursor, horizontal, vertical);
+    if (next >= 0 && game::current_view() == view) {
+        point_at(window, items[next]);
     }
     return true;
 }

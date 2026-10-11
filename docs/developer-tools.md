@@ -13,6 +13,11 @@ choose **Developer tools**.
   Edits appear in the preview as you type. **Save** applies them without restarting.
 - **Your label** and **Your notes** let you describe clips in your own words.
 
+Drag the divider between the Library and preview to change their widths. Drag
+the divider below the preview controls to give the image more or less height.
+You can also focus a divider with Tab, use arrow keys to resize, or press Home
+to reset it. The layout stays as you switch views or resize the tools window.
+
 ## Game state
 
 **Game state** shows copied game values, named story variables and inventory.
@@ -120,6 +125,7 @@ Use **Fit** to fill the preview area or **Actual size** to view one image pixel 
 pixel. Larger images can be scrolled. NMV previews include **Previous**, **Next** and a
 frame list for browsing their still images. Choose a video track to see its frames.
 Selecting a frame pauses playback.
+These controls are available in both the in-game Library and standalone browser.
 Sound-only captions are not supported yet.
 For game structures and file details, see
 [the technical reference](https://github.com/Zeffuro/x-files-pc-enhancement-patch/blob/main/src/game/README.md).

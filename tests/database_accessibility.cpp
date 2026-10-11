@@ -11,14 +11,47 @@
 
 namespace {
 using Microsoft::WRL::ComPtr;
-constexpr int row_count = 66168;
+int row_count = 66168;
+bool stored_list = false;
+int column_count = 4;
 constexpr UINT replace_rows = WM_APP + 31;
 constexpr UINT close_list = WM_APP + 32;
 constexpr UINT empty_list = WM_APP + 33;
+constexpr UINT delete_row = WM_APP + 34;
+constexpr UINT insert_row = WM_APP + 35;
 
 void require(bool value, const char* message) {
     if (!value) {
         throw std::runtime_error(message);
+    }
+}
+
+std::wstring row_text(int row, int column) {
+    return L"Record " + std::to_wstring(row) + L" column " + std::to_wstring(column);
+}
+
+void insert_stored_row(HWND list, int row) {
+    auto name = row_text(row, 0);
+    LVITEMW item{};
+    item.mask = LVIF_TEXT;
+    item.iItem = row;
+    item.pszText = name.data();
+    require(ListView_InsertItem(list, &item) == row, "Insert stored row");
+    for (int column = 1; column < column_count; ++column) {
+        name = row_text(row, column);
+        ListView_SetItemText(list, row, column, name.data());
+    }
+}
+
+void populate(HWND list) {
+    if (stored_list) {
+        ListView_DeleteAllItems(list);
+        for (int row = 0; row < row_count; ++row) {
+            insert_stored_row(list, row);
+        }
+    } else {
+        ListView_SetItemCount(list, 0);
+        ListView_SetItemCount(list, row_count);
     }
 }
 
@@ -28,8 +61,7 @@ LRESULT CALLBACK host(HWND window, UINT message, WPARAM value, LPARAM data) {
         if (notification->code == LVN_GETDISPINFOW) {
             auto& item = reinterpret_cast<NMLVDISPINFOW*>(data)->item;
             if (item.mask & LVIF_TEXT) {
-                const auto name = L"Record " + std::to_wstring(item.iItem) + L" column " +
-                                  std::to_wstring(item.iSubItem);
+                const auto name = row_text(item.iItem, item.iSubItem);
                 wcsncpy_s(item.pszText, static_cast<std::size_t>(item.cchTextMax), name.c_str(),
                           _TRUNCATE);
             }
@@ -38,8 +70,15 @@ LRESULT CALLBACK host(HWND window, UINT message, WPARAM value, LPARAM data) {
     }
     if (message == replace_rows) {
         const auto list = GetDlgItem(window, 1);
-        ListView_SetItemCount(list, 0);
-        ListView_SetItemCount(list, row_count);
+        populate(list);
+        return 0;
+    }
+    if (message == delete_row) {
+        ListView_DeleteItem(GetDlgItem(window, 1), 0);
+        return 0;
+    }
+    if (message == insert_row) {
+        insert_stored_row(GetDlgItem(window, 1), 0);
         return 0;
     }
     if (message == close_list) {
@@ -62,6 +101,23 @@ void check_tree(IUIAutomation* automation, IUIAutomationElement* root) {
     int count = 0;
     require(SUCCEEDED(children->get_Length(&count)) && count > 0 && count < 100,
             "Accessible tree must remain bounded by viewport");
+    ComPtr<IUIAutomationCacheRequest> cache;
+    require(SUCCEEDED(automation->CreateCacheRequest(&cache)), "Create bulk-fetch cache");
+    require(SUCCEEDED(cache->put_TreeScope(TreeScope_Subtree)) &&
+                SUCCEEDED(cache->AddProperty(UIA_NamePropertyId)) &&
+                SUCCEEDED(cache->AddProperty(UIA_ControlTypePropertyId)) &&
+                SUCCEEDED(cache->AddPattern(UIA_SelectionItemPatternId)) &&
+                SUCCEEDED(cache->AddPattern(UIA_ScrollItemPatternId)) &&
+                SUCCEEDED(cache->AddPattern(UIA_LegacyIAccessiblePatternId)),
+            "Configure bulk-fetch properties and patterns");
+    const auto started = GetTickCount64();
+    children.Reset();
+    require(SUCCEEDED(
+                root->FindAllBuildCache(TreeScope_Descendants, all.Get(), cache.Get(), &children)),
+            "Bulk-fetch accessible viewport");
+    require(SUCCEEDED(children->get_Length(&count)) && count > 0 && count < 100,
+            "Bulk-fetch tree must remain bounded by viewport");
+    require(GetTickCount64() - started < 5000, "Bulk-fetch viewport exceeded five seconds");
 }
 
 void check(HWND window, HWND list) {
@@ -75,7 +131,7 @@ void check(HWND window, HWND list) {
     check_tree(automation.Get(), root.Get());
     BSTR root_name = nullptr;
     require(SUCCEEDED(root->get_CurrentName(&root_name)) &&
-                std::wstring(root_name) == L"Database records",
+                std::wstring(root_name) == (stored_list ? L"Clip library" : L"Database records"),
             "Native provider overrides proxy");
     SysFreeString(root_name);
 
@@ -121,7 +177,7 @@ void check(HWND window, HWND list) {
             "Empty list is not scrollable");
     VARIANT id{};
     id.vt = VT_BSTR;
-    id.bstrVal = SysAllocString(L"66167");
+    id.bstrVal = SysAllocString(std::to_wstring(row_count - 1).c_str());
     ComPtr<IUIAutomationElement> last;
     require(
         SUCCEEDED(container->FindItemByProperty(nullptr, UIA_AutomationIdPropertyId, id, &last)) &&
@@ -145,8 +201,9 @@ void check(HWND window, HWND list) {
             "Full list selection identity");
     BSTR name = nullptr;
     require(SUCCEEDED(last->get_CurrentName(&name)) &&
-                std::wstring(name).find(L"Record 66167 column 3") != std::wstring::npos,
-            "Owner-data provider name includes all columns");
+                std::wstring(name).find(row_text(row_count - 1, column_count - 1)) !=
+                    std::wstring::npos,
+            "Provider name includes all columns");
     SysFreeString(name);
     check_tree(automation.Get(), root.Get());
 
@@ -172,11 +229,35 @@ void check(HWND window, HWND list) {
     require(SUCCEEDED(scroll->SetScrollPercent(UIA_ScrollPatternNoScroll, 50)),
             "Scroll to middle of full list");
     const auto middle = SendMessageW(list, LVM_GETTOPINDEX, 0, 0);
-    require(middle > 30000 && middle < 35000, "Middle scrollbar position spans full corpus");
+    require(middle > row_count * 4 / 10 && middle < row_count * 6 / 10,
+            "Middle scrollbar position spans full corpus");
+    check_tree(automation.Get(), root.Get());
+    require(SUCCEEDED(scroll->SetScrollPercent(UIA_ScrollPatternNoScroll, 100)),
+            "Scroll to end of full list");
+    require(SendMessageW(list, LVM_GETTOPINDEX, 0, 0) > row_count * 9 / 10,
+            "Final viewport reachable");
     check_tree(automation.Get(), root.Get());
     require(SUCCEEDED(scroll->SetScrollPercent(UIA_ScrollPatternNoScroll, 0)),
             "Scroll to first record");
     require(SendMessageW(list, LVM_GETTOPINDEX, 0, 0) == 0, "First record reachable");
+    require(ListView_GetItemCount(list) == row_count &&
+                ListView_GetNextItem(list, -1, LVNI_SELECTED) == row_count - 1,
+            "Scrolling preserves full row coverage and selected identity");
+    if (stored_list) {
+        SendMessageW(window, delete_row, 0, 0);
+        name = nullptr;
+        require(FAILED(second->get_CurrentName(&name)), "Single deletion invalidates row identity");
+        SysFreeString(name);
+        ComPtr<IUIAutomationElement> retained;
+        require(SUCCEEDED(container->FindItemByProperty(nullptr, 0, next, &retained)) && retained,
+                "Retrieve row after deletion");
+        SendMessageW(window, insert_row, 0, 0);
+        name = nullptr;
+        require(FAILED(retained->get_CurrentName(&name)),
+                "Single insertion invalidates row identity");
+        SysFreeString(name);
+        require(ListView_GetItemCount(list) == row_count, "Insertion restores full row count");
+    }
     SendMessageW(window, replace_rows, 0, 0);
     require(container->FindItemByProperty(last.Get(), 0, next, &invalid) ==
                 UIA_E_ELEMENTNOTAVAILABLE,
@@ -199,8 +280,14 @@ void check(HWND window, HWND list) {
 }
 }
 
-int main() {
+int main(int argc, char** argv) {
     try {
+        stored_list = argc == 2 && std::string(argv[1]) == "--stored-list";
+        require(argc == 1 || stored_list, "Unknown accessibility test option");
+        if (stored_list) {
+            row_count = 3043;
+            column_count = 3;
+        }
         const auto instance = GetModuleHandleW(nullptr);
         INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_LISTVIEW_CLASSES};
         require(InitCommonControlsEx(&controls), "Initialize list controls");
@@ -212,17 +299,18 @@ int main() {
         const auto window = CreateWindowW(type.lpszClassName, L"", WS_POPUP, 0, 0, 800, 600,
                                           nullptr, nullptr, instance, nullptr);
         const auto list = CreateWindowW(
-            WC_LISTVIEWW, L"", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_OWNERDATA | LVS_SINGLESEL,
+            WC_LISTVIEWW, stored_list ? L"Clip library" : L"",
+            WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | (stored_list ? 0 : LVS_OWNERDATA),
             0, 0, 750, 500, window, reinterpret_cast<HMENU>(1), instance, nullptr);
         require(window && list, "Create owner-data list");
-        for (int index = 0; index < 4; ++index) {
+        for (int index = 0; index < column_count; ++index) {
             LVCOLUMNW column{};
             column.mask = LVCF_TEXT | LVCF_WIDTH;
             column.pszText = const_cast<wchar_t*>(L"Column");
             column.cx = 170;
             ListView_InsertColumn(list, index, &column);
         }
-        ListView_SetItemCount(list, row_count);
+        populate(list);
         devtools::database_browser::install_list_accessibility(list);
         const auto other =
             CreateWindowW(WC_LISTVIEWW, L"", WS_CHILD | LVS_REPORT | LVS_OWNERDATA | LVS_SINGLESEL,
@@ -256,7 +344,8 @@ int main() {
         client.join();
         DestroyWindow(window);
         require(error.empty(), error.c_str());
-        std::cout << "Database accessibility viewport, scroll, selection and lifetime pass\n";
+        std::cout << (stored_list ? "Stored list" : "Database")
+                  << " accessibility bulk-fetch, viewport, scroll, selection and lifetime pass\n";
         return 0;
     } catch (const std::exception& failure) {
         std::cerr << failure.what() << '\n';

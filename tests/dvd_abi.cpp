@@ -36,6 +36,10 @@ int wmain(int argc, wchar_t** argv) {
     try {
         namespace fs = std::filesystem;
         require(argc >= 3, "Expected adapter DLL and fixture");
+        const bool no_audio = argc > 3 && std::wstring_view(argv[3]) == L"--no-audio";
+        if (no_audio) {
+            SetEnvironmentVariableW(L"XFILES_DVD_TEST_NO_AUDIO", L"1");
+        }
         if (argc > 3 && std::wstring_view(argv[3]) == L"--disabled") {
             SetDllDirectoryW(fs::path(argv[1]).parent_path().c_str());
             const auto module = LoadLibraryW(argv[1]);
@@ -92,7 +96,7 @@ int wmain(int argc, wchar_t** argv) {
         const auto parent = CreateWindowExW(0, L"STATIC", L"DVD adapter test", WS_OVERLAPPEDWINDOW,
                                             0, 0, 660, 520, nullptr, nullptr, nullptr, nullptr);
         require(parent != nullptr, "Cannot create test parent");
-        if (argc > 3) {
+        if (argc > 3 && std::wstring_view(argv[3]) == L"--interactive") {
             ShowWindow(parent, SW_SHOW);
         }
         auto* object = factory();
@@ -125,6 +129,10 @@ int wmain(int argc, wchar_t** argv) {
         call<void>(object, 24, -1L);
         call<void>(object, 10, static_cast<void*>(parent));
         require(call<int>(object, 20) == 1, "Play failed");
+        if (no_audio) {
+            require(GetPropW(parent, L"XFilesDvdTestAudio") == nullptr,
+                    "No-device fixture unexpectedly submitted audio");
+        }
         call<void>(object, 17, static_cast<void*>(parent), 1u);
         require(call<int>(object, 20) == 1, "Stale MCI notification completed new playback");
         pump(object, 250);

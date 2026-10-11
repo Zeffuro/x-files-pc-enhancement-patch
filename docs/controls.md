@@ -22,9 +22,12 @@ Close movies, conversations and devices before saving or loading.
 Loading replaces your current progress.
 
 In conversations, Up/Down selects a response and Left/Right switches Talk/History.
-Tab switches to evidence and Enter uses the selected icon. In inventory, either
-arrow pair selects an item and Tab returns to the scene. On devices, Tab switches
-controls/content and Up/Down scrolls messages. Press once per step.
+Up from the first response reaches evidence above it. Down from evidence returns
+to the responses. Left/Right moves within the evidence row. Tab also switches to
+evidence and Enter uses the selected icon. In inventory, Left/Right moves within
+a row and Up/Down moves between items and opened evidence. Tab returns to the
+scene. On devices, Tab switches controls/content and Up/Down scrolls messages.
+Press once per step.
 Native text fields keep their normal typing and editing keys.
 
 Use the wheel over PDA notes, PDA messages or workstation messages to scroll
@@ -47,9 +50,13 @@ Hold **Targets** and use the D-pad in any direction to select a hotspot.
 
 In **F10 → Game**, choose all interactions, exits only or off, and choose Left Alt,
 H, R or controller only. **Show hotspot labels** hides or shows captions below
-targets while keeping the marks and legend. Hold through exploration scene changes.
-Release to hide the cues. They hide during movies. After another screen or switching
-windows, release and press again.
+targets while keeping the marks and legend. Enable **Toggle reveal key** to press
+the selected keyboard key once to show cues and again to hide them. The controller's
+**Targets** button keeps its hold behavior.
+
+Cues continue through exploration scene changes and hide during movies. In hold
+mode, release to hide them. After another screen or switching windows, press again
+to resume. Release a held key or button first.
 
 ### Transcript and quick menu
 
@@ -130,9 +137,14 @@ main settings discards controller-dialog changes too.
 
 ### Conversations, devices and combat
 
-In conversations, Up/Down selects responses. Left/Right or LB/RB switches
-Talk/History. R3 switches to evidence, then A uses the selected icon.
-Keyboard Tab also switches groups. Right-click closes the conversation.
+In conversations, Up/Down selects responses. Up from the first response reaches
+evidence above it, and Down from evidence returns to responses. Left/Right moves
+within an evidence row or switches Talk/History while selecting responses.
+R3 also switches to evidence. A uses the selected icon. Keyboard Tab also switches
+groups. Right-click closes the conversation.
+
+In inventory, Left/Right moves within a row. Up/Down moves between the bottom row
+and opened evidence. Press once per step.
 
 On devices, B switches controls/content and Y goes back. Selecting a text field
 opens an on-screen keyboard. Use the D-pad to select a key, A to type, X to delete

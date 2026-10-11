@@ -23,6 +23,7 @@ struct Output::State {
     bool paused = false;
     unsigned speed = 1;
     bool underrun = GetEnvironmentVariableW(L"XFILES_DVD_TEST_UNDERRUN", nullptr, 0) != 0;
+    bool unavailable = GetEnvironmentVariableW(L"XFILES_DVD_TEST_NO_AUDIO", nullptr, 0) != 0;
     std::int64_t samples = 0;
     std::unique_ptr<media::Tempo> tempo;
     std::int64_t elapsed = 0;
@@ -54,6 +55,9 @@ void Output::caption(std::wstring text, const CaptionStyle&) {
 }
 
 void Output::audio(const AVFrame& frame, int first, int count) {
+    if (state_->unavailable) {
+        return;
+    }
     state_->time();
     if (state_->speed > 1) {
         if (!state_->tempo) {
@@ -84,10 +88,17 @@ void Output::finish_audio() {
 }
 
 bool Output::drained() {
+    if (state_->unavailable) {
+        return true;
+    }
     if (GetEnvironmentVariableW(L"XFILES_DVD_TEST_DRAIN_PENDING", nullptr, 0)) {
         return false;
     }
     return state_->underrun || played() >= state_->samples * 90000 / 48000;
+}
+
+bool Output::audio_available() const {
+    return !state_->unavailable;
 }
 
 void Output::pause(bool value) {

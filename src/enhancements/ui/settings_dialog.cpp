@@ -269,6 +269,8 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                            settings().readable_documents ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_HOTSPOT_LABELS,
                            settings().hotspot_labels ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(window, IDC_HOTSPOT_TOGGLE,
+                           settings().hotspot_reveal_toggle ? BST_CHECKED : BST_UNCHECKED);
             state->tabs.initialize(window);
             return TRUE;
         }
@@ -425,6 +427,8 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             value.hotspot_reveal = reveal == 1 || reveal == 2;
             value.hotspot_exits_only = reveal == 2;
             value.hotspot_labels = IsDlgButtonChecked(window, IDC_HOTSPOT_LABELS) == BST_CHECKED;
+            value.hotspot_reveal_toggle =
+                IsDlgButtonChecked(window, IDC_HOTSPOT_TOGGLE) == BST_CHECKED;
             const auto reveal_key =
                 SendDlgItemMessageW(window, IDC_HOTSPOT_KEY, CB_GETCURSEL, 0, 0);
             value.hotspot_reveal_key = reveal_key == 1   ? 'H'

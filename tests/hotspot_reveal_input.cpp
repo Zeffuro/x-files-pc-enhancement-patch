@@ -304,6 +304,157 @@ void controller_hold() {
     reveal::update(nullptr, true);
     shown(false, "Controller hold rearmed across disabled input context");
 }
+
+void toggle_keyboard() {
+    using namespace enhancements;
+    reset();
+    options.hotspot_reveal_toggle = true;
+    reveal::update(nullptr, true);
+    const auto tap = [](unsigned configured = VK_LMENU) {
+        held_keys[configured] = true;
+        require(key(WM_KEYDOWN, configured), "Toggle key press leaked");
+        held_keys[configured] = false;
+        require(key(WM_KEYUP, configured), "Toggle key release leaked");
+    };
+    held_keys[VK_LMENU] = true;
+    require(key(WM_SYSKEYDOWN, VK_MENU), "Toggle Alt alias was not recognized");
+    shown(true, "Toggle Alt did not reveal");
+    require(key(WM_SYSKEYDOWN, VK_MENU, LPARAM{1} << 30), "Toggle Alt repeat leaked");
+    reveal::update(nullptr, true);
+    shown(true, "Key repeat or polling toggled reveal off");
+    held_keys[VK_LMENU] = false;
+    require(key(WM_SYSKEYUP, VK_MENU), "Toggle Alt alias release leaked");
+    shown(true, "Toggle reveal did not remain after release");
+    view_index ^= 1;
+    ++targets[0].identity;
+    reveal::update(nullptr, true);
+    shown(true, "Toggle reveal did not cross a safe scene transition");
+    const auto previous = redraws;
+    targets[0].interaction = game::Interaction::talk;
+    reveal::update(nullptr, true);
+    require(redraws > previous, "Latched reveal did not redraw changed stationary targets");
+    for (const auto input :
+         {std::uintptr_t{0}, game::edition().movie, game::edition().action_movie}) {
+        safe = false;
+        native_input = input;
+        reveal::update(nullptr, true);
+        shown(false, "Toggle reveal stayed visible during a movie or transition");
+        safe = true;
+        native_input = 0;
+        reveal::update(nullptr, true);
+        shown(true, "Toggle reveal was lost across a movie or transient world interval");
+    }
+    tap();
+    shown(false, "Second press did not turn toggle reveal off");
+    safe = false;
+    native_input = game::edition().movie;
+    held_keys[VK_LMENU] = true;
+    require(!key(WM_SYSKEYDOWN, VK_MENU), "A movie accepted a fresh reveal toggle press");
+    reveal::update(nullptr, true);
+    safe = true;
+    native_input = 0;
+    reveal::update(nullptr, true);
+    shown(false, "A key pressed during a movie enabled the next scene's toggle reveal");
+    require(key(WM_SYSKEYDOWN, VK_MENU, LPARAM{1} << 30), "Movie-origin key repeat leaked");
+    shown(false, "A repeat after a movie enabled toggle reveal");
+    held_keys[VK_LMENU] = false;
+    require(key(WM_SYSKEYUP, VK_MENU), "Movie-origin repeat release leaked");
+    held_keys[VK_LMENU] = true;
+    require(key(WM_SYSKEYDOWN, VK_MENU, LPARAM{1} << 30), "Stale toggle repeat leaked");
+    shown(false, "A repeat without an initial press enabled toggle reveal");
+    held_keys[VK_LMENU] = false;
+    require(key(WM_SYSKEYUP, VK_MENU), "Stale toggle repeat release leaked");
+    for (bool* blocker : {&paused, &inventory, &quick, &foreground}) {
+        tap();
+        shown(true, "Cannot start toggle context fixture");
+        *blocker = blocker == &foreground ? false : true;
+        reveal::update(nullptr, true);
+        shown(false, "Toggle reveal survived blocked context");
+        *blocker = blocker == &foreground ? true : false;
+        reveal::update(nullptr, true);
+        shown(false, "Toggle reveal returned after blocked context");
+    }
+    for (int context = 0; context < 6; ++context) {
+        tap();
+        safe = false;
+        native_input = context == 0 ? game::edition().main_menu : 0;
+        script.script_dialog = context == 1;
+        script.text_input = context == 2;
+        if (context == 3) {
+            script.buttons.push_back({10, 10, 30, 30});
+        }
+        if (context == 4) {
+            emotions.push_back({10, 10, 30, 30});
+        }
+        dialogue = context == 5 ? reinterpret_cast<const Dialogue*>(1) : nullptr;
+        reveal::update(nullptr, true);
+        shown(false, "Toggle reveal survived menu, typing, script, emotion or dialogue context");
+        safe = true;
+        native_input = 0;
+        script = {};
+        emotions.clear();
+        dialogue = nullptr;
+        reveal::update(nullptr, true);
+        shown(false, "Toggle reveal returned after unsafe native context");
+    }
+    for (const auto modifier : {VK_RMENU, VK_CONTROL, VK_RETURN, VK_TAB}) {
+        held_keys[modifier] = true;
+        tap();
+        shown(false, "A modifier chord enabled toggle reveal");
+        held_keys[modifier] = false;
+        reveal::update(nullptr, true);
+        shown(false, "Toggle reveal returned after modifier release");
+    }
+    held_keys[VK_LMENU] = true;
+    require(key(WM_KEYDOWN, VK_LMENU), "Cannot start held toggle focus fixture");
+    foreground = false;
+    reveal::suspend();
+    reveal::update(nullptr, false);
+    foreground = true;
+    require(key(WM_KEYDOWN, VK_LMENU, LPARAM{1} << 30), "Held focus-return repeat leaked");
+    shown(false, "A held key reactivated toggle reveal after focus return");
+    release(VK_LMENU);
+    tap();
+    shown(true, "Fresh press after focus barrier did not rearm toggle reveal");
+    reveal::controller(true);
+    tap();
+    shown(true, "Toggling keyboard off cancelled controller Targets hold");
+    reveal::controller(false);
+    reveal::update(nullptr, true);
+    shown(false, "Toggle mode latched controller Targets");
+    tap();
+    options.hotspot_reveal = false;
+    reveal::update(nullptr, true);
+    options.hotspot_reveal = true;
+    reveal::update(nullptr, true);
+    shown(false, "Re-enabling reveal restored a discarded toggle latch");
+    tap();
+    options.hotspot_reveal_key = 'H';
+    reveal::update(nullptr, true);
+    shown(false, "Changing reveal key retained the toggle latch");
+    tap('H');
+    shown(true, "Letter key did not toggle reveal");
+    options.hotspot_reveal_toggle = false;
+    reveal::update(nullptr, true);
+    shown(false, "Changing to hold mode retained the toggle latch");
+    press('H');
+    shown(true, "Hold mode did not resume after changing modes");
+    release('H');
+    options.hotspot_reveal_toggle = true;
+    options.hotspot_reveal_key = 0;
+    reveal::update(nullptr, true);
+    held_keys[VK_LMENU] = true;
+    require(!key(WM_SYSKEYDOWN, VK_MENU), "Controller-only mode accepted keyboard toggle");
+    reveal::update(nullptr, true);
+    shown(false, "Controller-only mode revealed from a keyboard key");
+    held_keys[VK_LMENU] = false;
+    reveal::controller(true);
+    reveal::update(nullptr, true);
+    shown(true, "Controller-only reveal was broken by the keyboard toggle preference");
+    reveal::controller(false);
+    reveal::update(nullptr, true);
+    shown(false, "Controller-only mode latched a trigger release");
+}
 }
 
 const Settings& settings() {
@@ -390,6 +541,7 @@ int main() {
         keyboard();
         transitions();
         controller_hold();
+        toggle_keyboard();
         reset();
         options.hotspot_reveal_key = 'H';
         press('H');

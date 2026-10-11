@@ -23,6 +23,7 @@ public:
     void audio(const AVFrame& frame, int first_sample, int sample_count);
     void finish_audio();
     bool drained();
+    bool audio_available() const;
     std::int64_t played() const;
     void pause(bool paused);
     void speed(unsigned multiplier);

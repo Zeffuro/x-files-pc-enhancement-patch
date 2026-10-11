@@ -15,6 +15,9 @@ namespace enhancements::reveal {
 namespace {
 thread_local bool controller_held = false;
 thread_local bool key_consumed = false;
+thread_local bool keyboard_toggled = false, toggle_press = false;
+thread_local bool toggle_mode = false;
+thread_local unsigned keyboard_key = VK_LMENU;
 thread_local Hold keyboard_hold, controller_hold;
 thread_local std::vector<Marker> visible;
 thread_local bool labels_enabled = true;
@@ -76,6 +79,7 @@ bool message(HWND window, UINT event, WPARAM value, LPARAM data) {
     if ((event == WM_KEYDOWN || event == WM_SYSKEYDOWN) && matches && settings().hotspot_reveal &&
         available(window)) {
         key_consumed = true;
+        toggle_press = settings().hotspot_reveal_toggle && !(data & (1L << 30));
         update(window, true);
         return true;
     }
@@ -89,14 +93,23 @@ bool message(HWND window, UINT event, WPARAM value, LPARAM data) {
 
 void update(HWND window, bool enabled) {
     const auto& value = settings();
+    if (toggle_mode != value.hotspot_reveal_toggle || keyboard_key != value.hotspot_reveal_key) {
+        if (toggle_mode || value.hotspot_reveal_toggle) {
+            keyboard_hold.suspend();
+        }
+        toggle_mode = value.hotspot_reveal_toggle;
+        keyboard_key = value.hotspot_reveal_key;
+        keyboard_toggled = toggle_press = false;
+    }
     const bool keyboard =
         value.hotspot_reveal_key && (GetAsyncKeyState(value.hotspot_reveal_key) & 0x8000);
+    const bool requested = keyboard || keyboard_toggled;
     const bool allowed = enabled && value.hotspot_reveal && game_is_foreground(window) &&
                          !IsIconic(window) && !scene_overlay_active() && !quick_menu::expanded() &&
                          !inventory_focused(window) && !current_dialogue();
-    const bool ready = allowed && (keyboard || controller_held) && safe_save_available();
+    const bool ready = allowed && (requested || controller_held) && safe_save_available();
     bool barrier = !allowed;
-    if (allowed && !ready && (keyboard || controller_held)) {
+    if (allowed && !ready && (requested || controller_held)) {
         const auto input = game::input_vtable();
         const auto script = game::script_controls();
         barrier =
@@ -105,16 +118,24 @@ void update(HWND window, bool enabled) {
             !game::emotion_targets().empty();
     }
     if (barrier) {
+        keyboard_toggled = false;
         keyboard_hold.suspend();
         controller_hold.suspend();
     }
     const bool shortcut =
         (GetAsyncKeyState(VK_RMENU) & 0x8000) || (GetAsyncKeyState(VK_CONTROL) & 0x8000) ||
         (GetAsyncKeyState(VK_RETURN) & 0x8000) || (GetAsyncKeyState(VK_TAB) & 0x8000);
-    if (keyboard && shortcut) {
+    if (requested && shortcut) {
+        keyboard_toggled = false;
         keyboard_hold.suspend();
     }
-    const bool keyboard_visible = keyboard_hold.update(keyboard, ready && !shortcut);
+    const bool held_visible = keyboard_hold.update(keyboard, ready && !shortcut);
+    if (toggle_press && held_visible) {
+        keyboard_toggled = !keyboard_toggled;
+    }
+    toggle_press = false;
+    const bool keyboard_visible =
+        value.hotspot_reveal_toggle ? keyboard_toggled && ready && !shortcut : held_visible;
     const bool controller_visible = controller_hold.update(controller_held, ready);
     auto targets = keyboard_visible || controller_visible ? game::world_targets()
                                                           : std::vector<game::WorldTarget>{};
@@ -127,6 +148,7 @@ void update(HWND window, bool enabled) {
 
 void suspend() {
     controller_held = false;
+    keyboard_toggled = toggle_press = false;
     keyboard_hold.suspend();
     controller_hold.suspend();
     show(nullptr, {});

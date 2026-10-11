@@ -137,6 +137,7 @@ bool leave_notes() {
 }
 
 void select(const Row& row) {
+    state.frame_player = nullptr;
     state.player.reset();
     state.selected = row.path;
     diagnostics::record_tool_context(
@@ -172,10 +173,20 @@ void start_caption_index() {
 }
 
 void tick_preview() {
+    const bool navigation = frame_navigation_active();
+    if (state.frame_controls_visible != navigation) {
+        state.frame_controls_visible = navigation;
+        layout();
+    }
     if (state.player) {
         state.player->update();
         set_text(state.clock, L"Preview  " + timestamp(state.player->time(), 1000) + L" / " +
                                   timestamp(state.player->duration(), 1000));
+        if (state.player->frame_navigation() && state.player->direct_frame()) {
+            const auto image = state.player->image();
+            set_text(state.clock, L"Frame " + (image ? std::to_wstring(image->sample + 1) : L"0") +
+                                      L" / " + std::to_wstring(state.player->frame_count()));
+        }
         set_text(state.play, state.player->playing() ? L"Pause preview" : L"Play preview");
         if (GetFocus() != state.caption) {
             set_text(state.caption, state.player->caption());
@@ -198,21 +209,43 @@ void tick_preview() {
         set_text(state.caption, L"");
         set_text(state.play, L"Play preview");
     }
+    update_frame_controls();
     update_preview_details();
     EnableWindow(state.stop, state.player != nullptr);
     EnableWindow(state.seek, state.player != nullptr);
 }
 
 void show_view() {
-    for (auto window : {state.coverage,      state.group,    state.place,         state.compact,
-                        state.search_label,  state.search,   state.filenames,     state.labels,
-                        state.notes_search,  state.captions, state.list,          state.title,
-                        state.preview,       state.clock,    state.play,          state.stop,
-                        state.subtitle,      state.seek,     state.caption,       state.details,
-                        state.label_heading, state.label,    state.notes_heading, state.notes,
-                        state.save}) {
+    for (auto window : {state.coverage,
+                        state.group,
+                        state.place,
+                        state.compact,
+                        state.search_label,
+                        state.search,
+                        state.filenames,
+                        state.labels,
+                        state.notes_search,
+                        state.captions,
+                        state.list,
+                        state.title,
+                        state.preview,
+                        state.clock,
+                        state.play,
+                        state.stop,
+                        state.subtitle,
+                        state.seek,
+                        state.caption,
+                        state.details,
+                        state.label_heading,
+                        state.label,
+                        state.notes_heading,
+                        state.notes,
+                        state.save,
+                        state.column_splitter,
+                        state.preview_splitter}) {
         ShowWindow(window, state.showing_state || state.showing_database ? SW_HIDE : SW_SHOW);
     }
+    show_frame_controls(!state.showing_state && !state.showing_database);
     show_state_controls(state.showing_state);
     ShowWindow(state.database, state.showing_database ? SW_SHOW : SW_HIDE);
     if (state.showing_database) {
@@ -231,6 +264,7 @@ void open_database_asset(const std::filesystem::path& requested) {
         !database_asset_file(state.catalog.root, *path) || !leave_notes()) {
         return;
     }
+    state.frame_player = nullptr;
     state.player.reset();
     state.showing_state = false;
     state.showing_database = false;

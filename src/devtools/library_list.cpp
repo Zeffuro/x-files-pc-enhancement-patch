@@ -4,6 +4,28 @@
 #include <stdexcept>
 
 namespace devtools::inspector {
+int find_row(const NMLVFINDITEMW& find) {
+    if (!(find.lvfi.flags & LVFI_STRING) || !find.lvfi.psz) {
+        return -1;
+    }
+    const auto query = lower(find.lvfi.psz);
+    const auto count = static_cast<int>(state.row_cells.size());
+    const auto start = std::clamp(find.iStart, 0, count);
+    const auto length = (find.lvfi.flags & LVFI_WRAP) ? count : count - start;
+    for (int offset = 0; offset < length; ++offset) {
+        const auto index = (start + offset) % count;
+        const auto name = lower(state.row_cells[index][0]);
+        const bool matches = (find.lvfi.flags & LVFI_SUBSTRING)
+                                 ? name.find(query) != std::wstring::npos
+                             : (find.lvfi.flags & LVFI_PARTIAL) ? name.starts_with(query)
+                                                                : name == query;
+        if (matches) {
+            return index;
+        }
+    }
+    return -1;
+}
+
 int thumbnail(const media::Frame* frame, int index, bool audio = false) {
     BITMAPINFO info{};
     info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -181,10 +203,9 @@ void populate() {
             return a.path == b.path && a.movie == b.movie;
         });
     state.rebuilding = true;
+    SendMessageW(state.list, WM_SETREDRAW, FALSE, 0);
     if (changed) {
-
-        SendMessageW(state.list, WM_SETREDRAW, FALSE, 0);
-        ListView_DeleteAllItems(state.list);
+        ListView_SetItemCount(state.list, 0);
         SendMessageW(state.list, WM_SETFONT, reinterpret_cast<WPARAM>(state.font), FALSE);
         ImageList_RemoveAll(state.images);
         state.shown_artwork.fill(nullptr);
@@ -195,6 +216,9 @@ void populate() {
         }
         state.rows = std::move(rows);
     }
+    state.row_cells.clear();
+    state.row_cells.reserve(state.rows.size());
+    int selected_index = -1;
     for (std::size_t i = 0; i < state.rows.size(); ++i) {
         const auto& row = state.rows[i];
         const auto note = state.annotations.get(row.path);
@@ -218,31 +242,22 @@ void populate() {
                               : state.catalog.installed_keys.contains(catalog_key(row.path))
                                   ? L"Installed"
                                   : L"Missing";
-        if (changed) {
-            LVITEMW item{};
-            item.mask = LVIF_TEXT | LVIF_IMAGE;
-            item.iItem = static_cast<int>(i);
-            item.pszText = name.data();
-            item.iImage = state.compact_view ? I_IMAGENONE : static_cast<int>(i % 64);
-            ListView_InsertItem(state.list, &item);
-            if (row.path == state.selected && (!row.movie || row.movie == state.selected_movie)) {
-                ListView_SetItemState(state.list, item.iItem, LVIS_SELECTED, LVIS_SELECTED);
-            }
+        state.row_cells.push_back({std::move(name), std::move(label), std::move(status)});
+        if (row.path == state.selected && (!row.movie || row.movie == state.selected_movie)) {
+            selected_index = static_cast<int>(i);
         }
-        ListView_SetItemText(state.list, static_cast<int>(i), 1, label.data());
-        ListView_SetItemText(state.list, static_cast<int>(i), 2, status.data());
-        const bool selected =
-            row.path == state.selected && (!row.movie || row.movie == state.selected_movie);
-        ListView_SetItemState(state.list, static_cast<int>(i), selected ? LVIS_SELECTED : 0,
-                              LVIS_SELECTED);
     }
     if (changed) {
-        SendMessageW(state.list, WM_SETREDRAW, TRUE, 0);
-        InvalidateRect(state.list, nullptr, FALSE);
+        ListView_SetItemCount(state.list, static_cast<int>(state.rows.size()));
     }
-    if (!state.browsing) {
-        InvalidateRect(state.list, nullptr, FALSE);
+    if (ListView_GetNextItem(state.list, -1, LVNI_SELECTED) != selected_index) {
+        ListView_SetItemState(state.list, -1, 0, LVIS_SELECTED);
+        if (selected_index >= 0) {
+            ListView_SetItemState(state.list, selected_index, LVIS_SELECTED, LVIS_SELECTED);
+        }
     }
+    SendMessageW(state.list, WM_SETREDRAW, TRUE, 0);
+    InvalidateRect(state.list, nullptr, FALSE);
     state.rebuilding = false;
     if (!state.dirty) {
         set_text(state.status,

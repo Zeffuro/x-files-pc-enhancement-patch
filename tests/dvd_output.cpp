@@ -106,7 +106,7 @@ public:
 };
 
 void verify_streaming_audio(HWND parent, const std::filesystem::path& fixture, unsigned speed,
-                            bool actual_clip = false) {
+                            bool actual_clip = false, bool no_audio = false) {
     StreamingSink sink(parent, speed);
     dvd::Player player(fixture, sink);
     const auto info = player.info();
@@ -154,7 +154,9 @@ void verify_streaming_audio(HWND parent, const std::filesystem::path& fixture, u
                     "Original DVD range did not decode");
         }
         player.start(range.first, range.second);
-        require(player.audio_finished() || !sink.drained(),
+        require(sink.output.audio_available() != no_audio,
+                "Audio endpoint did not match the requested test condition");
+        require(no_audio || player.audio_finished() || !sink.drained(),
                 "Streaming startup retained all PCM beyond the prebuffer");
         dvd::Clock clock;
         const auto begin = GetTickCount64();
@@ -165,12 +167,12 @@ void verify_streaming_audio(HWND parent, const std::filesystem::path& fixture, u
         while (player.status() == dvd::Status::playing && GetTickCount64() - begin < 5000) {
             const auto now = GetTickCount64();
             const auto played = sink.output.played();
-            player.pump(clock.advance(now, played, speed, false, tail));
+            player.pump(clock.advance(now, played, speed, !sink.output.audio_available(), tail));
             const bool drained = sink.drained();
-            require(player.audio_finished() || !drained,
+            require(no_audio || player.audio_finished() || !drained,
                     "Streaming audio exhausted its queue before decoder EOF");
             tail = player.audio_finished() && drained;
-            if (range.first == 0 && !pause_checked && played >= 45000) {
+            if (range.first == 0 && !pause_checked && clock.position() - range.first >= 45000) {
                 player.pause();
                 const auto paused_samples = sink.output.played();
                 const auto pause_begin = GetTickCount64();
@@ -187,7 +189,7 @@ void verify_streaming_audio(HWND parent, const std::filesystem::path& fixture, u
         require(player.status() == dvd::Status::completed && sink.finishes == 1 && sink.drained(),
                 "Streaming EOF/range did not finish and drain exactly once");
         const auto represented = static_cast<std::int64_t>(sink.samples / speed) * speed;
-        require(sink.output.played() == represented * 90000 / 48000,
+        require(sink.output.played() == (no_audio ? 0 : represented * 90000 / 48000),
                 "Streaming consumed output did not map to source samples");
         if (actual_clip) {
             require(sink.samples == decoded.samples && sink.frames == decoded.frames,
@@ -210,7 +212,7 @@ void verify_streaming_audio(HWND parent, const std::filesystem::path& fixture, u
                     "Streaming finite range submitted the wrong source samples");
         }
     }
-    std::cout << "Muted production DVD" << speed
+    std::cout << (no_audio ? "No-device production DVD" : "Muted production DVD") << speed
               << "x streaming startup, EOF, finite ranges and pause passed\n";
 }
 
@@ -299,15 +301,20 @@ int main(int argc, char** argv) {
                                nullptr, nullptr, type.hInstance, nullptr);
         require(parent != nullptr, "Cannot create DVD output test parent");
         if (argc >= 2 && (std::string_view(argv[1]) == "--audio-speed" ||
-                          std::string_view(argv[1]) == "--audio-clip")) {
+                          std::string_view(argv[1]) == "--audio-clip" ||
+                          std::string_view(argv[1]) == "--no-audio" ||
+                          std::string_view(argv[1]) == "--no-audio-clip")) {
             require(argc == 3, "Expected MPEG fixture path for streaming audio checks");
             SetEnvironmentVariableW(L"XFILES_TEST_MUTE_AUDIO", L"1");
-            const bool actual_clip = std::string_view(argv[1]) == "--audio-clip";
-            if (!actual_clip) {
+            const bool actual_clip = std::string_view(argv[1]) == "--audio-clip" ||
+                                     std::string_view(argv[1]) == "--no-audio-clip";
+            const bool no_audio = std::string_view(argv[1]) == "--no-audio" ||
+                                  std::string_view(argv[1]) == "--no-audio-clip";
+            if (!actual_clip && !no_audio) {
                 verify_audio_speed(parent);
             }
-            for (unsigned speed = 2; speed <= 4; ++speed) {
-                verify_streaming_audio(parent, argv[2], speed, actual_clip);
+            for (unsigned speed = no_audio ? 1 : 2; speed <= 4; ++speed) {
+                verify_streaming_audio(parent, argv[2], speed, actual_clip, no_audio);
             }
             DestroyWindow(parent);
             return 0;

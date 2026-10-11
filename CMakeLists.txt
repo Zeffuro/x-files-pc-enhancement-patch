@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(XFILES_VERSION "0.4.1" CACHE STRING "Release version (major.minor.patch)")
+set(XFILES_VERSION "0.4.2" CACHE STRING "Release version (major.minor.patch)")
 if(NOT XFILES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "XFILES_VERSION must be major.minor.patch")
 endif()
@@ -15,6 +15,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 add_compile_definitions(WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 add_compile_definitions(XFILES_BUILD_VERSION="${PROJECT_VERSION}")
 add_compile_options(/W4 /WX /utf-8)
+add_link_options(/INCREMENTAL:NO)
 
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 add_library(movie-grading STATIC src/playback/grading.cpp)
@@ -45,6 +46,8 @@ add_library(quicktime SHARED
     src/localization/ui.cpp
     src/devtools/inspector.cpp
     src/devtools/inspector_window.cpp
+    src/devtools/inspector_layout.cpp
+    src/devtools/inspector_frames.cpp
     src/devtools/inspector_state.cpp
     src/devtools/inspector_preview_details.cpp
     src/devtools/database/native.cpp
@@ -151,6 +154,7 @@ add_library(quicktime SHARED
     src/playback/timeline.cpp
     src/playback/audio.cpp
     src/playback/output.cpp
+    src/platform/audio_endpoint.cpp
     src/playback/callbacks.cpp
     src/playback/components.cpp
     src/playback/tracks.cpp
@@ -223,6 +227,8 @@ add_library(launcher-common STATIC
     src/launcher/welcome.cpp
     src/saves/storage.cpp
     src/launcher/configuration.cpp
+    src/launcher/compatibility.cpp
+    src/setup/catalog.cpp
     src/identity.cpp
     src/launcher/staging.cpp
     src/launcher/process.cpp
@@ -232,7 +238,7 @@ add_library(launcher-common STATIC
     src/platform/desktop.cpp
 )
 target_include_directories(launcher-common PUBLIC src "${CMAKE_BINARY_DIR}/generated")
-target_link_libraries(launcher-common PUBLIC advapi32 bcrypt user32 comdlg32)
+target_link_libraries(launcher-common PUBLIC advapi32 bcrypt user32 comdlg32 shell32)
 add_dependencies(quicktime native-profile-check)
 add_dependencies(launcher-common native-profile-check)
 
@@ -240,8 +246,9 @@ add_executable(xfiles-patch WIN32 src/launcher/main.cpp src/launcher/welcome.rc)
 set_target_properties(xfiles-patch PROPERTIES OUTPUT_NAME XFilesPlay)
 target_link_libraries(xfiles-patch PRIVATE launcher-common)
 configure_file(cmake/media-catalog.rc.in "${CMAKE_BINARY_DIR}/generated/media-catalog.rc" @ONLY)
+target_sources(xfiles-patch PRIVATE "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
 add_executable(xfiles-setup WIN32 src/setup/main.cpp src/setup/dialog.cpp
-    src/setup/dialog.rc src/setup/shortcuts.cpp src/setup/media.cpp src/setup/destination.cpp src/setup/iso.cpp src/setup/disc_image.cpp src/setup/catalog.cpp
+    src/setup/dialog.rc src/setup/shortcuts.cpp src/setup/media.cpp src/setup/destination.cpp src/setup/iso.cpp src/setup/disc_image.cpp
     "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
 set_target_properties(xfiles-setup PROPERTIES OUTPUT_NAME XFilesSetup)
 target_link_libraries(xfiles-setup PRIVATE launcher-common ole32 uuid comctl32 shell32)
@@ -280,6 +287,7 @@ target_include_directories(movie PUBLIC src/media)
 add_executable(xfiles-devtools WIN32 src/devtools/database/standalone.cpp
     src/devtools/database/standalone_preview.cpp
     src/devtools/preview.cpp src/playback/audio.cpp src/playback/output.cpp
+    src/platform/audio_endpoint.cpp
     "${CMAKE_BINARY_DIR}/generated/version.rc" "${CMAKE_BINARY_DIR}/generated/icon.rc")
 target_link_libraries(xfiles-devtools PRIVATE database-browser-ui movie
     comdlg32 shell32 xaudio2 uuid ole32)
@@ -288,8 +296,8 @@ add_library(dvd-player STATIC src/dvd/player.cpp src/dvd/files.cpp src/dvd/capti
     src/identity.cpp src/platform/imports.cpp src/diagnostics/log_file.cpp)
 target_include_directories(dvd-player PUBLIC src)
 target_link_libraries(dvd-player PUBLIC movie)
-add_library(dvd-mpeg SHARED src/dvd/adapter.cpp src/dvd/output.cpp src/dvd/audio.cpp src/dvd/input.cpp src/settings.cpp src/dvd/adapter.def)
-target_link_libraries(dvd-mpeg PRIVATE dvd-player user32 comctl32 gdi32 msimg32 ole32 xaudio2 xinput)
+add_library(dvd-mpeg SHARED src/dvd/adapter.cpp src/dvd/output.cpp src/dvd/audio.cpp src/platform/audio_endpoint.cpp src/dvd/input.cpp src/settings.cpp src/dvd/adapter.def)
+target_link_libraries(dvd-mpeg PRIVATE dvd-player user32 comctl32 gdi32 msimg32 ole32 uuid xaudio2 xinput)
 set_target_properties(dvd-mpeg PROPERTIES OUTPUT_NAME XFilesMpeg)
 add_dependencies(xfiles-patch dvd-mpeg)
 option(XFILES_BUILD_TOOLS "Build developer diagnostics (not included in releases)" OFF)
@@ -298,7 +306,7 @@ if(XFILES_BUILD_TOOLS)
     target_include_directories(xfiles-checkpoint PRIVATE src)
     add_executable(xfiles-media src/media/inspect.cpp)
     target_link_libraries(xfiles-media PRIVATE movie)
-    add_executable(xfiles-probe tools/probe/main.cpp)
+    add_executable(xfiles-probe tools/probe/main.cpp "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
     target_link_libraries(xfiles-probe PRIVATE launcher-common)
     add_dependencies(xfiles-probe xfiles-patch)
 endif()

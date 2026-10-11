@@ -3,6 +3,7 @@
 #include "launcher/preferences.h"
 #include "launcher/session.h"
 #include "launcher/application.h"
+#include "launcher/compatibility.h"
 #include "runtime.h"
 
 #include <fstream>
@@ -28,6 +29,11 @@ int launch(const std::filesystem::path& game, const std::filesystem::path& desti
 
 int wmain(int argc, wchar_t** argv) {
     try {
+        if (argc == 3 && std::wstring(argv[1]) == L"check") {
+            const auto report = inspect_installation(argv[2]);
+            std::wcout << report.text() << L'\n';
+            return report.problems.empty() ? 0 : 1;
+        }
         if (argc == 3 && std::wstring(argv[1]) == L"resume") {
             return resume_game(argv[2]);
         }
@@ -36,6 +42,7 @@ int wmain(int argc, wchar_t** argv) {
                          "[--windowed|--borderless] [--portable|--registry] [--fresh] [--media "
                          "<directory>]\n"
                          "       xfiles-probe resume <output-directory>\n";
+            std::cerr << "       xfiles-probe check <game-directory>\n";
             return 1;
         }
 

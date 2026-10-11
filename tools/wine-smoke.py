@@ -14,6 +14,7 @@ import time
 
 
 CHECKS = (
+    "imports",
     "hotspot-reveal", "hotspot-reveal-input", "world-interactions", "world-cursors", "scrolling", "script-scroll", "readable-documents", "documents-view",
     "keyboard-navigation", "game-strings",
     "autosave-state", "save-recent", "continue-menu", "autosave-runtime",
@@ -21,10 +22,10 @@ CHECKS = (
     "game-state-capture", "native-writes", "database-flow",
     "database-usability",
     "controller-delivery", "controller-state", "controller-navigation",
-    "controller-click", "navigation", "native-gun", "options-navigation", "rumble",
+    "controller-click", "navigation", "evidence-navigation", "dialogue-navigation", "native-gun", "options-navigation", "rumble",
     "fast-forward", "dvd-clock", "save-compatibility", "save-conversion",
-    "save-storage", "save-slots", "installation", "welcome", "menu-colors",
-    "ui-colors", "movie", "audio", "tempo", "playback-audio", "compressed-audio", "video", "canvas-presentation",
+    "save-storage", "save-slots", "installation", "compatibility", "welcome", "menu-colors",
+    "ui-colors", "movie", "audio", "tempo", "audio-endpoint", "playback-audio", "playback-output-missing", "dvd-no-audio-output", "compressed-audio", "video", "canvas-presentation",
     "transcript-history", "transcript-page", "transcript-capture", "transcript-view",
     "browser-session", "scene-overlay", "menu-control", "quick-menu", "quick-menu-navigation",
     "quick-menu-dialog", "settings-tabs", "settings-dialog", "controller-profile", "controller-dialog",
@@ -120,6 +121,9 @@ def main():
                     arguments = ["--clipboard"]
                 if name == "display":
                     arguments = [str(stage / "ddraw.dll"), "--monitors-only"]
+                if name == "dvd-no-audio-output":
+                    fixture = Path(__file__).resolve().parent.parent / "tests/fixtures/dvd-stream.mpg"
+                    arguments = ["--no-audio", "Z:" + str(fixture)]
                 check_environment = environment.copy()
                 if name == "display":
                     check_environment["WINEDLLOVERRIDES"] = "ddraw=n,b"

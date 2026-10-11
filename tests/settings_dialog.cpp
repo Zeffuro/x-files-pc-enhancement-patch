@@ -60,6 +60,7 @@ bool preview = false;
 bool next_continue = false;
 bool next_autosaves = false;
 bool next_labels = false;
+bool next_toggle = true;
 
 void CALLBACK preview_close(HWND window, UINT, UINT_PTR timer, DWORD) {
     KillTimer(window, timer);
@@ -144,6 +145,11 @@ LRESULT CALLBACK initialized_dialog(int code, WPARAM parameter, LPARAM data) {
                         "Hotspot labels did not load the current setting.");
                 CheckDlgButton(window, IDC_HOTSPOT_LABELS,
                                next_labels ? BST_CHECKED : BST_UNCHECKED);
+                require((IsDlgButtonChecked(window, IDC_HOTSPOT_TOGGLE) == BST_CHECKED) ==
+                            settings().hotspot_reveal_toggle,
+                        "Reveal toggle did not load the current setting.");
+                CheckDlgButton(window, IDC_HOTSPOT_TOGGLE,
+                               next_toggle ? BST_CHECKED : BST_UNCHECKED);
                 SendDlgItemMessageW(window, IDC_HOTSPOT_REVEAL, CB_SETCURSEL, 2, 0);
                 SendDlgItemMessageW(window, IDC_HOTSPOT_KEY, CB_SETCURSEL, 1, 0);
                 CheckDlgButton(window, IDC_READABLE_DOCUMENTS, BST_UNCHECKED);
@@ -208,6 +214,8 @@ void verify_transactions() {
             "Missing startup Return setting did not default to enabled.");
     require(read_settings(path).hotspot_labels,
             "Missing hotspot labels setting did not default to enabled.");
+    require(!read_settings(path).hotspot_reveal_toggle,
+            "Missing reveal mode did not default to hold.");
     Settings original;
     original.controller_profile.deadzone = 9000;
     save_settings(original);
@@ -224,7 +232,8 @@ void verify_transactions() {
                 settings().gamepad && settings().caption_style.scale == 100 &&
                 settings().autosaves && settings().continue_latest && settings().hotspot_reveal &&
                 !settings().hotspot_exits_only && settings().hotspot_reveal_key == VK_LMENU &&
-                settings().hotspot_labels && settings().readable_documents,
+                settings().hotspot_labels && settings().readable_documents &&
+                !settings().hotspot_reveal_toggle,
             "Outer Cancel persisted nested OK or hidden-page edits.");
     show(true, true, edited);
     const auto persisted = read_settings(path);
@@ -232,7 +241,8 @@ void verify_transactions() {
                 persisted.caption_style.scale == 142 && persisted.skip_workstation_login &&
                 !persisted.autosaves && !persisted.continue_latest && persisted.hotspot_reveal &&
                 persisted.hotspot_exits_only && persisted.hotspot_reveal_key == 'H' &&
-                !persisted.hotspot_labels && !persisted.readable_documents,
+                !persisted.hotspot_labels && !persisted.readable_documents &&
+                persisted.hotspot_reveal_toggle,
             "Outer OK lost controller or hidden-page settings.");
     auto discarded = edited;
     controller::bind(discarded, controller::Action::Activate, controller::Binding::B);
@@ -252,10 +262,14 @@ void verify_transactions() {
             "Re-enabling hotspot labels did not persist.");
     next_continue = false;
     next_autosaves = true;
+    next_toggle = false;
     show(true, false, edited);
     require(!settings().continue_latest && settings().autosaves &&
                 !read_settings(path).continue_latest,
             "Disabling startup Return disabled autosaves.");
+    require(!settings().hotspot_reveal_toggle && !read_settings(path).hotspot_reveal_toggle &&
+                GetPrivateProfileIntW(L"Input", L"HotspotRevealToggle", 1, path.c_str()) == 0,
+            "Returning to hold reveal did not persist.");
 }
 
 void isolated_test() {

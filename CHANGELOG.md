@@ -1,5 +1,16 @@
 # What's new
 
+## 0.4.2
+
+- Fixed a Wine startup crash when no audio device is available. Movies continue silently.
+- The launcher checks for missing or incompatible game files before starting.
+- Fixed Library freezes and improved browsing large clip lists.
+- In-game NMV previews now let you browse every frame and video track.
+- Resize the Library and preview areas by dragging their dividers or using the keyboard.
+- An optional reveal-key toggle keeps interaction cues visible until you press again.
+- Up/Down navigation now reaches opened evidence and conversation responses hidden below the screen.
+- Updated compression support and improved compatibility checks when loading the patch.
+
 ## 0.4.1
 
 - Natural-pitch sound during 2x, 3x and 4x movie fast-forward on CD and DVD.

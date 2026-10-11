@@ -8,6 +8,7 @@ namespace devtools::database_browser::accessibility_detail {
 struct Target {
     std::atomic<HWND> window;
     std::atomic<unsigned> revision{1};
+    bool redraw = true;
 
     explicit Target(HWND value) : window(value) {}
 };
