@@ -1,5 +1,6 @@
 #include "ddraw_version.h"
 #include "display_monitors.h"
+#include "display_mouse_lock.h"
 #include "graphics.h"
 #include "identity.h"
 #include "platform/desktop.h"
@@ -25,6 +26,7 @@ CursorClip initial_clip;
 decltype(&GetClipCursor) read_cursor_clip;
 decltype(&ShowCursor) real_show_cursor;
 decltype(&SetWindowPos) real_set_window_pos;
+DisplayMouseApis native_mouse;
 
 void require(bool condition, const char* message) {
     if (!condition) {
@@ -277,11 +279,19 @@ void monitor_toggles(HWND window, IDirectDraw* draw, const Desktop& before, bool
 }
 
 void exercise(HWND window, HMODULE library, CreateDraw create_draw, const Desktop& before,
-              bool monitors_only) {
+              bool monitors_only, bool mouse_lock_only) {
     ComPtr<IDirectDraw> draw;
     require(SUCCEEDED(create_draw(nullptr, &draw, nullptr)), "DirectDrawCreate failed.");
     require(SUCCEEDED(draw->SetCooperativeLevel(window, DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN)),
             "SetCooperativeLevel failed.");
+
+    if (mouse_lock_only) {
+        require(SUCCEEDED(draw->SetDisplayMode(640, 480, 16)), "Mouse display setup failed.");
+        test_windowed_mouse_lock(window, read_cursor_clip, real_set_window_pos, native_mouse, pump);
+        check_desktop(before);
+        require(SUCCEEDED(draw->RestoreDisplayMode()), "Mouse display teardown failed.");
+        return;
+    }
 
     if (monitors_only) {
         require(SUCCEEDED(draw->SetDisplayMode(640, 480, 16)), "Monitor display setup failed.");
@@ -502,10 +512,18 @@ int wmain(int argc, wchar_t** argv) {
         return 1;
     }
     initial_clip = cursor_clip(read_cursor_clip);
+    const auto user32 = GetModuleHandleW(L"user32.dll");
+    native_mouse = {
+        reinterpret_cast<decltype(&GetForegroundWindow)>(
+            GetProcAddress(user32, "GetForegroundWindow")),
+        reinterpret_cast<decltype(&GetCursorPos)>(GetProcAddress(user32, "GetCursorPos")),
+        reinterpret_cast<decltype(&SetCursorPos)>(GetProcAddress(user32, "SetCursorPos")),
+        reinterpret_cast<decltype(&ShowWindow)>(GetProcAddress(user32, "ShowWindow"))};
 
     try {
-        require(argc == 2 || (argc == 3 && std::wstring_view(argv[2]) == L"--monitors-only"),
-                "Pass the built ddraw.dll path and optional --monitors-only.");
+        require(argc == 2 || (argc == 3 && (std::wstring_view(argv[2]) == L"--monitors-only" ||
+                                            std::wstring_view(argv[2]) == L"--mouse-lock-only")),
+                "Pass ddraw.dll and optional --monitors-only or --mouse-lock-only.");
         const auto path = std::filesystem::canonical(argv[1]);
         require(sha256(path) == ddraw_sha256, "Unexpected DirectDraw library.");
         require(sha256(path.parent_path() / L"ddraw.ini") == ddraw_config_sha256,
@@ -529,7 +547,9 @@ int wmain(int argc, wchar_t** argv) {
                                  window_class.hInstance, nullptr);
         require(window != nullptr, "CreateWindow failed.");
         ShowWindow(window, SW_SHOWNOACTIVATE);
-        exercise(window, library, create_draw, before, argc == 3);
+        exercise(window, library, create_draw, before,
+                 argc == 3 && std::wstring_view(argv[2]) == L"--monitors-only",
+                 argc == 3 && std::wstring_view(argv[2]) == L"--mouse-lock-only");
         result = 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
@@ -554,7 +574,10 @@ int wmain(int argc, wchar_t** argv) {
     }
     if (result == 0) {
         write_desktop(std::cout, before);
-        std::cout << (argc == 3
+        std::cout << (argc == 3 && std::wstring_view(argv[2]) == L"--mouse-lock-only"
+                          ? "Windowed confinement, pause, focus, tools and release preserved the "
+                            "desktop and cursor.\n"
+                      : argc == 3
                           ? "Monitor toggles, restore and teardown preserved the desktop and "
                             "cursor.\n"
                           : "Drawing, mode switches, focus changes and teardown preserved the "

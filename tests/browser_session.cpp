@@ -27,6 +27,9 @@ enhancements::game::MainView view{};
 std::byte native_state{};
 unsigned pauses = 0, resumes = 0, loads = 0, suspensions = 0;
 bool pending = false, fail_load = false, menu = false;
+bool story_movie = false;
+bool release_on_load = false;
+unsigned existing_count = 0, quicksave_count = 0, autosave_count = 0;
 Settings options;
 native_game::CanvasSource source = nullptr;
 saves::Browser* painted = nullptr;
@@ -160,6 +163,102 @@ void check_name_input(Fixture& fixture) {
                 !fixture.send(WM_KEYDOWN, VK_RETURN),
             "Done input pairing leaked after close or consumed a later unrelated Enter");
 }
+
+void check_load_memory(Fixture& fixture) {
+    options.remember_load_browser = true;
+    existing_count = autosave_count = 14;
+    quicksave_count = 2;
+    fixture.open(false);
+    painted->page = 9;
+    painted->selection = 4;
+    saves::cycle_browser_category(*painted);
+    painted->page = 2;
+    painted->selection = 1;
+    saves::cycle_browser_category(*painted);
+    painted->selection = 1;
+    saves::cycle_browser_category(*painted);
+    painted->page = 2;
+    painted->selection = 1;
+    require(fixture.send(WM_KEYDOWN, VK_ESCAPE), "Cannot close remembered Load");
+
+    fixture.open(true);
+    require(painted->category == saves::BrowserCategory::manual && painted->page == 0 &&
+                painted->selection == 0,
+            "Load memory changed the Save browser's initial position");
+    painted->page = 7;
+    painted->selection = 5;
+    fixture.send(WM_KEYDOWN, VK_ESCAPE);
+    fixture.open(false);
+    require(painted->category == saves::BrowserCategory::autosaves && painted->page == 2 &&
+                painted->selection == 1 && painted->focus == 1 && !painted->confirm &&
+                !painted->deleting && !painted->naming && !painted->keyboard,
+            "Load did not restore its category and position after Save");
+    saves::cycle_browser_category(*painted);
+    require(painted->page == 9 && painted->selection == 4,
+            "Numbered category lost its remembered position");
+    saves::cycle_browser_category(*painted);
+    require(painted->page == 2 && painted->selection == 1,
+            "Existing category lost its remembered position");
+    saves::cycle_browser_category(*painted);
+    require(painted->page == 0 && painted->selection == 1,
+            "Quicksave category lost its remembered selection");
+    painted->focus = 1;
+    fixture.confirm_load();
+    require(!saves::browser_active() && pending, "Remembered Load did not complete");
+    pending = false;
+    fixture.open(false);
+    require(painted->category == saves::BrowserCategory::quicksave && painted->selection == 1 &&
+                !painted->confirm,
+            "Successful Load lost its position or restored confirmation");
+    release_on_load = true;
+    fixture.confirm_load();
+    pending = false;
+    release_on_load = false;
+
+    existing_count = 7;
+    quicksave_count = 1;
+    autosave_count = 0;
+    fixture.open(false);
+    require(painted->category == saves::BrowserCategory::quicksave && painted->page == 0 &&
+                painted->selection == 0 && painted->focus == 0,
+            "Native teardown lost Load memory or a shorter catalog retained invalid selection");
+    saves::cycle_browser_category(*painted);
+    require(painted->page == 0 && painted->selection == 0,
+            "Empty rolling autosaves retained an invalid remembered page or card");
+    saves::cycle_browser_category(*painted);
+    saves::cycle_browser_category(*painted);
+    require(painted->page == 1 && painted->selection == 0,
+            "Shorter Existing catalog did not clamp its page and final-page selection");
+    fixture.send(WM_KEYDOWN, VK_ESCAPE);
+
+    options.remember_load_browser = false;
+    fixture.open(true);
+    fixture.send(WM_KEYDOWN, VK_ESCAPE);
+    options.remember_load_browser = true;
+    fixture.open(false);
+    require(painted->category == saves::BrowserCategory::manual && painted->page == 0 &&
+                painted->selection == 0,
+            "Turning memory off through Save retained stale Load positions");
+    painted->page = 3;
+    fixture.send(WM_KEYDOWN, VK_ESCAPE);
+    options.remember_load_browser = false;
+    fixture.open(false);
+    require(painted->category == saves::BrowserCategory::manual && painted->page == 0,
+            "Disabled Load memory changed the original initial page");
+    painted->page = 5;
+    fixture.send(WM_KEYDOWN, VK_ESCAPE);
+    options.remember_load_browser = true;
+    fixture.open(false);
+    require(painted->page == 0, "Disabled Load captured a new session position");
+    painted->page = 8;
+    fixture.send(WM_KEYDOWN, VK_ESCAPE);
+    options.remember_load_browser = false;
+    saves::update_browser(fixture.window);
+    options.remember_load_browser = true;
+    fixture.open(false);
+    require(painted->page == 0, "Disabled idle update retained stale Load memory");
+    fixture.send(WM_KEYDOWN, VK_ESCAPE);
+}
 }
 
 const Settings& settings() {
@@ -188,6 +287,9 @@ void load_checkpoint(HWND, const std::filesystem::path& path) {
         throw std::runtime_error("Synthetic load failure");
     }
     pending = true;
+    if (release_on_load) {
+        saves::release_browser();
+    }
 }
 
 void export_save(const std::filesystem::path&) {
@@ -246,6 +348,11 @@ void invalidate_canvas() {}
 }
 
 namespace playback {
+bool scene_movie_playing(int width, int height) {
+    require(width == 640 && height == 480, "Browser movie guard ignored scene bounds");
+    return story_movie;
+}
+
 std::vector<MovieSnapshot> inspect_movies() {
     return {};
 }
@@ -283,7 +390,9 @@ void load_browser_page(Browser& state) {
 }
 
 Catalog read_catalog(const std::filesystem::path&) {
-    return {};
+    Catalog catalog;
+    catalog.entries.resize(existing_count);
+    return catalog;
 }
 
 BrowserText load_browser_text(const std::filesystem::path&) {
@@ -306,11 +415,11 @@ Slot read_slot(const std::filesystem::path&, unsigned, SlotKind) {
 }
 
 std::vector<Slot> read_autosaves(const std::filesystem::path&) {
-    return {};
+    return std::vector<Slot>(autosave_count);
 }
 
 std::vector<Slot> read_quicksaves(const std::filesystem::path&) {
-    return {};
+    return std::vector<Slot>(quicksave_count);
 }
 
 void write_scene_reference(const std::filesystem::path&, const SceneReference&) {}
@@ -384,6 +493,26 @@ int main() {
         check_name_input(fixture);
         require(resumes == 7 && pauses == 7,
                 "Save naming interfered with the gameplay pause lifecycle");
+        story_movie = true;
+        require(!saves::show_browser(true) && !saves::show_browser(false) &&
+                    !saves::browser_active() && !source && pauses == 7,
+                "A grave movie with enabled exploration controls opened the browser");
+        story_movie = false;
+        fixture.open(false);
+        story_movie = true;
+        saves::update_browser(fixture.window);
+        require(!saves::browser_active() && !source && resumes == 8 &&
+                    !enhancements::scene_overlay_active(),
+                "A new in-place movie kept the old browser or leaked its native pause");
+        story_movie = false;
+        menu = true;
+        require(saves::show_browser(false) && saves::browser_active() && pauses == 8,
+                "The original paused menu could no longer open Load");
+        fixture.send(WM_KEYDOWN, VK_ESCAPE);
+        require(!saves::browser_active() && resumes == 8,
+                "A menu browser resumed an unrelated gameplay owner");
+        menu = false;
+        check_load_memory(fixture);
         std::cout << "Browser pause, input pairing, save naming and load ownership passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

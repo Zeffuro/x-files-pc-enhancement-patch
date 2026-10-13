@@ -1,6 +1,8 @@
 #include "memory.h"
 #include "native.h"
 #include "game/layouts/database/cache.h"
+#include "game/access/database.h"
+#include "game/functions/runtime.h"
 #include "types.h"
 #include <windows.h>
 #include <algorithm>
@@ -16,8 +18,9 @@ template <class T> bool read(std::uintptr_t address, T& value) {
 
 class Walker {
 public:
-    Walker(std::uintptr_t image, const native_game::Profile& profile)
-        : image(image), profile(profile) {}
+    Walker(const std::byte* image, const native_game::Profile& profile)
+        : image(reinterpret_cast<std::uintptr_t>(image)), profile(profile), native(image, profile) {
+    }
 
     void visit(std::uint32_t pointer, bool state, unsigned depth = 0) {
         if (!pointer || visited.contains(pointer)) {
@@ -30,27 +33,30 @@ public:
         visited.insert(pointer);
         ++result.visited_nodes;
         native_game::DatabaseNode node{};
+        const native_game::DatabaseNodeRef node_ref(pointer, &profile);
         if (!read(pointer, node)) {
             ++result.skipped_nodes;
             return;
         }
-        if (node.object.vtable == image + profile.database_branch_node) {
+        if (node.object.vtable ==
+            reinterpret_cast<std::uintptr_t>(native.database_branch_node_type())) {
             for (unsigned i = 0; i < node.count; ++i) {
                 native_game::DatabaseBranchEntry entry{};
-                if (read(std::uintptr_t(pointer) + 0x30 + i * sizeof(entry), entry)) {
+                if (read(node_ref.branch_entry(i).address(), entry)) {
                     visit(entry.cached_node, state, depth + 1);
                 } else {
                     ++result.skipped_nodes;
                 }
             }
-        } else if (node.object.vtable == image + profile.database_class_node) {
+        } else if (node.object.vtable ==
+                   reinterpret_cast<std::uintptr_t>(native.database_class_node_type())) {
             if (node.count > 16) {
                 ++result.skipped_nodes;
                 return;
             }
             for (unsigned i = 0; i < node.count; ++i) {
                 native_game::DatabaseClassEntry entry{};
-                if (!read(std::uintptr_t(pointer) + 0x30 + i * sizeof(entry), entry) ||
+                if (!read(node_ref.class_entry(i).address(), entry) ||
                     entry.index_count > std::size(entry.indexes)) {
                     ++result.skipped_nodes;
                     continue;
@@ -59,10 +65,11 @@ public:
                     visit(entry.indexes[j].cached_root, state, depth + 1);
                 }
             }
-        } else if (node.object.vtable == image + profile.database_object_node) {
+        } else if (node.object.vtable ==
+                   reinterpret_cast<std::uintptr_t>(native.database_object_node_type())) {
             for (unsigned i = 0; i < node.count; ++i) {
                 native_game::DatabaseObjectEntry entry{};
-                if (read(std::uintptr_t(pointer) + 0x30 + i * sizeof(entry), entry)) {
+                if (read(node_ref.object_entry(i).address(), entry)) {
                     object(entry, state);
                 } else {
                     ++result.skipped_nodes;
@@ -86,14 +93,17 @@ private:
         }
         native_game::PersistentObject object{};
         if (!read(entry.cached_object, object) || object.id != entry.id ||
-            object.vtable < image + 0x1000 || object.vtable >= image + 0x300000) {
+            object.vtable < image + native_game::database_image_limit::first_rva ||
+            object.vtable >= image + native_game::database_image_limit::vtable_end) {
             return;
         }
         std::uint32_t getter = 0;
         std::array<std::uint8_t, 6> code{};
-        if (!read(std::uintptr_t(object.vtable) + 8, getter) || getter < image + 0x1000 ||
-            getter >= image + 0x260000 || !read(getter, code) || code[0] != 0xb8 ||
-            code[5] != 0xc3) {
+        if (!read(native_game::PersistentVTableRef(object.vtable).class_getter().address(),
+                  getter) ||
+            getter < image + native_game::database_image_limit::first_rva ||
+            getter >= image + native_game::database_image_limit::class_getter_end ||
+            !read(getter, code) || code[0] != 0xb8 || code[5] != 0xc3) {
             return;
         }
         std::uint32_t class_id = 0;
@@ -125,6 +135,7 @@ private:
 
     std::uintptr_t image;
     const native_game::Profile& profile;
+    const native_game::NativeRuntime native;
     std::unordered_set<std::uint32_t> visited;
     std::unordered_set<std::uint32_t> objects;
 };
@@ -136,23 +147,25 @@ NativeDatabaseSnapshot inspect_database(const std::byte* image,
         !profile.database_branch_node || !profile.database_object_node) {
         return {};
     }
-    const auto base = reinterpret_cast<std::uintptr_t>(image);
+    const native_game::NativeRuntime native(image, profile);
     std::uint32_t manager = 0, hdb_root = 0, state_root = 0;
-    if (!read(base + profile.database_manager, manager) || !manager ||
-        !read(std::uintptr_t(manager) + 4 + 0x18, hdb_root) ||
-        !read(std::uintptr_t(manager) + 0xd8 + 0x18, state_root)) {
+    if (!read(native.database_manager().address(), manager) || !manager ||
+        !read(native_game::DatabaseManagerRef(manager).hdb().root().address(), hdb_root) ||
+        !read(native_game::DatabaseManagerRef(manager).state().root().address(), state_root)) {
         return {};
     }
-    Walker walker(base, profile);
+    Walker walker(image, profile);
     walker.result.manager_address = manager;
-    walker.result.hdb_address = std::uintptr_t(manager) + 4;
-    walker.result.state_address = std::uintptr_t(manager) + 0xd8;
+    walker.result.hdb_address = native_game::DatabaseManagerRef(manager).hdb().address();
+    walker.result.state_address = native_game::DatabaseManagerRef(manager).state().address();
     walker.visit(hdb_root, false);
     walker.visit(state_root, true);
     std::uint32_t after = 0, root_after = 0, state_after = 0;
-    if (!read(base + profile.database_manager, after) || after != manager ||
-        !read(std::uintptr_t(manager) + 4 + 0x18, root_after) || root_after != hdb_root ||
-        !read(std::uintptr_t(manager) + 0xd8 + 0x18, state_after) || state_after != state_root) {
+    if (!read(native.database_manager().address(), after) || after != manager ||
+        !read(native_game::DatabaseManagerRef(manager).hdb().root().address(), root_after) ||
+        root_after != hdb_root ||
+        !read(native_game::DatabaseManagerRef(manager).state().root().address(), state_after) ||
+        state_after != state_root) {
         return {};
     }
     walker.result.available = true;

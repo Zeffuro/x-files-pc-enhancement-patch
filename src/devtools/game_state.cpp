@@ -10,6 +10,7 @@
 #include "enhancements/quick_save.h"
 #include "enhancements/scene_overlay.h"
 #include "game/layouts/input/events.h"
+#include "game/functions/runtime.h"
 #include <filesystem>
 #include <sstream>
 
@@ -23,25 +24,21 @@ GameSnapshot inspect_game(bool include_story) {
         return result;
     }
     const auto& profile = game::edition();
-    const auto flag = [&](std::uint32_t offset) {
-        return std::to_wstring(*reinterpret_cast<const int*>(image + offset));
-    };
+    const native_game::NativeRuntime native(image, profile);
     std::uint32_t pending_load = 0;
-    database_copy(reinterpret_cast<std::uintptr_t>(image + profile.pending_load), &pending_load,
-                  sizeof(pending_load));
+    database_copy(native.pending_load().address(), &pending_load, sizeof(pending_load));
     const auto script = game::script_controls();
     result.view = reinterpret_cast<std::uintptr_t>(game::current_view());
     result.input = reinterpret_cast<std::uintptr_t>(game::current_input());
-    const auto* application =
-        *reinterpret_cast<const game::Application* const*>(image + profile.application);
+    const auto* application = *native.application().get();
     result.application = reinterpret_cast<std::uintptr_t>(application);
     result.session = application ? reinterpret_cast<std::uintptr_t>(application->state) : 0;
     std::wostringstream input;
     input << L"Input class RVA: 0x" << std::hex << game::input_vtable();
     result.groups.push_back(
         {L"Session",
-         {L"Session active: " + flag(profile.session_active),
-          L"Scene active: " + flag(profile.scene_active),
+         {L"Session active: " + std::to_wstring(*native.session_active().get()),
+          L"Scene active: " + std::to_wstring(*native.scene_active().get()),
           L"Save available: " + std::to_wstring(game::saving_available()),
           L"Navigation available: " + std::to_wstring(game::world_navigation_available()),
           L"Safe save available: " + std::to_wstring(enhancements::safe_save_available()),

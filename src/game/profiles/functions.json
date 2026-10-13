@@ -52,6 +52,11 @@
       "abi": "__stdcall(void*)"
     },
     {
+      "field": "input_visibility",
+      "role": "Set native input visibility",
+      "abi": "__stdcall(MainView*, void*, int)"
+    },
+    {
       "field": "string_create",
       "role": "Construct a native string",
       "abi": "__thiscall(void*, const char*)"
@@ -140,6 +145,31 @@
       "field": "native_action_write_callback",
       "role": "Dispatch a runtime action with variable arithmetic and assignment",
       "abi": "__stdcall(void* runtime_action, void* context, void* output)"
+    },
+    {
+      "field": "main_scroll_up",
+      "role": "Scroll a native text list upward",
+      "abi": "__stdcall(ChoiceList*)"
+    },
+    {
+      "field": "main_scroll_down",
+      "role": "Scroll a native text list downward",
+      "abi": "__stdcall(ChoiceList*)"
+    },
+    {
+      "field": "photo_scroll_up",
+      "role": "Scroll the photo gallery upward",
+      "abi": "__stdcall(void*)"
+    },
+    {
+      "field": "photo_scroll_down",
+      "role": "Scroll the photo gallery downward",
+      "abi": "__stdcall(void*)"
+    },
+    {
+      "field": "process_commands",
+      "role": "Process queued native commands",
+      "abi": "__stdcall(void*)"
     }
   ]
 }

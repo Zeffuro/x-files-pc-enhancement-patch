@@ -2,6 +2,7 @@
 #include "database/memory.h"
 #include "game/layouts/database/cache.h"
 #include "game/layouts/database/variable.h"
+#include "game/functions/generated.h"
 #include <algorithm>
 #include <array>
 #include <charconv>
@@ -21,7 +22,9 @@ bool same_edit_object(const std::vector<std::uint8_t>& expected,
             index < offsetof(native_game::PersistentObject, references) + sizeof(std::uint16_t)) {
             continue;
         }
-        const auto mask = index == 0x14 ? 0xf3 : 0xff;
+        const auto mask = index == native_game::persistent_dirty_status
+                              ? native_game::persistent_stable_status_mask
+                              : 0xff;
         if ((expected[index] & mask) != (current[index] & mask)) {
             return false;
         }
@@ -73,13 +76,17 @@ std::wstring validate_state_edit(const GameSnapshot& expected, const GameSnapsho
         variable.bytes.size() != sizeof(native_game::Variable)) {
         return L"Only available cached state variables can be edited.";
     }
-    const auto type = variable.value->type_flags & 0x7f;
-    if (type > 2) {
+    const auto type = variable.value->type_flags & native_game::variable_type_mask;
+    if (type > static_cast<unsigned>(native_game::VariableKind::boolean)) {
         return L"This native value type is read-only.";
     }
-    if ((type == 0 && (value < -128 || value > 127)) || (type == 2 && value != 0 && value != 1)) {
-        return type == 0 ? L"This value requires an integer from -128 to 127."
-                         : L"This value requires 0 or 1.";
+    if ((type == static_cast<unsigned>(native_game::VariableKind::signed_byte) &&
+         (value < -128 || value > 127)) ||
+        (type == static_cast<unsigned>(native_game::VariableKind::boolean) && value != 0 &&
+         value != 1)) {
+        return type == static_cast<unsigned>(native_game::VariableKind::signed_byte)
+                   ? L"This value requires an integer from -128 to 127."
+                   : L"This value requires 0 or 1.";
     }
     const auto same_key = [&](const auto& row) { return row.key == variable.key; };
     if (std::count_if(expected.variables.begin(), expected.variables.end(), same_key) != 1 ||
@@ -117,17 +124,18 @@ std::wstring write_state_variable(const std::byte* image, const native_game::Pro
         return failure;
     }
     const auto rva = profile.variable_set_value;
+    const native_game::NativeFunctions native(image, profile);
     constexpr std::array<std::uint8_t, 12> prefix{0x64, 0xa1, 0,    0,    0,    0,
                                                   0x55, 0x8b, 0xec, 0x6a, 0xff, 0x68};
     std::array<std::uint8_t, 12> code{};
     if (!image || !rva ||
-        !database_copy(reinterpret_cast<std::uintptr_t>(image + rva), code.data(), code.size()) ||
+        !database_copy(reinterpret_cast<std::uintptr_t>(native.variable_set_value_target()),
+                       code.data(), code.size()) ||
         code != prefix) {
         return L"Native variable writer is unavailable.";
     }
-    using Setter = int(__stdcall*)(std::uintptr_t, std::int32_t, int);
     // The scalar dispatcher preserves type and marks the native object dirty synchronously.
-    reinterpret_cast<Setter>(const_cast<std::byte*>(image) + rva)(variable.address, value, 0);
+    native.variable_set_value(variable.address, value, 0);
     native_game::Variable after{};
     native_game::Variable before{};
     std::memcpy(&before, variable.bytes.data(), sizeof(before));

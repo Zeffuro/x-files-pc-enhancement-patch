@@ -10,16 +10,22 @@ namespace native_game {
 
 static_assert(sizeof(void*) == 4);
 
+struct ContainerElementsVTable {
+    using Current = void**(__stdcall*)(void*);
+    void* reserved[0x8c / sizeof(void*)];
+    Current current;
+};
+
+static_assert(offsetof(ContainerElementsVTable, current) == 0x8c);
+
 struct Container {
     void* vtable;
     void** elements_vtable;
     unsigned count;
 
     void* current() {
-        constexpr auto current_method = 0x8c / sizeof(void*);
-        using GetCurrent = void**(__stdcall*)(void*);
-        const auto reference =
-            reinterpret_cast<GetCurrent>(elements_vtable[current_method])(&elements_vtable);
+        const auto* methods = reinterpret_cast<const ContainerElementsVTable*>(elements_vtable);
+        const auto reference = methods->current(&elements_vtable);
         return reference ? *reference : nullptr;
     }
 };
@@ -41,6 +47,11 @@ template <typename T> struct List {
 struct Rectangle {
     void* vtable;
     RECT bounds;
+};
+
+struct NativePoint {
+    void* vtable;
+    POINT value;
 };
 
 struct InventoryIcon {
@@ -133,6 +144,8 @@ struct ChoiceList {
 };
 
 static_assert(offsetof(Container, count) == 8);
+static_assert(sizeof(NativePoint) == 12);
+static_assert(offsetof(NativePoint, value) == 4);
 static_assert(offsetof(Application, view) == 0xec);
 static_assert(offsetof(Application, preferences) == 0xf4);
 static_assert(offsetof(ChoiceList, viewport) == profile_dvd_20000.choice_viewport);

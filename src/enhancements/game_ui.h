@@ -59,7 +59,8 @@ struct ScriptControls {
 };
 
 ScriptControls script_controls();
-bool activate_script_button(unsigned resource, const RECT& bounds);
+enum class ScrollResult { unavailable, pending, activated };
+ScrollResult activate_script_button(unsigned resource, const RECT& bounds);
 bool world_navigation_available();
 RECT scene_bounds();
 

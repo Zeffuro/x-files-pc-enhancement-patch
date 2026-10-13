@@ -31,6 +31,7 @@
 #include "game/render/native_render.h"
 #include "playback/fast_forward_input.h"
 #include "transcript/view.h"
+#include "platform/windowed_mouse_lock.h"
 
 #include <commctrl.h>
 #include <shellapi.h>
@@ -324,6 +325,10 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
         return 0;
     }
     if (message == WM_TIMER && value == timer) {
+        platform::windowed_mouse_lock(window, settings().mouse_confine_windowed,
+                                      dialog_open || quick_menu::expanded() ||
+                                          saves::browser_active() ||
+                                          game::input_vtable() == game::edition().main_menu);
         input::injected_input().recover();
         diagnostics::record_game_context();
         attach_modal_input(window);
@@ -447,6 +452,8 @@ void attach_controls(HWND window) {
         game_window = window;
         attach_rumble(window);
         attach_menu();
+        platform::windowed_mouse_lock(window, settings().mouse_confine_windowed,
+                                      game::input_vtable() == game::edition().main_menu);
         attach_dialogue(window);
         native_game::attach_native_render();
         attach_modal_input(window);
@@ -469,6 +476,7 @@ void attach_controls(HWND window) {
 }
 
 void detach_controls() {
+    platform::windowed_mouse_lock(game_window, false);
     native_navigation_keys.reset();
     navigation_keys.reset();
     suspend_controller();

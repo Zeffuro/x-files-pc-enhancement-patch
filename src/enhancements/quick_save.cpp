@@ -1,3 +1,6 @@
+#include "game/layouts/commands.h"
+#include "game/functions/runtime.h"
+#include "game/access/ui.h"
 #include "quick_save.h"
 #include "dialogue.h"
 #include "scene_overlay.h"
@@ -11,6 +14,7 @@
 #include "ui/notification.h"
 #include "saves/recent.h"
 #include "autosave.h"
+#include "playback/inspection.h"
 
 #include <array>
 #include <filesystem>
@@ -22,6 +26,10 @@ bool busy = false;
 bool resume_pending = false;
 std::filesystem::path checkpoint_file;
 constexpr char filename[] = "saves\\QUICKSAVE.x";
+
+native_game::NativeRuntime native() {
+    return {game::executable_image(), game::edition()};
+}
 
 std::string checkpoint_name() {
     return "saves\\CHECKPOINT.LOAD." + std::to_string(GetCurrentProcessId()) + "." +
@@ -49,8 +57,12 @@ bool prepare_load_copy(HWND window, const std::filesystem::path& path,
 }
 
 bool exploration_context_available() {
-    return game::world_navigation_available() && !current_dialogue() &&
-           game::emotion_targets().empty();
+    if (!game::world_navigation_available() || current_dialogue() ||
+        !game::emotion_targets().empty()) {
+        return false;
+    }
+    const auto bounds = game::scene_bounds();
+    return !playback::scene_movie_playing(bounds.right - bounds.left, bounds.bottom - bounds.top);
 }
 
 bool exploration_available() {
@@ -60,33 +72,38 @@ bool exploration_available() {
 bool save_context_available() {
     const auto executable = game::executable_image();
     return !busy && !resume_pending && executable && !game::menu_confirmation_active() &&
-           game::saving_available() &&
-           !*reinterpret_cast<void**>(executable + game::edition().pending_load);
+           game::saving_available() && !*native().pending_load().get();
 }
 
-template <typename T> T function(std::uint32_t rva) {
-    return reinterpret_cast<T>(game::executable_image() + rva);
+void restore_load_view(game::Application* app) {
+    if (app->view) {
+        native().restore_view(app->view);
+        const auto input = game::current_input();
+        if (input && game::input_vtable() == game::edition().main_menu) {
+            native().input_visibility(app->view, input, 0);
+        }
+    }
 }
 
 struct NativeString {
     std::array<std::uint32_t, 4> storage{};
 
     explicit NativeString(const char* text) {
-        function<void(__thiscall*)(void*, const char*)>(game::edition().string_create)(this, text);
+        native().string_create(this, text);
     }
 
     NativeString(const NativeString&) = delete;
     NativeString& operator=(const NativeString&) = delete;
 
     ~NativeString() {
-        function<void(__thiscall*)(void*)>(game::edition().string_destroy)(this);
+        native().string_destroy(this);
     }
 };
 
 void native_save(game::Application* app, NativeString& name) {
-    const auto queue = reinterpret_cast<std::byte*>(app) + 0x268;
-    function<void(__stdcall*)(void*, void*)>(game::edition().save_state)(queue, nullptr);
-    function<void(__stdcall*)(void*, void*)>(game::edition().save_file)(&name, queue);
+    const auto queue = native_game::ApplicationRef(app).commands().data();
+    native().save_state(queue, nullptr);
+    native().save_file(&name, queue);
 }
 
 void prepare_save_directory() {
@@ -128,7 +145,7 @@ void export_safe_save(const std::filesystem::path& path) {
 
 void quick_save(HWND window, bool load) {
     if (busy || resume_pending || !game::executable_image() || game::menu_confirmation_active() ||
-        *reinterpret_cast<void**>(game::executable_image() + game::edition().pending_load)) {
+        *native().pending_load().get()) {
         return;
     }
     const bool menu = game::input_vtable() == game::edition().main_menu;
@@ -137,8 +154,7 @@ void quick_save(HWND window, bool load) {
         notify_status(window, load ? L"Cannot quick-load here" : L"Cannot quick-save here");
         return;
     }
-    const auto app = *reinterpret_cast<game::Application**>(game::executable_image() +
-                                                            game::edition().application);
+    const auto app = *native().application().get();
     if (!app || !app->state) {
         return;
     }
@@ -174,12 +190,12 @@ void quick_save(HWND window, bool load) {
         }
         constexpr char temporary[] = "saves\\QUICKSAVE.pending.x";
         NativeString name(load ? (converted.empty() ? filename : converted.c_str()) : temporary);
-        const auto queue = reinterpret_cast<std::byte*>(app) + 0x268;
+        const auto queue = native_game::ApplicationRef(app).commands().data();
         if (load) {
-            const auto result =
-                function<int(__stdcall*)(void*, void*)>(game::edition().load_file)(&name, queue);
+            const auto result = native().load_file(&name, queue);
             trace_value("quick_load", result);
             if (result) {
+                restore_load_view(app);
                 autosave_loaded();
                 transcript::record_marker(L"Saved game loaded");
                 notify_status(window, L"Quick-save loaded");
@@ -229,7 +245,7 @@ bool checkpoint_available() {
            !game::menu_confirmation_active() &&
            (game::input_vtable() == game::edition().main_menu || exploration_available() ||
             scene_overlay_checkpoint_available()) &&
-           !*reinterpret_cast<void**>(game::executable_image() + game::edition().pending_load);
+           !*native().pending_load().get();
 }
 
 bool checkpoint_load_pending() {
@@ -246,8 +262,7 @@ void export_save(const std::filesystem::path& path) {
     if (!export_save_available()) {
         throw std::runtime_error("Return to exploration or the paused main menu before saving");
     }
-    const auto app = *reinterpret_cast<game::Application**>(game::executable_image() +
-                                                            game::edition().application);
+    const auto app = *native().application().get();
     if (!app || !app->state) {
         throw std::runtime_error("The game is not ready to save");
     }
@@ -285,8 +300,7 @@ void load_checkpoint(HWND window, const std::filesystem::path& path) {
         throw std::runtime_error(
             "Return to exploration or the main menu before loading a saved game");
     }
-    const auto app = *reinterpret_cast<game::Application**>(game::executable_image() +
-                                                            game::edition().application);
+    const auto app = *native().application().get();
     if (!app || !app->state) {
         throw std::runtime_error("The game is not ready to load a saved game");
     }
@@ -305,23 +319,22 @@ void load_checkpoint(HWND window, const std::filesystem::path& path) {
         return;
     }
     checkpoint_file = name;
-    NativeString native(name.c_str());
-    const auto queue = reinterpret_cast<std::byte*>(app) + 0x268;
-    const auto loaded =
-        function<int(__stdcall*)(void*, void*)>(game::edition().load_file)(&native, queue);
+    NativeString save_name_buffer(name.c_str());
+    const auto queue = native_game::ApplicationRef(app).commands().data();
+    const auto loaded = native().load_file(&save_name_buffer, queue);
     if (!loaded) {
         std::filesystem::remove(checkpoint_file);
         checkpoint_file.clear();
         throw std::runtime_error("The game could not load this saved game");
     }
+    restore_load_view(app);
     resume_pending = true;
     transcript::record_marker(L"Saved game loaded");
     notify_status(window, L"Saved game loaded");
 }
 
 void update_quick_load() {
-    if (!resume_pending || !game::executable_image() ||
-        *reinterpret_cast<void**>(game::executable_image() + game::edition().pending_load)) {
+    if (!resume_pending || !game::executable_image() || *native().pending_load().get()) {
         return;
     }
     resume_pending = false;
@@ -331,13 +344,12 @@ void update_quick_load() {
         std::filesystem::remove(checkpoint_file, error);
         checkpoint_file.clear();
     }
-    const auto app = *reinterpret_cast<game::Application**>(game::executable_image() +
-                                                            game::edition().application);
+    const auto app = *native().application().get();
     if (app && app->state && app->view) {
         // Apply after the native loader has replaced the paused menu and scene objects.
-        const auto queue = reinterpret_cast<std::byte*>(app) + 0x268;
-        function<void(__stdcall*)(void*, int, void*)>(game::edition().pause)(app->state, 0, queue);
-        function<void(__stdcall*)(game::MainView*)>(game::edition().restore_view)(app->view);
+        const auto queue = native_game::ApplicationRef(app).commands().data();
+        native().pause(app->state, 0, queue);
+        native().restore_view(app->view);
     }
 }
 }

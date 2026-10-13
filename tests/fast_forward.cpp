@@ -116,6 +116,28 @@ void verify_settings() {
                   "Held speed must default to muted 2x.");
     test::require(defaults.dialogue_transcript, "Dialogue transcript default was not loaded.");
     test::require(defaults.quick_menu, "Quick menu default was not loaded.");
+    test::require(!defaults.remember_load_browser && !defaults.mouse_confine_windowed &&
+                      defaults.hotspot_reveal_activation == RevealActivation::Hold,
+                  "Optional browser memory and mouse confinement changed the defaults.");
+    for (unsigned legacy = 0; legacy < 2; ++legacy) {
+        std::ofstream(path) << "[Input]\nHotspotRevealToggle=" << legacy << "\n";
+        test::require(read_settings(path).hotspot_reveal_activation ==
+                          static_cast<RevealActivation>(legacy),
+                      "Legacy reveal preference was not preserved.");
+    }
+    for (unsigned mode = 0; mode < 3; ++mode) {
+        std::ofstream(path) << "[Input]\nHotspotRevealToggle=1\nHotspotRevealActivation=" << mode
+                            << "\nConfineMouseWindowed=1\n[Enhancements]\nRememberLoadBrowser=1\n";
+        const auto options = read_settings(path);
+        test::require(options.hotspot_reveal_activation == static_cast<RevealActivation>(mode) &&
+                          options.mouse_confine_windowed && options.remember_load_browser,
+                      "New reveal mode or independent optional settings did not load.");
+    }
+    for (const auto invalid : {-1, 3, 99}) {
+        std::ofstream(path) << "[Input]\nHotspotRevealActivation=" << invalid << "\n";
+        test::require(read_settings(path).hotspot_reveal_activation == RevealActivation::Hold,
+                      "Invalid reveal activation did not fall back to Hold.");
+    }
     test::require(defaults.quick_menu_items == std::array{true, true, true, true, true},
                   "Quick menu buttons must default to visible.");
     for (const auto enabled : {false, true}) {

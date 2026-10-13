@@ -27,6 +27,7 @@ thread_local Context previous;
 thread_local HWND scroll_window = nullptr;
 thread_local int queued = 0;
 thread_local bool dispatching = false;
+thread_local ULONGLONG queued_at = 0;
 
 bool same(const Context& a, const Context& b) {
     return a.view == b.view && a.input == b.input && a.resource == b.resource &&
@@ -74,14 +75,18 @@ void dispatch() {
             break;
         }
         const int direction = queued > 0 ? -1 : 1;
-        queued += queued > 0 ? -1 : 1;
-        const bool activated =
+        const auto activated =
             current.resource == 1
-                ? scroll_dialogue(direction)
+                ? (scroll_dialogue(direction) ? game::ScrollResult::activated
+                                              : game::ScrollResult::unavailable)
                 : game::activate_script_button(
                       current.resource, direction < 0 ? current.target.up : current.target.down);
+        if (activated == game::ScrollResult::pending) {
+            break;
+        }
+        queued += queued > 0 ? -1 : 1;
         // Native actions can replace the page. Reacquire before another detent.
-        if (!activated || !same(context(), previous)) {
+        if (activated != game::ScrollResult::activated || !same(context(), previous)) {
             reset();
             break;
         }
@@ -117,6 +122,16 @@ Target device_target(const game::ScriptControls& script) {
         result = {resource::workstation_message, {151, 93, 598, 451}};
         up = {607, 107};
         down = {607, 443};
+    } else if (has(resource::workstation_search) || has(resource::workstation_search_capture)) {
+        result = has(resource::workstation_search)
+                     ? Target{resource::workstation_search, {101, 369, 302, 462}}
+                     : Target{resource::workstation_search_capture, {101, 369, 302, 461}};
+        up = {309, 373};
+        down = {309, 456};
+    } else if (has(resource::workstation_photo)) {
+        result = {resource::workstation_photo, {135, 158, 565, 429}};
+        up = {575, 167};
+        down = {574, 420};
     } else {
         return {};
     }
@@ -159,6 +174,7 @@ bool message(HWND window, UINT message, WPARAM value, LPARAM) {
     previous = current;
     scroll_window = window;
     queued = std::clamp(queued + wheel.add(GET_WHEEL_DELTA_WPARAM(value)), -8, 8);
+    queued_at = GetTickCount64();
     dispatch();
     return true;
 }
@@ -168,14 +184,17 @@ void reset() {
     previous = {};
     scroll_window = nullptr;
     queued = 0;
+    queued_at = 0;
 }
 
 void update(bool available) {
     POINT point{};
-    if (!available ||
+    if (!available || (queued && queued_at && GetTickCount64() - queued_at >= 5000) ||
         (scroll_window && (!same(context(), previous) || !pointer_at(scroll_window, point) ||
                            !PtInRect(&previous.target.content, point)))) {
         reset();
+    } else if (queued) {
+        dispatch();
     }
 }
 

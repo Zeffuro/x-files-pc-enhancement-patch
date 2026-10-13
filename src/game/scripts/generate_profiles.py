@@ -16,14 +16,15 @@ FIELDS = (
     "cursor_group cursor_group_list world_hotspot_resource world_picture_resource conversation_resource "
     "world_navigation world_navigation_resource world_navigation_shape_resource "
     "viewport lookup release picture_bounds activate remove pause restore_preferences "
-    "restore_view session_active scene_active menu_used children control_rectangle "
+    "restore_view input_visibility session_active scene_active menu_used children control_rectangle "
     "string_create string_destroy save_state save_file load_file pending_load choice_viewport "
     "text_draw text_out string_resource asset_reference main_text_rectangle "
     "credit_group credit_update credit_draw credit_invalidate credit_outer canvas_invalidate "
     "canvas_transfer_call canvas_transfer credit_position canvas "
     "select_inventory set_inventory_action owned_inventory_item registered_gun_action "
     "inventory_action_variable selected_inventory queue_mouse_move menu_corner menu_corner_rectangle "
-    "variable_set_value native_action_write_slot native_action_write_callback"
+    "variable_set_value native_action_write_slot native_action_write_callback "
+    "main_scroll_up main_scroll_down main_text_type native_rectangle_type native_point_type photo_gallery photo_scroll_up photo_scroll_down photo_gallery_type photo_thumbnail_type command_queue_type photo_state_list_type photo_preview process_commands"
 ).split()
 OFFSETS = {"children", "control_rectangle", "choice_viewport", "credit_position", "canvas", "main_text_rectangle"}
 BUILD_IDS = ("cd_10012", "cd_10019", "dvd_20000", "cd_10020")

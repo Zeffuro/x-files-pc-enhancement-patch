@@ -1,4 +1,5 @@
 #include "game_context.h"
+#include "game/functions/runtime.h"
 #include "log_file.h"
 #include "devtools/variables.h"
 #include "enhancements/game_ui.h"
@@ -60,14 +61,12 @@ void record_game_context() noexcept {
             return;
         }
         const auto& profile = game::edition();
+        const native_game::NativeRuntime runtime(image, profile);
         std::wostringstream message;
-        for (const auto& [name, offset] : {std::pair{L"session", profile.session_active},
-                                           std::pair{L"scene", profile.scene_active}}) {
+        for (const auto& [name, field] : {std::pair{L"session", runtime.session_active()},
+                                          std::pair{L"scene", runtime.scene_active()}}) {
             int value = 0;
-            SIZE_T count = 0;
-            if (ReadProcessMemory(GetCurrentProcess(), image + offset, &value, sizeof(value),
-                                  &count) &&
-                count == sizeof(value)) {
+            if (field.read(value)) {
                 message << name << L"=" << value << L" ";
             }
         }

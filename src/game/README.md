@@ -61,6 +61,28 @@ generation files, leaving unrelated files alone.
 
 In IDA, execute `scripts/ida_import.py` to preview `XFiles_<field>` names for the input-file hash. To apply, import the script and explicitly call `run(apply=True)`. The bridge waits for autoanalysis, requires a matching 32-bit input hash, rebases each RVA, and requires each cataloged function to start at its target address. It skips user names, collisions and unmapped addresses. It never applies type declarations or changes existing types. It does not create functions, structures or data items.
 
+Native UI, state, resource and queue prefixes live in `layouts/`. Known inventory
+selection values use one enum in `layouts/input/inventory_selection.h`, and
+script/cursor resource identities live in `resources.h`. Field offsets derive
+from native types with compile-time assertions. Prefix views describe only the
+verified fields, not complete allocation sizes. Bounded readers retain their
+original read extents. Named field views in `access/` keep layout arithmetic out
+of consumers. Profile-dependent fields require the selected profile. `read()`
+copies one field with checked process reads. Consumers with a different read
+policy use the field address with their existing reader. `get()` is reserved for
+paths that already trust the native object.
+
+`functions/catalog.json` records complete callable signatures and generates
+named methods and typed hook targets. `NativeRuntime` supplies named globals and
+type identities without caching native objects. Script scrolling adds object
+methods for the text group, command queue and application. Unknown return types
+remain unbound. `profiles/functions.json` retains observed call roles and argument
+passing for the address catalog.
+
+Regenerate field views with `python src/game/access/generate.py` and call bindings
+with `python src/game/functions/generate.py`. Both support `--check`. Format the
+generated headers with the repository formatter before building.
+
 `layouts/input/events.h` maps the 12 native event lists shared by supported builds.
 The developer overlay reads registered pointer-event lists without dispatching
 them. A click event can contain button-specific script conditions, so its presence

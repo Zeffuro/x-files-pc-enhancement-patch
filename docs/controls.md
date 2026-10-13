@@ -30,8 +30,8 @@ scene. On devices, Tab switches controls/content and Up/Down scrolls messages.
 Press once per step.
 Native text fields keep their normal typing and editing keys.
 
-Use the wheel over PDA notes, PDA messages or workstation messages to scroll
-while keeping the pointer in place.
+Use the wheel over PDA notes, PDA messages, workstation messages, ING Field Notes
+or Photo Viewer thumbnails to scroll while keeping the pointer in place.
 In conversations, it scrolls the Talk or History list under the pointer without
 choosing a response.
 
@@ -50,9 +50,10 @@ Hold **Targets** and use the D-pad in any direction to select a hotspot.
 
 In **F10 → Game**, choose all interactions, exits only or off, and choose Left Alt,
 H, R or controller only. **Show hotspot labels** hides or shows captions below
-targets while keeping the marks and legend. Enable **Toggle reveal key** to press
-the selected keyboard key once to show cues and again to hide them. The controller's
-**Targets** button keeps its hold behavior.
+targets while keeping the marks and legend. Choose **Hold**, **Toggle** or **Hold or tap**
+for the keyboard key. **Toggle** shows cues until you press again. **Hold or tap**
+lets you tap to switch cues on or off, or hold the key to show them temporarily.
+The controller's **Targets** button keeps its hold behavior.
 
 Cues continue through exploration scene changes and hide during movies. In hold
 mode, release to hide them. After another screen or switching windows, press again
@@ -162,6 +163,11 @@ losing changes. **OK** saves and **Cancel** discards them. Settings include wind
 size, scaling filters, audio device, controller options and subtitles.
 Wider windows keep the picture's original proportions with side bars.
 
+**Confine mouse in windowed mode** is off by default in **Display and audio**.
+Enable it to keep the pointer inside the game during windowed play. Switching
+windows with Alt+Tab or Win+Tab releases the pointer, as do menus and tools.
+Returning to gameplay confines it again.
+
 **Deinterlace DVD video** smooths interlaced movies. Turning it off keeps original
 fields. It applies to the next DVD movie and leaves QuickTime unchanged.
 DVD playback is experimental, covering startup movies and one English game-over
@@ -215,6 +221,10 @@ Load cycles through **Numbered slots**, **Existing files**, **Quicksave** and
 **Autosaves**. Existing files lists older saves. Quicksaves and autosaves can be
 loaded but cannot be overwritten/deleted here. **F10 → Tools** can also load a
 file or export a save. Quick-saving backs up the previous quick-save.
+
+**Remember load browser this session** is off by default in **F10 → Game**.
+Enable it to reopen Load in the last category and keep each category's page and
+selected slot. Closing the game clears these positions. Save opens as usual.
 
 **Rolling safe autosaves** defaults to on in **F10 → Game**. It keeps five checkpoints
 after returning to safe exploration, waits for the scene to settle and leaves at

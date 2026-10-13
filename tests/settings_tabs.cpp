@@ -60,13 +60,13 @@ void check_language(ui::Language language) {
     }
     RECT autosave_bounds{}, toggle_bounds{}, continue_bounds{}, overlap{};
     GetWindowRect(GetDlgItem(window, IDC_AUTOSAVES), &autosave_bounds);
-    GetWindowRect(GetDlgItem(window, IDC_HOTSPOT_TOGGLE), &toggle_bounds);
+    GetWindowRect(GetDlgItem(window, IDC_REMEMBER_LOAD_BROWSER), &toggle_bounds);
     GetWindowRect(GetDlgItem(window, IDC_CONTINUE_LATEST), &continue_bounds);
     require(!IntersectRect(&overlap, &autosave_bounds, &toggle_bounds) &&
                 !IntersectRect(&overlap, &toggle_bounds, &continue_bounds) &&
                 !IntersectRect(&overlap, &autosave_bounds, &continue_bounds),
-            "Reveal toggle overlaps another Game setting.");
-    for (const auto id : {IDC_AUTOSAVES, IDC_HOTSPOT_TOGGLE}) {
+            "Load browser memory overlaps another Game setting.");
+    for (const auto id : {IDC_AUTOSAVES, IDC_REMEMBER_LOAD_BROWSER}) {
         const auto control = GetDlgItem(window, id);
         wchar_t label[256]{};
         GetWindowTextW(control, label, 256);
@@ -75,7 +75,22 @@ void check_language(ui::Language language) {
         const auto height = bounds.bottom;
         bounds.right -= 24;
         DrawTextW(dc, label, -1, &bounds, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
-        require(bounds.bottom <= height, "Translated autosave or toggle setting is clipped.");
+        require(bounds.bottom <= height,
+                "Translated autosave or browser memory setting is clipped.");
+    }
+    RECT reveal_bounds{}, activation_bounds{}, key_bounds{};
+    GetWindowRect(GetDlgItem(window, IDC_HOTSPOT_REVEAL), &reveal_bounds);
+    GetWindowRect(GetDlgItem(window, IDC_HOTSPOT_ACTIVATION), &activation_bounds);
+    GetWindowRect(GetDlgItem(window, IDC_HOTSPOT_KEY), &key_bounds);
+    require(reveal_bounds.right < activation_bounds.left &&
+                activation_bounds.right < key_bounds.left,
+            "Reveal dropdowns overlap or have the wrong order.");
+    for (const auto label : {L"Hold", L"Toggle", L"Hold or tap"}) {
+        const auto translated = std::wstring(ui::translate(label, language));
+        SIZE size{};
+        GetTextExtentPoint32W(dc, translated.c_str(), static_cast<int>(translated.size()), &size);
+        require(size.cx + 24 <= activation_bounds.right - activation_bounds.left,
+                "Translated reveal activation option is clipped.");
     }
     SelectObject(dc, previous);
     ReleaseDC(window, dc);

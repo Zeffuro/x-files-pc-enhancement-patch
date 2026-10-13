@@ -12,6 +12,8 @@ enum class CaptionFont { Modern, Game, Typist, ZonkersHand, Bubbledot };
 enum class CaptionPlacement { Inside, Below };
 enum class MovieContrast { Off, Scene, Mild, Medium };
 
+enum class RevealActivation { Hold, Toggle, HoldOrTap };
+
 struct CaptionTypeface {
     const wchar_t* name;
     const wchar_t* file;
@@ -45,6 +47,8 @@ struct Settings {
     bool movie_speed_mute = true;
     MovieContrast movie_contrast = MovieContrast::Off;
     bool save_browser = false;
+    bool remember_load_browser = false;
+    bool mouse_confine_windowed = false;
     bool autosaves = true;
     bool continue_latest = true;
     bool dialogue_transcript = true;
@@ -52,7 +56,7 @@ struct Settings {
     bool hotspot_exits_only = false;
     bool hotspot_labels = true;
     unsigned hotspot_reveal_key = 164;
-    bool hotspot_reveal_toggle = false;
+    RevealActivation hotspot_reveal_activation = RevealActivation::Hold;
     bool readable_documents = true;
     bool quick_menu = true;
     std::array<bool, 5> quick_menu_items{true, true, true, true, true};

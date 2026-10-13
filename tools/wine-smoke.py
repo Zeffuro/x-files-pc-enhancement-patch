@@ -15,9 +15,9 @@ import time
 
 CHECKS = (
     "imports",
-    "hotspot-reveal", "hotspot-reveal-input", "world-interactions", "world-cursors", "scrolling", "script-scroll", "readable-documents", "documents-view",
+    "hotspot-reveal", "hotspot-reveal-input", "world-interactions", "world-cursors", "scrolling", "script-scroll", "native-access", "readable-documents", "documents-view",
     "keyboard-navigation", "game-strings",
-    "autosave-state", "save-recent", "continue-menu", "autosave-runtime",
+    "autosave-state", "save-recent", "continue-menu", "autosave-runtime", "scene-movie-playing",
     "game-story-state", "game-state-tree", "game-state-variables", "game-story-edit", "game-state-history",
     "game-state-capture", "native-writes", "database-flow",
     "database-usability",

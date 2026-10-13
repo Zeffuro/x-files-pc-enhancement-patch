@@ -16,12 +16,34 @@ namespace {
 thread_local bool controller_held = false;
 thread_local bool key_consumed = false;
 thread_local bool keyboard_toggled = false, toggle_press = false;
-thread_local bool toggle_mode = false;
+thread_local RevealActivation activation_mode = RevealActivation::Hold;
+thread_local bool tap_pending = false;
+thread_local ULONGLONG pressed_at = 0;
+constexpr ULONGLONG tap_duration = 250;
 thread_local unsigned keyboard_key = VK_LMENU;
 thread_local Hold keyboard_hold, controller_hold;
 thread_local std::vector<Marker> visible;
 thread_local bool labels_enabled = true;
 thread_local std::unique_ptr<native_game::CanvasSurface> surface;
+
+bool synchronize(const Settings& value) {
+    if (activation_mode != value.hotspot_reveal_activation ||
+        keyboard_key != value.hotspot_reveal_key) {
+        if (activation_mode != RevealActivation::Hold ||
+            value.hotspot_reveal_activation != RevealActivation::Hold) {
+            keyboard_hold.suspend();
+        }
+        keyboard_hold.update(value.hotspot_reveal_key &&
+                                 (GetAsyncKeyState(value.hotspot_reveal_key) & 0x8000),
+                             false);
+        activation_mode = value.hotspot_reveal_activation;
+        keyboard_key = value.hotspot_reveal_key;
+        keyboard_toggled = toggle_press = false;
+        tap_pending = false;
+        return true;
+    }
+    return false;
+}
 
 bool available(HWND window) {
     return game_is_foreground(window) && !IsIconic(window) && !scene_overlay_active() &&
@@ -69,6 +91,7 @@ void controller(bool held) {
 }
 
 bool message(HWND window, UINT event, WPARAM value, LPARAM data) {
+    const auto changed = synchronize(settings());
     const auto key = settings().hotspot_reveal_key;
     const bool alt = key == VK_LMENU && value == VK_MENU && !(data & (1L << 24));
     const bool matches = key && (value == key || alt);
@@ -79,12 +102,24 @@ bool message(HWND window, UINT event, WPARAM value, LPARAM data) {
     if ((event == WM_KEYDOWN || event == WM_SYSKEYDOWN) && matches && settings().hotspot_reveal &&
         available(window)) {
         key_consumed = true;
-        toggle_press = settings().hotspot_reveal_toggle && !(data & (1L << 30));
+        const bool first = !(data & (1L << 30));
+        if (changed && first) {
+            keyboard_hold.update(false, false);
+        }
+        toggle_press = settings().hotspot_reveal_activation == RevealActivation::Toggle && first;
+        if (first && settings().hotspot_reveal_activation == RevealActivation::HoldOrTap) {
+            tap_pending = true;
+            pressed_at = GetTickCount64();
+        }
         update(window, true);
         return true;
     }
     if ((event == WM_KEYUP || event == WM_SYSKEYUP) && matches && key_consumed) {
         key_consumed = false;
+        if (tap_pending && GetTickCount64() - pressed_at < tap_duration && available(window)) {
+            keyboard_toggled = !keyboard_toggled;
+        }
+        tap_pending = false;
         update(window, true);
         return true;
     }
@@ -93,14 +128,7 @@ bool message(HWND window, UINT event, WPARAM value, LPARAM data) {
 
 void update(HWND window, bool enabled) {
     const auto& value = settings();
-    if (toggle_mode != value.hotspot_reveal_toggle || keyboard_key != value.hotspot_reveal_key) {
-        if (toggle_mode || value.hotspot_reveal_toggle) {
-            keyboard_hold.suspend();
-        }
-        toggle_mode = value.hotspot_reveal_toggle;
-        keyboard_key = value.hotspot_reveal_key;
-        keyboard_toggled = toggle_press = false;
-    }
+    synchronize(value);
     const bool keyboard =
         value.hotspot_reveal_key && (GetAsyncKeyState(value.hotspot_reveal_key) & 0x8000);
     const bool requested = keyboard || keyboard_toggled;
@@ -119,6 +147,7 @@ void update(HWND window, bool enabled) {
     }
     if (barrier) {
         keyboard_toggled = false;
+        tap_pending = false;
         keyboard_hold.suspend();
         controller_hold.suspend();
     }
@@ -127,6 +156,7 @@ void update(HWND window, bool enabled) {
         (GetAsyncKeyState(VK_RETURN) & 0x8000) || (GetAsyncKeyState(VK_TAB) & 0x8000);
     if (requested && shortcut) {
         keyboard_toggled = false;
+        tap_pending = false;
         keyboard_hold.suspend();
     }
     const bool held_visible = keyboard_hold.update(keyboard, ready && !shortcut);
@@ -135,7 +165,11 @@ void update(HWND window, bool enabled) {
     }
     toggle_press = false;
     const bool keyboard_visible =
-        value.hotspot_reveal_toggle ? keyboard_toggled && ready && !shortcut : held_visible;
+        value.hotspot_reveal_activation == RevealActivation::Hold
+            ? held_visible
+            : (keyboard_toggled ||
+               (value.hotspot_reveal_activation == RevealActivation::HoldOrTap && held_visible)) &&
+                  ready && !shortcut;
     const bool controller_visible = controller_hold.update(controller_held, ready);
     auto targets = keyboard_visible || controller_visible ? game::world_targets()
                                                           : std::vector<game::WorldTarget>{};
@@ -149,6 +183,7 @@ void update(HWND window, bool enabled) {
 void suspend() {
     controller_held = false;
     keyboard_toggled = toggle_press = false;
+    tap_pending = false;
     keyboard_hold.suspend();
     controller_hold.suspend();
     show(nullptr, {});

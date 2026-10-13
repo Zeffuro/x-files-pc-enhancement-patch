@@ -8,17 +8,17 @@ struct VariableSlot {
     std::array<std::uint32_t, 4> rvas;
     const wchar_t* label = nullptr;
 
-    std::uint32_t rva(const Profile& profile) const {
-        if (profile.application == profile_cd_10012.application) {
+    std::uint32_t rva(const Profile& addresses) const {
+        if (addresses.application == profile_cd_10012.application) {
             return rvas[0];
         }
-        if (profile.application == profile_cd_10019.application) {
+        if (addresses.application == profile_cd_10019.application) {
             return rvas[1];
         }
-        if (profile.application == profile_dvd_20000.application) {
+        if (addresses.application == profile_dvd_20000.application) {
             return rvas[2];
         }
-        if (profile.application == profile_cd_10020.application) {
+        if (addresses.application == profile_cd_10020.application) {
             return rvas[3];
         }
         return 0;

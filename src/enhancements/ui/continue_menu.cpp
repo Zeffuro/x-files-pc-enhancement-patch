@@ -7,6 +7,7 @@
 #include "settings.h"
 #include "transcript/view.h"
 #include "runtime.h"
+#include "game/functions/runtime.h"
 
 namespace enhancements {
 namespace {
@@ -17,7 +18,7 @@ bool startup_menu() {
     const auto image = game::executable_image();
     return settings().continue_latest && image &&
            game::input_vtable() == game::edition().main_menu &&
-           !*reinterpret_cast<int*>(image + game::edition().session_active) &&
+           !*native_game::NativeRuntime(image, game::edition()).session_active().get() &&
            !game::menu_confirmation_active() && !saves::browser_active() && !transcript::active() &&
            checkpoint_available();
 }

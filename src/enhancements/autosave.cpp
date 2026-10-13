@@ -1,4 +1,5 @@
 #include "autosave.h"
+#include "game/functions/runtime.h"
 #include "autosave_state.h"
 #include "quick_save.h"
 #include "game_ui.h"
@@ -17,20 +18,12 @@ namespace {
 AutosaveState state;
 std::uint64_t last_poll = 0;
 
-bool navigation_loop(const std::filesystem::path& path) {
-    const auto name = path.stem().wstring();
-    return !_wcsicmp(path.parent_path().filename().c_str(), L"XN") &&
-           !_wcsicmp(path.extension().c_str(), L".xmv") && !name.empty() &&
-           std::all_of(name.begin(), name.end(),
-                       [](wchar_t ch) { return ch >= L'0' && ch <= L'9'; });
-}
-
 std::optional<SaveIdentity> identity() {
     if (!safe_save_available()) {
         return std::nullopt;
     }
-    const auto app = *reinterpret_cast<game::Application**>(game::executable_image() +
-                                                            game::edition().application);
+    const auto app =
+        *native_game::NativeRuntime(game::executable_image(), game::edition()).application().get();
     if (!app || !app->state || !app->view) {
         return std::nullopt;
     }
@@ -44,7 +37,7 @@ std::optional<SaveIdentity> identity() {
         if (!movie.active || !movie.video || movie.width * movie.height < area * 3 / 4) {
             continue;
         }
-        const bool loop = navigation_loop(movie.path);
+        const bool loop = media::navigation_loop(movie.path);
         if (movie.playing && !media::navigation_archive(movie.path) && !loop) {
             return std::nullopt;
         }
@@ -70,7 +63,9 @@ void update_autosave(HWND window, bool blocked) {
             checkpoint_load_pending() ||
             (game::executable_image() &&
              (game::input_vtable() == game::edition().main_menu ||
-              *reinterpret_cast<void**>(game::executable_image() + game::edition().pending_load)));
+              *native_game::NativeRuntime(game::executable_image(), game::edition())
+                   .pending_load()
+                   .get()));
         if (suspended || !settings().autosaves || !safe_save_available()) {
             state.update(now, settings().autosaves, suspended, std::nullopt);
             last_poll = 0;

@@ -1,5 +1,16 @@
 # What's new
 
+## 0.4.3
+
+- Optional remembering of Load categories, pages and selected slots during the current session.
+- A reveal-key choice of Hold, Toggle or Hold or tap.
+- Optional mouse confinement during windowed gameplay, with release for menus, tools and switching windows.
+- Fixed mouse-wheel scrolling in ING Field Notes.
+- Added mouse-wheel scrolling in Photo Viewer.
+- Fixed save/load screens overlapping the game-over movie.
+- Fixed a freeze when quickly loading a save from the menu after being shot.
+- Corrected and completed inventory labels in the developer tools.
+
 ## 0.4.2
 
 - Fixed a Wine startup crash when no audio device is available. Movies continue silently.

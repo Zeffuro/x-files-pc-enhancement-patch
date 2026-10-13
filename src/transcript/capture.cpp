@@ -1,4 +1,5 @@
 #include "capture.h"
+#include "game/functions/runtime.h"
 #include "enhancements/game_ui.h"
 #include "enhancements/dialogue.h"
 #include "playback/movie.h"
@@ -19,7 +20,7 @@ bool gameplay_active() {
     const auto image = enhancements::game::executable_image();
     const auto& profile = enhancements::game::edition();
     // The native session flag is set by the menu, so it cannot gate new-game dialogue.
-    return image && *reinterpret_cast<const int*>(image + profile.scene_active) != 0 &&
+    return image && *native_game::NativeRuntime(image, profile).scene_active().get() != 0 &&
            enhancements::game::input_vtable() != profile.main_menu;
 }
 

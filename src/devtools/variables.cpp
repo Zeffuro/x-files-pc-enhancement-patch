@@ -3,17 +3,19 @@
 #include "game/layouts/database/variable.h"
 #include "game/layouts/input/inventory_selection.h"
 #include "game/profiles/variables.h"
+#include "game/functions/runtime.h"
 #include <windows.h>
 #include <sstream>
 
 namespace devtools {
 namespace {
-template <class T> bool read(const void* address, T& value) {
-    return database_copy(reinterpret_cast<std::uintptr_t>(address), &value, sizeof(value));
+template <class T> bool read(std::uintptr_t address, T& value) {
+    return database_copy(address, &value, sizeof(value));
 }
 }
 
 std::wstring inspect_variables(const std::byte* image, const native_game::Profile& profile) {
+    const native_game::NativeRuntime native(image, profile);
     std::wostringstream text;
     text << L"\r\n\r\nRegistered story variables (22 slots)\r\nRegistration / resource ID / raw "
             L"value / type";
@@ -26,7 +28,7 @@ std::wstring inspect_variables(const std::byte* image, const native_game::Profil
         std::uint32_t pointer = 0;
         native_game::Variable variable{};
         const auto rva = slot.rva(profile);
-        if (!image || !rva || !read(image + rva, pointer)) {
+        if (!image || !rva || !read(native.registered_variable(slot).address(), pointer)) {
             text << L"unavailable";
             continue;
         }
@@ -34,7 +36,7 @@ std::wstring inspect_variables(const std::byte* image, const native_game::Profil
             text << L"not registered";
             continue;
         }
-        if (!read(reinterpret_cast<const void*>(pointer), variable)) {
+        if (!read(pointer, variable)) {
             text << L"unavailable (unreadable object)";
             continue;
         }

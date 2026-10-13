@@ -10,6 +10,11 @@ POINT test_cursor{300, 180};
 unsigned pointer_moves = 0;
 bool left_held = false;
 bool right_held = false;
+ULONGLONG test_tick = 1000;
+
+ULONGLONG WINAPI test_clock() {
+    return test_tick;
+}
 
 BOOL WINAPI test_get_cursor(LPPOINT point) {
     *point = test_cursor;
@@ -37,12 +42,14 @@ SHORT WINAPI test_key_state(int key) {
 #define ScreenToClient test_coordinates
 #define ClientToScreen test_coordinates
 #define GetAsyncKeyState test_key_state
+#define GetTickCount64 test_clock
 #include "enhancements/scrolling.cpp"
 #undef GetCursorPos
 #undef SetCursorPos
 #undef ScreenToClient
 #undef ClientToScreen
 #undef GetAsyncKeyState
+#undef GetTickCount64
 
 namespace enhancements {
 
@@ -101,17 +108,24 @@ bool confirmation_fixture = false;
 ScriptControls script_fixture;
 std::vector<RECT> activated;
 bool activation_fixture = true;
+bool photo_pending = false, photo_defer = false;
 void (*activation_effect)() = nullptr;
 
-bool activate_script_button(unsigned resource, const RECT& bounds) {
+ScrollResult activate_script_button(unsigned resource, const RECT& bounds) {
     if (resource != script_fixture.resources.back() || !activation_fixture) {
-        return false;
+        return ScrollResult::unavailable;
+    }
+    if (resource == resource::workstation_photo && photo_pending) {
+        return ScrollResult::pending;
     }
     activated.push_back(bounds);
     if (activation_effect) {
         activation_effect();
     }
-    return true;
+    if (resource == resource::workstation_photo) {
+        photo_pending = photo_defer;
+    }
+    return ScrollResult::activated;
 }
 
 MainView* current_view() {
@@ -206,6 +220,21 @@ void target_cases() {
          {600, 435, 615, 452},
          {300, 180},
          {80, 110}},
+        {resource::workstation_search,
+         {302, 367, 317, 380},
+         {302, 448, 317, 464},
+         {200, 410},
+         {400, 260}},
+        {resource::workstation_search_capture,
+         {302, 366, 317, 381},
+         {302, 449, 317, 463},
+         {200, 410},
+         {400, 260}},
+        {resource::workstation_photo,
+         {566, 158, 586, 177},
+         {565, 412, 584, 429},
+         {300, 300},
+         {500, 80}},
     };
     for (const auto& fixture : cases) {
         game::ScriptControls script;
@@ -403,6 +432,66 @@ void delivery_cases() {
                     !pointer_moves,
                 "Message or workstation scrolling moved the pointer or lost detents.");
     }
+    game::script_fixture.resources = {resource::workstation_search};
+    game::script_fixture.text_input = true;
+    game::script_fixture.buttons = {{302, 367, 317, 380}, {302, 448, 317, 464}};
+    test_cursor = {200, 410};
+    const auto before_notes = count();
+    require(wheel_message(-240) && wheel_message(120) && count() == before_notes + 3 &&
+                EqualRect(&game::activated.back(), &game::script_fixture.buttons[0]) &&
+                test_cursor.x == 200 && test_cursor.y == 410 && !pointer_moves,
+            "ING field notes did not scroll both ways while retaining native search input.");
+    test_cursor = {400, 260};
+    require(!wheel_message(-120) && count() == before_notes + 3,
+            "Wheel over the ING search field activated field-note scrolling.");
+    game::script_fixture.resources = {resource::workstation_photo};
+    game::script_fixture.buttons = {{566, 158, 586, 177}, {565, 412, 584, 429}};
+    test_cursor = {300, 300};
+    const auto before_photos = count();
+    require(wheel_message(-240) && wheel_message(120) && count() == before_photos + 3 &&
+                EqualRect(&game::activated.back(), &game::script_fixture.buttons[0]) &&
+                test_cursor.x == 300 && test_cursor.y == 300 && !pointer_moves,
+            "Photo Viewer scrolling lost direction or moved the pointer.");
+    test_cursor = {500, 80};
+    require(!wheel_message(-120) && count() == before_photos + 3,
+            "Wheel over the photo preview activated thumbnail scrolling.");
+    test_cursor = {300, 300};
+    game::photo_defer = true;
+    const auto before_deferred = count();
+    require(wheel_message(-360) && count() == before_deferred + 1 && scrolling::queued == -2,
+            "Photo redraw discarded pending detents or scrolled before queue completion.");
+    scrolling::update(true);
+    require(count() == before_deferred + 1 && scrolling::queued == -2,
+            "Pending photo commands triggered another native action.");
+    for (int remaining = 1; remaining >= 0; --remaining) {
+        game::photo_pending = false;
+        scrolling::update(true);
+        require(scrolling::queued == -remaining,
+                "Completed photo redraw did not resume the next retained detent.");
+    }
+    require(count() == before_deferred + 3 && !pointer_moves,
+            "Deferred photo scrolling lost detents or moved the pointer.");
+    require(wheel_message(-240) && scrolling::queued == -2,
+            "A pending photo queue did not retain a bounded request.");
+    test_cursor = {500, 80};
+    scrolling::update(true);
+    game::photo_pending = false;
+    test_cursor = {300, 300};
+    scrolling::update(true);
+    require(!scrolling::queued && count() == before_deferred + 3,
+            "Leaving the photo grid retained a deferred action.");
+    game::photo_pending = true;
+    require(wheel_message(-120) && scrolling::queued == -1,
+            "Pending photo timeout fixture was not queued.");
+    test_tick += 5000;
+    scrolling::update(true);
+    require(!scrolling::queued && count() == before_deferred + 3,
+            "Timed-out photo redraw retained a deferred action.");
+    game::photo_pending = false;
+    game::photo_defer = false;
+    game::script_fixture.resources = {resource::workstation_message};
+    game::script_fixture.buttons = {{600, 99, 615, 116}, {600, 435, 615, 452}};
+    test_cursor = {300, 180};
     for (auto effect : {+[] { foreground_fixture = false; }, +[] { test_cursor = {10, 10}; },
                         +[] { game::view_fixture = nullptr; },
                         +[] { game::script_fixture.resources = {resource::pda_inbox}; }}) {

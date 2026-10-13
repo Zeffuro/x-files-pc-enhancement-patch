@@ -56,6 +56,7 @@ struct Profile {
     std::uint32_t pause;
     std::uint32_t restore_preferences;
     std::uint32_t restore_view;
+    std::uint32_t input_visibility;
     std::uint32_t session_active;
     std::uint32_t scene_active;
     std::uint32_t menu_used;
@@ -95,6 +96,20 @@ struct Profile {
     std::uint32_t variable_set_value;
     std::uint32_t native_action_write_slot;
     std::uint32_t native_action_write_callback;
+    std::uint32_t main_scroll_up;
+    std::uint32_t main_scroll_down;
+    std::uint32_t main_text_type;
+    std::uint32_t native_rectangle_type;
+    std::uint32_t native_point_type;
+    std::uint32_t photo_gallery;
+    std::uint32_t photo_scroll_up;
+    std::uint32_t photo_scroll_down;
+    std::uint32_t photo_gallery_type;
+    std::uint32_t photo_thumbnail_type;
+    std::uint32_t command_queue_type;
+    std::uint32_t photo_state_list_type;
+    std::uint32_t photo_preview;
+    std::uint32_t process_commands;
 };
 
 struct Build {
@@ -153,6 +168,7 @@ inline constexpr Profile profile_cd_10012{
     .pause = 0x6c9b0,
     .restore_preferences = 0x52b20,
     .restore_view = 0x97210,
+    .input_visibility = 0x4e060,
     .session_active = 0x2b1988,
     .scene_active = 0x2b198c,
     .menu_used = 0x2b1984,
@@ -192,6 +208,20 @@ inline constexpr Profile profile_cd_10012{
     .variable_set_value = 0x1d02e0,
     .native_action_write_slot = 0x253464,
     .native_action_write_callback = 0x33540,
+    .main_scroll_up = 0x150c40,
+    .main_scroll_down = 0x150da0,
+    .main_text_type = 0x25d87c,
+    .native_rectangle_type = 0x25bc38,
+    .native_point_type = 0x25c1b0,
+    .photo_gallery = 0x2bbaf8,
+    .photo_scroll_up = 0xe2be0,
+    .photo_scroll_down = 0xe2e80,
+    .photo_gallery_type = 0x258390,
+    .photo_thumbnail_type = 0x254678,
+    .command_queue_type = 0x2567a0,
+    .photo_state_list_type = 0x253638,
+    .photo_preview = 0x2bbaf4,
+    .process_commands = 0x2830,
 };
 
 inline constexpr Profile profile_cd_10019{
@@ -242,6 +272,7 @@ inline constexpr Profile profile_cd_10019{
     .pause = 0x6c080,
     .restore_preferences = 0x523a0,
     .restore_view = 0x96960,
+    .input_visibility = 0x4da80,
     .session_active = 0x2b49ac,
     .scene_active = 0x2b49b0,
     .menu_used = 0x2b49a8,
@@ -281,6 +312,20 @@ inline constexpr Profile profile_cd_10019{
     .variable_set_value = 0x1d3210,
     .native_action_write_slot = 0x255474,
     .native_action_write_callback = 0x32f90,
+    .main_scroll_up = 0x153c60,
+    .main_scroll_down = 0x153dc0,
+    .main_text_type = 0x260014,
+    .native_rectangle_type = 0x25e3d0,
+    .native_point_type = 0x25e948,
+    .photo_gallery = 0x2bebc0,
+    .photo_scroll_up = 0xe4a60,
+    .photo_scroll_down = 0xe4d00,
+    .photo_gallery_type = 0x25a6c0,
+    .photo_thumbnail_type = 0x2566b0,
+    .command_queue_type = 0x258830,
+    .photo_state_list_type = 0x2554e8,
+    .photo_preview = 0x2bebbc,
+    .process_commands = 0x2830,
 };
 
 inline constexpr Profile profile_dvd_20000{
@@ -331,6 +376,7 @@ inline constexpr Profile profile_dvd_20000{
     .pause = 0x6c0b0,
     .restore_preferences = 0x52460,
     .restore_view = 0x96730,
+    .input_visibility = 0x4db40,
     .session_active = 0x2b6b10,
     .scene_active = 0x2b6b14,
     .menu_used = 0x2b6b0c,
@@ -370,6 +416,20 @@ inline constexpr Profile profile_dvd_20000{
     .variable_set_value = 0x1e0780,
     .native_action_write_slot = 0x25dbd4,
     .native_action_write_callback = 0x33060,
+    .main_scroll_up = 0x13a9d0,
+    .main_scroll_down = 0x13ab30,
+    .main_text_type = 0x25f7b4,
+    .native_rectangle_type = 0x25f540,
+    .native_point_type = 0x25f258,
+    .photo_gallery = 0x2bd6e0,
+    .photo_scroll_up = 0xb26e0,
+    .photo_scroll_down = 0xb2980,
+    .photo_gallery_type = 0x257af0,
+    .photo_thumbnail_type = 0x25d0b8,
+    .command_queue_type = 0x25a3d0,
+    .photo_state_list_type = 0x256278,
+    .photo_preview = 0x2bd6dc,
+    .process_commands = 0x2830,
 };
 
 inline constexpr Profile profile_cd_10020{
@@ -420,6 +480,7 @@ inline constexpr Profile profile_cd_10020{
     .pause = 0x6c1d0,
     .restore_preferences = 0x524a0,
     .restore_view = 0x96ae0,
+    .input_visibility = 0x4db70,
     .session_active = 0x2b59b4,
     .scene_active = 0x2b59b8,
     .menu_used = 0x2b59b0,
@@ -459,6 +520,20 @@ inline constexpr Profile profile_cd_10020{
     .variable_set_value = 0x1d3800,
     .native_action_write_slot = 0x256474,
     .native_action_write_callback = 0x33090,
+    .main_scroll_up = 0x154200,
+    .main_scroll_down = 0x154360,
+    .main_text_type = 0x261014,
+    .native_rectangle_type = 0x25f3d0,
+    .native_point_type = 0x25f948,
+    .photo_gallery = 0x2bfc20,
+    .photo_scroll_up = 0xe4e50,
+    .photo_scroll_down = 0xe50f0,
+    .photo_gallery_type = 0x25b6b8,
+    .photo_thumbnail_type = 0x2576a8,
+    .command_queue_type = 0x259828,
+    .photo_state_list_type = 0x2564e8,
+    .photo_preview = 0x2bfc1c,
+    .process_commands = 0x2830,
 };
 
 inline constexpr Build build_cd_10012{

@@ -1,3 +1,5 @@
+#include "game/access/world.h"
+#include "game/functions/runtime.h"
 #include "menu_corner.h"
 #include "game_ui.h"
 #include <limits>
@@ -59,10 +61,7 @@ bool valid(const RECT& bounds) {
            bounds.top < bounds.bottom && bounds.right <= 640 && bounds.bottom <= 480;
 }
 
-struct Object {
-    void* vtable;
-    unsigned visible, enabled, disabled;
-};
+using Object = native_game::ObjectFlags;
 
 struct Snapshot {
     Application* application = nullptr;
@@ -83,9 +82,11 @@ bool inspect(Snapshot& result) {
     const auto& profile = edition();
     Application app{};
     List<std::byte> list{};
-    if (!image || !read(image + profile.application, result.application) ||
+    if (!image ||
+        !read(native_game::NativeRuntime(image, profile).application().data(),
+              result.application) ||
         !read(result.application, app) || !app.state || !app.view ||
-        !read(static_cast<std::byte*>(app.state) + 0x20c, list) || list.count > 256 ||
+        !read(native_game::SceneStateRef(app.state).modal().data(), list) || list.count > 256 ||
         (!list.count && (list.first || list.last))) {
         return false;
     }
@@ -98,11 +99,11 @@ bool inspect(Snapshot& result) {
         List<std::byte>::Node item{};
         Object object{};
         if (!read(node, item) || !item.value || item.previous != previous ||
-            !read(item.value, object) || !object.vtable) {
+            !read(item.value, object) || !object.type) {
             return false;
         }
-        if (object.vtable == image + profile.menu_corner) {
-            if (++matches != 1 || !object.enabled || object.disabled) {
+        if (object.type == native_game::NativeRuntime(image, profile).menu_corner_type()) {
+            if (++matches != 1 || !object.enabled || object.blocked) {
                 return false;
             }
             result.object = item.value;
@@ -110,7 +111,7 @@ bool inspect(Snapshot& result) {
         previous = node;
         node = item.next;
     }
-    result.rectangle = reinterpret_cast<Rectangle*>(image + profile.menu_corner_rectangle);
+    result.rectangle = native_game::NativeRuntime(image, profile).menu_corner_rectangle().get();
     return !node && previous == list.last && matches == 1 && read(result.rectangle, result.value) &&
            result.value.vtable;
 }

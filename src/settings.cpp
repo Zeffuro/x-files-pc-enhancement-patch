@@ -64,6 +64,10 @@ Settings read_settings(const std::filesystem::path& path) {
         GetPrivateProfileIntW(L"Video", L"DVDDeinterlace", 1, path.c_str()) != 0;
     result.save_browser =
         GetPrivateProfileIntW(L"Enhancements", L"SaveBrowser", 0, path.c_str()) != 0;
+    result.remember_load_browser =
+        GetPrivateProfileIntW(L"Enhancements", L"RememberLoadBrowser", 0, path.c_str()) != 0;
+    result.mouse_confine_windowed =
+        GetPrivateProfileIntW(L"Input", L"ConfineMouseWindowed", 0, path.c_str()) != 0;
     result.autosaves = GetPrivateProfileIntW(L"Enhancements", L"Autosaves", 1, path.c_str()) != 0;
     result.continue_latest =
         GetPrivateProfileIntW(L"Enhancements", L"ContinueLatest", 1, path.c_str()) != 0;
@@ -76,8 +80,13 @@ Settings read_settings(const std::filesystem::path& path) {
     result.hotspot_labels =
         GetPrivateProfileIntW(L"Enhancements", L"HotspotLabels", 1, path.c_str()) != 0;
     const auto reveal_key = GetPrivateProfileIntW(L"Input", L"HotspotRevealKey", 164, path.c_str());
-    result.hotspot_reveal_toggle =
+    const auto legacy_toggle =
         GetPrivateProfileIntW(L"Input", L"HotspotRevealToggle", 0, path.c_str()) != 0;
+    const auto activation = GetPrivateProfileIntW(L"Input", L"HotspotRevealActivation",
+                                                  legacy_toggle ? 1 : 0, path.c_str());
+    if (activation <= static_cast<UINT>(RevealActivation::HoldOrTap)) {
+        result.hotspot_reveal_activation = static_cast<RevealActivation>(activation);
+    }
     if (reveal_key == 0 || reveal_key == VK_LMENU || reveal_key == 'H' || reveal_key == 'R') {
         result.hotspot_reveal_key = reveal_key;
     }
@@ -166,6 +175,7 @@ void save_settings(const Settings& value) {
     const auto speed_key = std::to_wstring(value.movie_speed_key);
     const auto speed = std::to_wstring(value.movie_speed);
     const auto reveal_key = std::to_wstring(value.hotspot_reveal_key);
+    const auto activation = std::to_wstring(static_cast<unsigned>(value.hotspot_reveal_activation));
     if (!WritePrivateProfileStringW(L"Video", L"DVDMovies", value.dvd_movies ? L"1" : L"0",
                                     path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"MovieSpeedKey", speed_key.c_str(), path.c_str()) ||
@@ -179,6 +189,10 @@ void save_settings(const Settings& value) {
                                     value.dvd_deinterlace ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"SaveBrowser",
                                     value.save_browser ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Enhancements", L"RememberLoadBrowser",
+                                    value.remember_load_browser ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(L"Input", L"ConfineMouseWindowed",
+                                    value.mouse_confine_windowed ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"Autosaves", value.autosaves ? L"1" : L"0",
                                     path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"ContinueLatest",
@@ -193,8 +207,12 @@ void save_settings(const Settings& value) {
                                     value.hotspot_labels ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Input", L"HotspotRevealKey", reveal_key.c_str(),
                                     path.c_str()) ||
-        !WritePrivateProfileStringW(L"Input", L"HotspotRevealToggle",
-                                    value.hotspot_reveal_toggle ? L"1" : L"0", path.c_str()) ||
+        !WritePrivateProfileStringW(
+            L"Input", L"HotspotRevealToggle",
+            value.hotspot_reveal_activation == RevealActivation::Toggle ? L"1" : L"0",
+            path.c_str()) ||
+        !WritePrivateProfileStringW(L"Input", L"HotspotRevealActivation", activation.c_str(),
+                                    path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"ReadableDocuments",
                                     value.readable_documents ? L"1" : L"0", path.c_str()) ||
         !WritePrivateProfileStringW(L"Enhancements", L"QuickMenu", value.quick_menu ? L"1" : L"0",

@@ -19,6 +19,7 @@ public:
     void end(bool abandon = false);
 
 private:
+    bool owns_scene() const;
     game::Application* application_ = nullptr;
     void* state_ = nullptr;
     game::MainView* view_ = nullptr;

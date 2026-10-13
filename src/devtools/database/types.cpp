@@ -5,6 +5,7 @@
 #include "game/layouts/database/story.h"
 #include "game/layouts/database/variable.h"
 #include "game/layouts/database/asset_reference.h"
+#include "game/access/database.h"
 #include <array>
 #include <cstring>
 #include <iomanip>
@@ -55,9 +56,13 @@ bool id_resource(const native_game::DatabaseNode& resource, const std::byte* ima
     const auto base = reinterpret_cast<std::uintptr_t>(image);
     std::uint32_t getter = 0;
     std::array<std::uint8_t, 6> code{};
-    if (resource.object.vtable < base + 0x1000 || resource.object.vtable >= base + 0x300000 ||
-        !database_copy(std::uintptr_t(resource.object.vtable) + 8, &getter, sizeof(getter)) ||
-        getter < base + 0x1000 || getter >= base + 0x260000 ||
+    if (resource.object.vtable < base + native_game::database_image_limit::first_rva ||
+        resource.object.vtable >= base + native_game::database_image_limit::vtable_end ||
+        !database_copy(
+            native_game::PersistentVTableRef(resource.object.vtable).class_getter().address(),
+            &getter, sizeof(getter)) ||
+        getter < base + native_game::database_image_limit::first_rva ||
+        getter >= base + native_game::database_image_limit::class_getter_end ||
         !database_copy(getter, code.data(), code.size())) {
         return false;
     }
@@ -83,8 +88,9 @@ void inspect_list(NativeDatabaseObject& object, const std::byte* image) {
     std::vector<std::uint32_t> ids(resource.count);
     native_game::DatabaseNode after{};
     native_game::StoryReferenceList list_after{};
-    if ((!ids.empty() && !database_copy(std::uintptr_t(list.cached_resource) + sizeof(resource),
-                                        ids.data(), ids.size() * sizeof(ids[0]))) ||
+    if ((!ids.empty() &&
+         !database_copy(native_game::DatabaseNodeRef(list.cached_resource).id_list().address(),
+                        ids.data(), ids.size() * sizeof(ids[0]))) ||
         !database_copy(list.cached_resource, &after, sizeof(after)) ||
         !database_copy(object.address, &list_after, sizeof(list_after)) ||
         std::memcmp(&resource, &after, sizeof(resource)) != 0 ||

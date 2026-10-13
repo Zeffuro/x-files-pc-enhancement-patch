@@ -60,6 +60,12 @@ struct StoryTrigger {
     std::byte alignment[3];
 };
 
+namespace action_flag {
+inline constexpr std::uint8_t type_mask = 0x7f;
+inline constexpr std::uint8_t conditional = 0x80;
+inline constexpr unsigned variable_assignment = 0;
+}
+
 struct StoryAction {
     PersistentObject object;
     std::byte reserved[0x34];

@@ -1,3 +1,4 @@
 EXPORTS
     DLGetInterface
     XFilesSetToolsPaused
+    XFilesMoviePlaying

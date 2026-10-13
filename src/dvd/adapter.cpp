@@ -363,6 +363,15 @@ public:
         return error_.data();
     }
 
+    static bool movie_playing() noexcept {
+        for (auto* adapter = adapters; adapter; adapter = adapter->next_) {
+            if (adapter->player_ && adapter->player_->status() == Status::playing) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static void tools_pause(bool paused) noexcept {
         if (paused) {
             if (tools_pause_depth++ != 0) {
@@ -628,4 +637,8 @@ extern "C" dvd::Native* __cdecl DLGetInterface() noexcept {
 
 extern "C" void __cdecl XFilesSetToolsPaused(int paused) noexcept {
     dvd::Adapter::tools_pause(paused != 0);
+}
+
+extern "C" int __cdecl XFilesMoviePlaying() noexcept {
+    return dvd::Adapter::movie_playing() ? 1 : 0;
 }

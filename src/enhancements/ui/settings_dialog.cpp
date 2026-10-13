@@ -6,6 +6,7 @@
 #include "controller_dialog.h"
 #include "enhancements/quick_save.h"
 #include "enhancements/edition.h"
+#include "enhancements/game_ui.h"
 #include "resources.h"
 #include "settings.h"
 #include "playback/output.h"
@@ -13,6 +14,7 @@
 #include "devtools/inspector.h"
 #include "platform/tool_cursor.h"
 #include "platform/tool_theme.h"
+#include "platform/windowed_mouse_lock.h"
 #include "localization/ui.h"
 #include "dvd/tools_pause.h"
 
@@ -240,6 +242,10 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                            settings().skip_menu_animation ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_SAVE_BROWSER,
                            settings().save_browser ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(window, IDC_REMEMBER_LOAD_BROWSER,
+                           settings().remember_load_browser ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(window, IDC_WINDOWED_MOUSE_LOCK,
+                           settings().mouse_confine_windowed ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_AUTOSAVES,
                            settings().autosaves ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_CONTINUE_LATEST,
@@ -269,8 +275,12 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                            settings().readable_documents ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(window, IDC_HOTSPOT_LABELS,
                            settings().hotspot_labels ? BST_CHECKED : BST_UNCHECKED);
-            CheckDlgButton(window, IDC_HOTSPOT_TOGGLE,
-                           settings().hotspot_reveal_toggle ? BST_CHECKED : BST_UNCHECKED);
+            for (const auto label : {L"Hold", L"Toggle", L"Hold or tap"}) {
+                SendDlgItemMessageW(window, IDC_HOTSPOT_ACTIVATION, CB_ADDSTRING, 0,
+                                    reinterpret_cast<LPARAM>(ui::translate(label)));
+            }
+            SendDlgItemMessageW(window, IDC_HOTSPOT_ACTIVATION, CB_SETCURSEL,
+                                static_cast<WPARAM>(settings().hotspot_reveal_activation), 0);
             state->tabs.initialize(window);
             return TRUE;
         }
@@ -419,6 +429,10 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                 IsDlgButtonChecked(window, IDC_SKIP_LOGIN) == BST_CHECKED;
             value.skip_menu_animation = IsDlgButtonChecked(window, IDC_SKIP_MENU) == BST_CHECKED;
             value.save_browser = IsDlgButtonChecked(window, IDC_SAVE_BROWSER) == BST_CHECKED;
+            value.remember_load_browser =
+                IsDlgButtonChecked(window, IDC_REMEMBER_LOAD_BROWSER) == BST_CHECKED;
+            value.mouse_confine_windowed =
+                IsDlgButtonChecked(window, IDC_WINDOWED_MOUSE_LOCK) == BST_CHECKED;
             value.autosaves = IsDlgButtonChecked(window, IDC_AUTOSAVES) == BST_CHECKED;
             value.continue_latest = IsDlgButtonChecked(window, IDC_CONTINUE_LATEST) == BST_CHECKED;
             value.dialogue_transcript =
@@ -427,8 +441,12 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             value.hotspot_reveal = reveal == 1 || reveal == 2;
             value.hotspot_exits_only = reveal == 2;
             value.hotspot_labels = IsDlgButtonChecked(window, IDC_HOTSPOT_LABELS) == BST_CHECKED;
-            value.hotspot_reveal_toggle =
-                IsDlgButtonChecked(window, IDC_HOTSPOT_TOGGLE) == BST_CHECKED;
+            const auto activation =
+                SendDlgItemMessageW(window, IDC_HOTSPOT_ACTIVATION, CB_GETCURSEL, 0, 0);
+            if (activation < 0 || activation > static_cast<LRESULT>(RevealActivation::HoldOrTap)) {
+                throw std::runtime_error("Select a reveal activation mode");
+            }
+            value.hotspot_reveal_activation = static_cast<RevealActivation>(activation);
             const auto reveal_key =
                 SendDlgItemMessageW(window, IDC_HOTSPOT_KEY, CB_GETCURSEL, 0, 0);
             value.hotspot_reveal_key = reveal_key == 1   ? 'H'
@@ -491,6 +509,8 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                 }
             }
             save_settings(value);
+            platform::windowed_mouse_lock(GetParent(window), value.mouse_confine_windowed,
+                                          game::input_vtable() == game::edition().main_menu);
             std::wstring module_path(32768, L'\0');
             const auto module_length = GetModuleFileNameW(nullptr, module_path.data(),
                                                           static_cast<DWORD>(module_path.size()));

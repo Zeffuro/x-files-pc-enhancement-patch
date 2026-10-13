@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(XFILES_VERSION "0.4.2" CACHE STRING "Release version (major.minor.patch)")
+set(XFILES_VERSION "0.4.3" CACHE STRING "Release version (major.minor.patch)")
 if(NOT XFILES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "XFILES_VERSION must be major.minor.patch")
 endif()

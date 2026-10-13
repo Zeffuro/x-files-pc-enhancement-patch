@@ -1,3 +1,6 @@
+#include "game/layouts/commands.h"
+#include "game/functions/runtime.h"
+#include "game/access/ui.h"
 #include "enhancements/game_resources.h"
 #include "menu.h"
 #include "game_ui.h"
@@ -11,19 +14,12 @@
 namespace enhancements {
 namespace {
 
-using CurrentInput = void*(__stdcall*)(void*);
-using Activate = void(__stdcall*)(void*, int, void*);
-using Remove = void(__stdcall*)(void*, void*);
-using Pause = void(__stdcall*)(void*, int, void*);
-using RestorePreferences = void(__stdcall*)(void*, void*);
-using RestoreView = void(__stdcall*)(game::MainView*);
-
 std::byte* image = nullptr;
 void* pending = nullptr;
 const game::Edition* profile = &game::dvd;
 
-template <typename T> T address(std::size_t rva) {
-    return reinterpret_cast<T>(image + rva);
+native_game::NativeRuntime native() {
+    return {image, *profile};
 }
 
 }
@@ -53,9 +49,8 @@ void update_menu() {
         trace_value("controller_screen", static_cast<unsigned>(current));
     }
     if (image && pending) {
-        const auto app = *address<game::Application**>(game::edition().application);
-        if (!app || !app->state ||
-            address<CurrentInput>(game::edition().current_input)(app->state) != pending) {
+        const auto app = *native().application().get();
+        if (!app || !app->state || native().current_input(app->state) != pending) {
             pending = nullptr;
         }
     }
@@ -73,9 +68,8 @@ void* game::current_input() {
     if (!image) {
         return nullptr;
     }
-    const auto app = *address<game::Application**>(game::edition().application);
-    return app && app->state ? address<CurrentInput>(game::edition().current_input)(app->state)
-                             : nullptr;
+    const auto app = *native().application().get();
+    return app && app->state ? native().current_input(app->state) : nullptr;
 }
 
 std::uintptr_t game::input_vtable() {
@@ -91,37 +85,42 @@ bool game::menu_confirmation_active() {
 
 bool game::saving_available() {
     // Native Save hover and activation both require this flag.
-    return image && *address<int*>(edition().scene_active) != 0;
+    return image && *native().scene_active().get() != 0;
 }
 
 game::ScriptControls game::script_controls() {
-    const auto app = image ? *address<Application**>(edition().application) : nullptr;
+    const auto app = image ? *native().application().get() : nullptr;
     return read_script_controls(app ? app->state : nullptr, image, edition(),
                                 app ? app->view : nullptr);
 }
 
-bool game::activate_script_button(unsigned resource, const RECT& bounds) {
-    const auto app = image ? *address<Application**>(edition().application) : nullptr;
+game::ScrollResult game::activate_script_button(unsigned resource, const RECT& bounds) {
+    const auto app = image ? *native().application().get() : nullptr;
     if (!app || !app->state || !app->view || current_input()) {
-        return false;
+        return ScrollResult::unavailable;
     }
     const auto window = GetActiveWindow();
     if (!window || GetWindowThreadProcessId(window, nullptr) != GetCurrentThreadId()) {
-        return false;
+        return ScrollResult::unavailable;
     }
-    return scroll_script_button(app->state, app->view, image, edition(), resource, bounds);
+    if (resource == resource::workstation_photo) {
+        return scroll_photo_button(app->state, app->view, image, edition(), bounds);
+    }
+    return scroll_script_button(app->state, app->view, image, edition(), resource, bounds)
+               ? ScrollResult::activated
+               : ScrollResult::unavailable;
 }
 
 bool resume_from_menu() {
     if (!image) {
         return false;
     }
-    const auto app = *address<game::Application**>(game::edition().application);
+    const auto app = *native().application().get();
     if (!app || !app->state) {
         return false;
     }
-    const auto menu = address<CurrentInput>(game::edition().current_input)(app->state);
-    if (!menu || *static_cast<void**>(menu) != address<void*>(game::edition().main_menu)) {
+    const auto menu = native().current_input(app->state);
+    if (!menu || *static_cast<void**>(menu) != native().main_menu_type()) {
         pending = nullptr;
         return false;
     }
@@ -129,18 +128,17 @@ bool resume_from_menu() {
         return true;
     }
     // Previous Game loads a save at startup; only its active-session branch resumes.
-    if (menu == pending || !*address<int*>(game::edition().session_active) ||
-        !*address<int*>(game::edition().scene_active)) {
+    if (menu == pending || !*native().session_active().get() || !*native().scene_active().get()) {
         return true;
     }
     pending = menu;
-    const auto queue = reinterpret_cast<std::byte*>(app) + 0x268;
-    address<Activate>(game::edition().activate)(queue, 0, menu);
-    address<Remove>(game::edition().remove)(queue, menu);
-    address<Pause>(game::edition().pause)(app->state, 0, queue);
-    *address<int*>(game::edition().menu_used) = 1;
-    address<RestorePreferences>(game::edition().restore_preferences)(app->preferences, queue);
-    address<RestoreView>(game::edition().restore_view)(app->view);
+    const auto queue = native_game::ApplicationRef(app).commands().data();
+    native().activate(queue, 0, menu);
+    native().remove(queue, menu);
+    native().pause(app->state, 0, queue);
+    *native().menu_used().get() = 1;
+    native().restore_preferences(app->preferences, queue);
+    native().restore_view(app->view);
     trace_value("menu_resume", 1);
     return true;
 }

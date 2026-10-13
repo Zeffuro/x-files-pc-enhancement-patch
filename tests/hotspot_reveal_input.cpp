@@ -5,6 +5,11 @@
 
 namespace {
 std::array<bool, 256> held_keys{};
+ULONGLONG clock_tick = 1000;
+
+ULONGLONG test_tick() {
+    return clock_tick;
+}
 
 SHORT WINAPI test_key_state(int key) {
     return held_keys.at(key) ? SHORT(-32768) : SHORT(0);
@@ -12,7 +17,9 @@ SHORT WINAPI test_key_state(int key) {
 }
 
 #define GetAsyncKeyState test_key_state
+#define GetTickCount64 test_tick
 #include "enhancements/hotspot_reveal.cpp"
+#undef GetTickCount64
 #undef GetAsyncKeyState
 
 namespace {
@@ -308,7 +315,7 @@ void controller_hold() {
 void toggle_keyboard() {
     using namespace enhancements;
     reset();
-    options.hotspot_reveal_toggle = true;
+    options.hotspot_reveal_activation = RevealActivation::Toggle;
     reveal::update(nullptr, true);
     const auto tap = [](unsigned configured = VK_LMENU) {
         held_keys[configured] = true;
@@ -434,13 +441,13 @@ void toggle_keyboard() {
     shown(false, "Changing reveal key retained the toggle latch");
     tap('H');
     shown(true, "Letter key did not toggle reveal");
-    options.hotspot_reveal_toggle = false;
+    options.hotspot_reveal_activation = RevealActivation::Hold;
     reveal::update(nullptr, true);
     shown(false, "Changing to hold mode retained the toggle latch");
     press('H');
     shown(true, "Hold mode did not resume after changing modes");
     release('H');
-    options.hotspot_reveal_toggle = true;
+    options.hotspot_reveal_activation = RevealActivation::Toggle;
     options.hotspot_reveal_key = 0;
     reveal::update(nullptr, true);
     held_keys[VK_LMENU] = true;
@@ -454,6 +461,41 @@ void toggle_keyboard() {
     reveal::controller(false);
     reveal::update(nullptr, true);
     shown(false, "Controller-only mode latched a trigger release");
+}
+
+void changed_keyboard_preference() {
+    using namespace enhancements;
+    for (const auto mode : {RevealActivation::Toggle, RevealActivation::HoldOrTap}) {
+        reset();
+        options.hotspot_reveal_activation = mode;
+        press(VK_LMENU);
+        shown(true, "A fresh first press after a mode change required a timer update");
+        held_keys[VK_LMENU] = false;
+        clock_tick += 100;
+        require(key(WM_KEYUP, VK_LMENU), "Changed mode lost its first key release");
+        shown(true, "The first short press after a mode change lost its latch");
+
+        options.hotspot_reveal_key = 'H';
+        require(!key(WM_MOUSEMOVE, 0), "A key preference change consumed mouse movement");
+        press('H');
+        shown(true, "A fresh first press after a key change required a timer update");
+        held_keys['H'] = false;
+        clock_tick += 100;
+        require(key(WM_KEYUP, 'H'), "Changed key lost its first release");
+        shown(true, "The first short press after a key change lost its latch");
+        press('H');
+        held_keys['H'] = false;
+        clock_tick += 100;
+        require(key(WM_KEYUP, 'H'), "Changed key lost its second release");
+        shown(false, "A second short press after a key change did not clear its latch");
+    }
+    reset();
+    press(VK_LMENU);
+    options.hotspot_reveal_activation = RevealActivation::HoldOrTap;
+    require(key(WM_KEYDOWN, VK_LMENU, 1L << 30), "Changed mode leaked a held-key repeat");
+    shown(false, "Changing mode rearmed an existing held-key repeat");
+    clock_tick += 100;
+    release(VK_LMENU);
 }
 }
 
@@ -542,6 +584,36 @@ int main() {
         transitions();
         controller_hold();
         toggle_keyboard();
+        changed_keyboard_preference();
+        reset();
+        options.hotspot_reveal_activation = RevealActivation::HoldOrTap;
+        enhancements::reveal::update(nullptr, true);
+        const auto hybrid_release = [] {
+            held_keys[VK_LMENU] = false;
+            require(key(WM_KEYUP, VK_LMENU), "Hybrid reveal did not own its release");
+        };
+        press(VK_LMENU);
+        shown(true, "Hybrid reveal did not show while held");
+        clock_tick += 100;
+        hybrid_release();
+        shown(true, "Short tap did not latch hybrid reveal");
+        press(VK_LMENU);
+        clock_tick += 100;
+        hybrid_release();
+        shown(false, "Second short tap did not clear hybrid reveal");
+        press(VK_LMENU);
+        clock_tick += 200;
+        key(WM_KEYDOWN, VK_LMENU, 1L << 30);
+        clock_tick += 100;
+        hybrid_release();
+        shown(false, "A long hold or key repeat latched hybrid reveal");
+        press(VK_LMENU);
+        foreground = false;
+        enhancements::reveal::update(nullptr, true);
+        foreground = true;
+        clock_tick += 100;
+        hybrid_release();
+        shown(false, "Focus loss turned a pending hybrid press into a tap");
         reset();
         options.hotspot_reveal_key = 'H';
         press('H');

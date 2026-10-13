@@ -42,6 +42,10 @@ std::string native_name;
 std::wstring notification;
 unsigned serialized = 0, published = 0, previews = 0, quick_records = 0, dialogs = 0;
 unsigned native_loads = 0;
+unsigned restores = 0, resumes = 0;
+unsigned menu_hides = 0;
+unsigned resumes_at_load = 0;
+bool reject_load = false, expect_immediate_restore = false;
 unsigned script_reads = 0;
 
 std::string bytes(const fs::path& path) {
@@ -111,9 +115,40 @@ void __stdcall native_file(void*, void* queue) {
 
 int __stdcall native_load(void*, void* queue) {
     native_contract =
-        native_contract && queue == app_bytes.data() + 0x268 && native_name == "saves\\QUICKSAVE.x";
+        native_contract && queue == app_bytes.data() + 0x268 &&
+        (native_name == "saves\\QUICKSAVE.x" || native_name.starts_with("saves\\CHECKPOINT.LOAD."));
     ++native_loads;
+    if (reject_load) {
+        return 0;
+    }
+    *reinterpret_cast<void**>(image + profile.pending_load) = &fixture_scene;
+    resumes_at_load = resumes;
+    expect_immediate_restore = true;
     return 1;
+}
+
+void __stdcall native_restore(enhancements::game::MainView* target) {
+    native_contract = native_contract && target == &view && native_loads > 0;
+    const bool pending = *reinterpret_cast<void**>(image + profile.pending_load) != nullptr;
+    native_contract =
+        native_contract && (expect_immediate_restore ? pending && resumes == resumes_at_load
+                                                     : !pending && resumes == resumes_at_load + 1);
+    expect_immediate_restore = false;
+    ++restores;
+}
+
+void __stdcall native_visibility(enhancements::game::MainView* target, void* input, int visible) {
+    native_contract = native_contract && target == &view && input == &fixture_menu && !visible &&
+                      *reinterpret_cast<void**>(image + profile.pending_load) &&
+                      !expect_immediate_restore && resumes == resumes_at_load;
+    ++menu_hides;
+}
+
+void __stdcall native_resume(void* state, int pause, void* queue) {
+    native_contract = native_contract && state == fixture_app->state && pause == 0 &&
+                      queue == app_bytes.data() + 0x268 &&
+                      !*reinterpret_cast<void**>(image + profile.pending_load);
+    ++resumes;
 }
 
 template <typename Callback> void trampoline(std::uint32_t address, Callback callback) {
@@ -174,6 +209,10 @@ std::uintptr_t input_vtable() {
     return fixture_menu ? profile.main_menu : 0;
 }
 
+void* current_input() {
+    return fixture_menu ? &fixture_menu : nullptr;
+}
+
 bool menu_confirmation_active() {
     return menu_confirm;
 }
@@ -201,6 +240,14 @@ RECT scene_bounds() {
 }
 
 namespace playback {
+bool scene_movie_playing(int width, int height) {
+    return std::any_of(movies.begin(), movies.end(), [&](const auto& movie) {
+        return movie.active && movie.video && movie.playing &&
+               movie.width * movie.height >= width * height * 3 / 4 &&
+               !media::navigation_archive(movie.path) && !media::navigation_loop(movie.path);
+    });
+}
+
 std::vector<MovieSnapshot> inspect_movies() {
     return movies;
 }
@@ -266,6 +313,9 @@ struct Fixture {
         profile.save_state = 0x220;
         profile.save_file = 0x230;
         profile.load_file = 0x240;
+        profile.restore_view = 0x250;
+        profile.pause = 0x260;
+        profile.input_visibility = 0x270;
         fixture_app->state = &fixture_scene;
         fixture_app->view = &view;
         std::memcpy(image + profile.application, &fixture_app, sizeof(fixture_app));
@@ -274,6 +324,9 @@ struct Fixture {
         trampoline(profile.save_state, native_state);
         trampoline(profile.save_file, native_file);
         trampoline(profile.load_file, native_load);
+        trampoline(profile.restore_view, native_restore);
+        trampoline(profile.pause, native_resume);
+        trampoline(profile.input_visibility, native_visibility);
         FlushInstructionCache(GetCurrentProcess(), image, 4096);
         fixture_options.autosaves = true;
         playback::MovieSnapshot still{};
@@ -374,6 +427,37 @@ int main() {
         require(!enhancements::safe_save_available(),
                 "Safe-save eligibility reused stale controls");
         controls.text_input = false;
+        movies[0].path = L"XV/23412.xmv";
+        movies[0].playing = true;
+        require(!enhancements::safe_save_available() && !enhancements::export_save_available() &&
+                    !enhancements::checkpoint_available(),
+                "A grave movie inherited authorization from enabled exploration controls");
+        const auto before_movie = serialized;
+        enhancements::quick_save(nullptr, false);
+        enhancements::quick_save(nullptr, true);
+        require(serialized == before_movie && native_loads == 0 && dialogs == 0,
+                "F5 or F9 reached native save/load during the grave movie");
+        bool export_rejected = false, load_rejected = false;
+        try {
+            enhancements::export_save(fixture_root / L"grave.x");
+        } catch (const std::exception&) {
+            export_rejected = true;
+        }
+        try {
+            enhancements::load_checkpoint(nullptr, fixture_root / L"grave.x");
+        } catch (const std::exception&) {
+            load_rejected = true;
+        }
+        require(export_rejected && load_rejected && serialized == before_movie && native_loads == 0,
+                "Direct export or checkpoint loading bypassed the playing-movie guard");
+        fixture_menu = true;
+        require(enhancements::export_save_available() && enhancements::checkpoint_available(),
+                "The original pause menu lost save/load authorization");
+        fixture_menu = false;
+        movies[0].playing = false;
+        require(enhancements::safe_save_available() && enhancements::checkpoint_available(),
+                "A stopped movie frame prevented ordinary exploration saves");
+        movies[0].path = L"navm.nmv";
         stable_update();
         require(serialized == 1 && published == 1 && previews == 1 &&
                     notification == L"Autosave complete" && native_contract,
@@ -476,8 +560,10 @@ int main() {
         invalid_native = false;
         enhancements::release_autosave();
         enhancements::quick_save(nullptr, true);
-        require(native_loads == 1 && native_contract && !enhancements::checkpoint_load_pending(),
+        require(native_loads == 1 && restores == 1 && resumes == 0 && menu_hides == 0 &&
+                    native_contract && !enhancements::checkpoint_load_pending(),
                 "Ordinary gameplay quick-load did not use the native queue and quick-save path");
+        *reinterpret_cast<void**>(image + profile.pending_load) = nullptr;
         const auto load_tick = tick;
         const auto before_load_grace = serialized;
         ++movies[0].image->sample;
@@ -512,6 +598,50 @@ int main() {
                 "An ambient navigation loop repeatedly autosaved its changing frames");
         rejects_updates([](bool on) { movies[0].path = on ? L"XV/56182.xmv" : L"XN/56182.xmv"; },
                         "A playing story movie bypassed the cutscene gate");
+        movies[0].playing = false;
+        fixture_menu = true;
+        reject_load = true;
+        enhancements::quick_save(nullptr, true);
+        require(restores == 1 && menu_hides == 0 && !enhancements::checkpoint_load_pending(),
+                "Rejected quick-load restored the view or scheduled resume");
+        bool checkpoint_rejected = false;
+        try {
+            enhancements::load_checkpoint(nullptr, fixture_root / L"saves" / L"QUICKSAVE.x");
+        } catch (const std::runtime_error&) {
+            checkpoint_rejected = true;
+        }
+        require(checkpoint_rejected && native_loads == 3 && restores == 1 && resumes == 0 &&
+                    menu_hides == 0 && !enhancements::checkpoint_load_pending() &&
+                    !*reinterpret_cast<void**>(image + profile.pending_load),
+                "Rejected checkpoint load restored the view or scheduled resume");
+        for (const auto& entry : fs::directory_iterator(fixture_root / L"saves")) {
+            require(!entry.path().filename().wstring().starts_with(L"CHECKPOINT.LOAD."),
+                    "Rejected checkpoint load retained its temporary copy");
+        }
+        reject_load = false;
+        enhancements::quick_save(nullptr, true);
+        require(native_loads == 4 && restores == 2 && resumes == 0 && menu_hides == 1 &&
+                    native_contract && enhancements::checkpoint_load_pending(),
+                "Accepted menu quick-load did not restore transition roots immediately");
+        enhancements::update_quick_load();
+        require(restores == 2 && resumes == 0, "Pending menu quick-load resumed the old scene");
+        *reinterpret_cast<void**>(image + profile.pending_load) = nullptr;
+        enhancements::update_quick_load();
+        require(restores == 3 && resumes == 1 && native_contract &&
+                    !enhancements::checkpoint_load_pending(),
+                "Completed menu quick-load did not resume and restore the replacement scene");
+        enhancements::load_checkpoint(nullptr, fixture_root / L"saves" / L"QUICKSAVE.x");
+        require(native_loads == 5 && restores == 4 && resumes == 1 && menu_hides == 2 &&
+                    native_contract && enhancements::checkpoint_load_pending(),
+                "Accepted menu load did not restore transition roots immediately");
+        enhancements::update_quick_load();
+        require(restores == 4 && resumes == 1, "Pending load resumed the old scene");
+        *reinterpret_cast<void**>(image + profile.pending_load) = nullptr;
+        enhancements::update_quick_load();
+        require(restores == 5 && resumes == 2 && native_contract &&
+                    !enhancements::checkpoint_load_pending(),
+                "Completed load did not resume and restore the replacement scene");
+        fixture_menu = false;
         check_reparse_directory();
         std::cout
             << "Autosave runtime gates, native export recheck and quick-save preservation passed\n";

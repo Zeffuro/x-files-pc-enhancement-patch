@@ -2,6 +2,7 @@
 #include "inspection.h"
 #include "media/files.h"
 #include "enhancements/rumble.h"
+#include "dvd/inspection.h"
 
 #include <windows.h>
 #include <algorithm>
@@ -154,6 +155,32 @@ Movie& movie(MovieHandle handle) {
 
 bool movie_exists(MovieHandle handle) {
     return movies.contains(handle);
+}
+
+bool scene_movie_playing(int width, int height) {
+    if (dvd::movie_playing()) {
+        return true;
+    }
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+    const auto area = static_cast<std::uint64_t>(width) * height;
+    for (const auto& [handle, value] : movies) {
+        const auto movie_width = value->box.right - value->box.left;
+        const auto movie_height = value->box.bottom - value->box.top;
+        if (!value->active || !value->rate || movie_width <= 0 || movie_height <= 0 ||
+            static_cast<std::uint64_t>(movie_width) * movie_height < area * 3 / 4 ||
+            media::navigation_archive(value->relative_path) ||
+            media::navigation_loop(value->relative_path)) {
+            continue;
+        }
+        for (const auto& track : value->tracks) {
+            if (track->enabled && track->media->handler == "vide") {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 std::uint64_t inspect_time(std::uint64_t id) {

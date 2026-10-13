@@ -1,7 +1,14 @@
 #include "native_writes.h"
 #include "database/memory.h"
 #include "game/layouts/database/variable.h"
+#include "game/layouts/database/cache.h"
+#include "game/layouts/database/story.h"
+#include "game/layouts/native_objects.h"
 #include "game/layouts/ui.h"
+#include "game/access/database.h"
+#include "game/access/world.h"
+#include "game/access/database_payload.h"
+#include "game/functions/runtime.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -11,7 +18,7 @@
 namespace devtools {
 namespace {
 static_assert(sizeof(void*) == 4);
-using Action = std::uint32_t(__stdcall*)(std::uintptr_t, std::uintptr_t, std::uintptr_t);
+using Action = native_game::NativeFunctions::NativeActionWriteCallback;
 
 struct Mapping {
     std::uint32_t setter, slot, callback;
@@ -53,6 +60,7 @@ std::atomic<std::uint64_t> dropped = 0, skipped = 0;
 const std::byte* image = nullptr;
 std::uint32_t manager_rva = 0;
 std::uint32_t application_rva = 0;
+native_game::Profile runtime_profile{};
 
 struct CodeRange {
     std::uint32_t first = 0, last = 0;
@@ -68,14 +76,17 @@ template <class T> bool read(std::uintptr_t address, T& value) {
 
 bool current_context() {
     std::uint32_t current = 0, current_state = 0, current_hdb = 0, app = 0, active = 0;
-    return manager && application && session && state == manager + 0xd8 &&
+    const native_game::NativeRuntime native(image, runtime_profile);
+    return manager && application && session &&
+           state == native_game::DatabaseManagerRef(manager).state().address() &&
            owner_thread == GetCurrentThreadId() &&
-           read(reinterpret_cast<std::uintptr_t>(image) + manager_rva, current) &&
-           current == manager && read(state + 0x18, current_state) && current_state == state_root &&
-           read(manager + 4 + 0x18, current_hdb) && current_hdb == hdb_root &&
-           read(reinterpret_cast<std::uintptr_t>(image) + application_rva, app) &&
+           read(native.database_manager().address(), current) && current == manager &&
+           read(native_game::DatabaseCacheRef(state).root().address(), current_state) &&
+           current_state == state_root &&
+           read(native_game::DatabaseManagerRef(manager).hdb().root().address(), current_hdb) &&
+           current_hdb == hdb_root && read(native.application().address(), app) &&
            app == application &&
-           read(application + offsetof(native_game::Application, state), active) &&
+           read(native_game::ApplicationRef(application).state().address(), active) &&
            active == session;
 }
 
@@ -127,16 +138,23 @@ Observation begin(std::uintptr_t runtime_action) {
     }
     std::uint32_t action = 0, descriptor = 0, id = 0;
     std::uint8_t flags = 0;
-    std::array<std::uint8_t, 12> operands{};
-    if (!read(runtime_action + 0x13c, action) || !action || !read(action + 4, id) ||
-        !read(action + 0x64, flags) || (flags & 0x7f) != 0 || !read(action + 0x60, descriptor) ||
-        !descriptor || !read(std::uintptr_t(descriptor) + (flags & 0x80 ? 12 : 0), operands) ||
-        operands[8] != 0 || operands[10] > 7) {
+    native_game::RuntimeActionExpression operands{};
+    if (!read(native_game::RuntimeActionRef(runtime_action).resource().address(), action) ||
+        !action || !read(native_game::PersistentObjectRef(action).id().address(), id) ||
+        !read(native_game::StoryActionRef(action).raw_type().address(), flags) ||
+        (flags & native_game::action_flag::type_mask) !=
+            native_game::action_flag::variable_assignment ||
+        !read(native_game::StoryActionRef(action).cached_payload().address(), descriptor) ||
+        !descriptor ||
+        !read(native_game::RuntimeActionPayloadRef(descriptor)
+                  .assignment(flags & native_game::action_flag::conditional)
+                  .address(),
+              operands) ||
+        operands.left_kind != 0 || operands.operation > 7) {
         ++skipped;
         return result;
     }
-    std::uint32_t target_id = 0;
-    std::memcpy(&target_id, operands.data(), sizeof(target_id));
+    const auto target_id = operands.left;
     if (!TryAcquireSRWLockShared(&lock)) {
         ++dropped;
         return result;
@@ -148,7 +166,7 @@ Observation begin(std::uintptr_t runtime_action) {
         result.target = *found;
         result.generation = generation;
         result.action_id = id;
-        result.operation = operands[10];
+        result.operation = operands.operation;
     }
     ReleaseSRWLockShared(&lock);
     if (!result.target.address || !read(result.target.address, result.before) ||
@@ -231,6 +249,7 @@ void clear() {
 
 bool attach_native_writes(const std::byte* executable, const native_game::Profile& profile) {
     AcquireSRWLockExclusive(&lock);
+    const native_game::NativeRuntime native(executable, profile);
     const auto found = std::find_if(mappings.begin(), mappings.end(), [&](const auto& mapping) {
         return mapping.setter == profile.variable_set_value &&
                mapping.slot == profile.native_action_write_slot &&
@@ -240,8 +259,7 @@ bool attach_native_writes(const std::byte* executable, const native_game::Profil
         const bool same = found != mappings.end() && executable == image &&
                           profile.database_manager == manager_rva &&
                           profile.application == application_rva &&
-                          reinterpret_cast<std::uintptr_t>(original) ==
-                              reinterpret_cast<std::uintptr_t>(image) + found->callback;
+                          original == native.native_action_write_callback_target();
         ReleaseSRWLockExclusive(&lock);
         return same;
     }
@@ -252,16 +270,20 @@ bool attach_native_writes(const std::byte* executable, const native_game::Profil
     std::array<std::uint8_t, 12> code{};
     std::uintptr_t current = 0;
     const auto base = reinterpret_cast<std::uintptr_t>(executable);
+    const auto callback =
+        reinterpret_cast<std::uintptr_t>(native.native_action_write_callback_target());
+    const auto slot_address = native.native_action_write_slot().address();
     if (!executable || found == mappings.end() || !image_ranges(base, *found, profile) ||
-        (base + found->slot) % sizeof(void*) || !read(base + found->callback, code) ||
-        code != (found->setter == 0x1e0780 ? dvd_prefix : cd_prefix) ||
-        !read(base + found->slot, current) || current != base + found->callback) {
+        slot_address % sizeof(void*) || !read(callback, code) ||
+        code != (found->setter == native_game::profile_dvd_20000.variable_set_value ? dvd_prefix
+                                                                                    : cd_prefix) ||
+        !read(slot_address, current) || current != callback) {
         ReleaseSRWLockExclusive(&lock);
         return false;
     }
     HMODULE module = nullptr;
     DWORD protection = 0;
-    auto** slot = reinterpret_cast<void**>(base + found->slot);
+    auto** slot = native.native_action_write_slot().get();
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
                             reinterpret_cast<const wchar_t*>(&observe_action), &module) ||
         !VirtualProtect(slot, sizeof(void*), PAGE_READWRITE, &protection)) {
@@ -271,7 +293,8 @@ bool attach_native_writes(const std::byte* executable, const native_game::Profil
     image = executable;
     manager_rva = profile.database_manager;
     application_rva = profile.application;
-    original = reinterpret_cast<Action>(base + found->callback);
+    runtime_profile = profile;
+    original = native.native_action_write_callback_target();
     // An aligned pointer exchange keeps original code and in-flight native frames intact.
     const auto previous = InterlockedCompareExchangePointer(
         slot, reinterpret_cast<void*>(&observe_action), reinterpret_cast<void*>(original));
@@ -328,7 +351,8 @@ void native_writes_context(const GameSnapshot& snapshot) {
     state = snapshot.state;
     application = snapshot.application;
     session = snapshot.session;
-    if (!read(state + 0x18, state_root) || !read(manager + 4 + 0x18, hdb_root)) {
+    if (!read(native_game::DatabaseCacheRef(state).root().address(), state_root) ||
+        !read(native_game::DatabaseManagerRef(manager).hdb().root().address(), hdb_root)) {
         manager = state = 0;
     }
     owner_thread = GetCurrentThreadId();

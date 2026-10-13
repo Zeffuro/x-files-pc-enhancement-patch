@@ -1,4 +1,5 @@
 #include <windows.h>
+#include "platform/copy_file.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -76,8 +77,8 @@ int wmain(int argc, wchar_t** argv) {
             }
         } cleanup{root};
 
-        fs::copy_file(argv[2], root / L"teaser.vob");
-        fs::copy_file(argv[2], root / L"19650.vob");
+        platform::copy_file(argv[2], root / L"teaser.vob");
+        platform::copy_file(argv[2], root / L"19650.vob");
         auto file = (root / L"teaser.vob").string();
         auto captioned = (root / L"19650.vob").string();
         auto missing = (root / L"ddigital1.vob").string();
@@ -89,6 +90,9 @@ int wmain(int argc, wchar_t** argv) {
         auto tools_pause =
             reinterpret_cast<void(__cdecl*)(int)>(GetProcAddress(module, "XFilesSetToolsPaused"));
         require(tools_pause != nullptr, "Missing tools pause bridge");
+        auto movie_playing = reinterpret_cast<int(__cdecl*)() noexcept>(
+            GetProcAddress(module, "XFilesMoviePlaying"));
+        require(movie_playing && !movie_playing(), "Missing or non-idle playing movie query");
         OFSTRUCT file_info{};
         constexpr const char* native_path = "\\vob\\dvd-hook-fixture.vob";
         require(OpenFile(native_path, &file_info, OF_EXIST) == HFILE_ERROR,
@@ -101,6 +105,7 @@ int wmain(int argc, wchar_t** argv) {
         }
         auto* object = factory();
         require(object != nullptr && call<int>(object, 1) == 1, "Factory/init failed");
+        require(!movie_playing(), "Empty adapter reports playing movie");
         require(OpenFile(native_path, &file_info, OF_EXIST) != HFILE_ERROR,
                 "Portable VOB existence hook failed");
         require(OpenFile(native_path, &file_info, OF_READ) == HFILE_ERROR,
@@ -115,7 +120,9 @@ int wmain(int argc, wchar_t** argv) {
         require(call<int>(object, 9, static_cast<void*>(parent), missing.data()) == 0,
                 "Missing input accepted");
         require(*call<char*>(object, 25) != '\0', "Open failure lost its error");
+        require(!movie_playing(), "Failed adapter reports playing movie");
         require(call<int>(object, 9, static_cast<void*>(parent), file.data()) == 1, "Open failed");
+        require(!movie_playing(), "Ready adapter reports playing movie");
         call<void>(object, 5, RECT{0, 0, 704, 480});
         call<void>(object, 5, RECT{0, 0, 64, 48});
         call<void>(object, 6, RECT{0, 0, 640, 480});
@@ -129,6 +136,11 @@ int wmain(int argc, wchar_t** argv) {
         call<void>(object, 24, -1L);
         call<void>(object, 10, static_cast<void*>(parent));
         require(call<int>(object, 20) == 1, "Play failed");
+        require(movie_playing(), "Playing adapter escaped movie query");
+        auto* idle = factory();
+        require(idle && movie_playing(), "Idle adapter hid another playing movie");
+        call<void*>(idle, 0, 1u);
+        require(movie_playing(), "Deleting idle adapter hid a playing movie");
         if (no_audio) {
             require(GetPropW(parent, L"XFilesDvdTestAudio") == nullptr,
                     "No-device fixture unexpectedly submitted audio");
@@ -142,6 +154,7 @@ int wmain(int argc, wchar_t** argv) {
         require(held != nullptr && call<int>(held, 9, static_cast<void*>(parent), file.data()) == 1,
                 "Cannot open movie inside tools pause");
         call<void>(held, 10, static_cast<void*>(parent));
+        require(!movie_playing(), "Tools-paused adapters report playing movie");
         pump(object, 3500);
         require(call<int>(object, 20) == 1 && call<int>(held, 20) == 1,
                 "Tools pause allowed a movie to finish");
@@ -150,7 +163,9 @@ int wmain(int argc, wchar_t** argv) {
         tools_pause(0);
         pump(object, 100);
         require(call<int>(object, 20) == 1, "Nested tools pause resumed too early");
+        require(!movie_playing(), "Nested tools pause reports playing movie");
         tools_pause(0);
+        require(movie_playing(), "Resumed adapter escaped movie query");
         pump(object, 500);
         require(call<int>(object, 20) == 1 && *call<char*>(object, 25) == '\0',
                 "Tools pause advanced the audio clock or failed to resume");
@@ -158,10 +173,12 @@ int wmain(int argc, wchar_t** argv) {
         pump(object, 5000);
         require(call<int>(object, 20) == 0 && call<int>(object, 21) == 0,
                 "EOF hung or became a user skip");
+        require(!movie_playing(), "Completed adapter reports playing movie");
         require(*call<char*>(object, 25) == '\0', "Playback reported a failure");
         call<void>(object, 10, static_cast<void*>(parent));
         call<void>(object, 11);
         require(call<int>(object, 20) == 0, "Pause failed");
+        require(!movie_playing(), "Paused adapter reports playing movie");
         tools_pause(1);
         tools_pause(0);
         require(call<int>(object, 20) == 0, "Tools pause resumed a previously paused movie");
@@ -177,6 +194,7 @@ int wmain(int argc, wchar_t** argv) {
         tools_pause(0);
         require(call<int>(object, 20) == 0 && call<int>(object, 21) == 1,
                 "Tools pause resumed a stopped movie");
+        require(!movie_playing(), "Stopped adapter reports playing movie");
         call<void>(object, 10, static_cast<void*>(parent));
         require(call<int>(object, 18, static_cast<void*>(parent), static_cast<unsigned>(WM_KEYDOWN),
                           static_cast<unsigned>(VK_ESCAPE), 0L) == 1,
@@ -187,6 +205,7 @@ int wmain(int argc, wchar_t** argv) {
         call<void>(object, 13, 12, 0);
         require(call<int>(object, 20) == 0 && *call<char*>(object, 25) == '\0',
                 "Seek-to-end failed");
+        require(!movie_playing(), "Seek-to-end adapter reports playing movie");
         call<void>(object, 12);
         if (argc == 3) {
             SetEnvironmentVariableW(L"XFILES_DVD_TEST_UNDERRUN", L"1");
@@ -198,10 +217,13 @@ int wmain(int argc, wchar_t** argv) {
             require(call<int>(object, 20) == 0 && call<int>(object, 21) == 0 &&
                         *call<char*>(object, 25) != '\0',
                     "Audio starvation hung or became successful EOF");
+            require(!movie_playing(), "Playback failure reports playing movie");
         }
         call<void>(object, 8, 1);
+        require(!movie_playing(), "Closed adapter reports playing movie");
         call<void>(object, 2);
         call<void*>(object, 0, 1u);
+        require(!movie_playing(), "Deleted adapter reports playing movie");
         require(OpenFile(native_path, &file_info, OF_EXIST) == HFILE_ERROR,
                 "DVD deletion did not restore OpenFile");
         DestroyWindow(parent);

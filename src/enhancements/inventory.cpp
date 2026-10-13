@@ -1,6 +1,7 @@
 #include "input_source.h"
 #include "inventory.h"
 #include "game/layouts/database/asset_reference.h"
+#include "game/access/ui.h"
 
 #include <algorithm>
 #include <array>
@@ -23,13 +24,10 @@ template <class T> bool read(const void* address, T& value) {
            bytes == sizeof(value);
 }
 
-template <class T> const void* field(const T* object, std::size_t offset) {
-    return reinterpret_cast<const void*>(reinterpret_cast<std::uintptr_t>(object) + offset);
-}
-
 std::vector<const void*> visible_groups(const game::MainView* view) {
     game::List<game::ChildView> children{};
-    if (!view || !read(field(view, game::edition().children), children) || children.count > 64) {
+    const native_game::MainViewRef owner(view, &game::edition());
+    if (!view || !read(owner.children().data(), children) || children.count > 64) {
         return {};
     }
     std::vector<const void*> result, visited;
@@ -46,8 +44,7 @@ std::vector<const void*> visible_groups(const game::MainView* view) {
         address = node.next;
     }
     game::List<game::ChildView> current{};
-    if (address || result.size() != children.count ||
-        !read(field(view, game::edition().children), current) ||
+    if (address || result.size() != children.count || !read(owner.children().data(), current) ||
         std::memcmp(&current, &children, sizeof(current))) {
         return {};
     }
@@ -57,7 +54,7 @@ std::vector<const void*> visible_groups(const game::MainView* view) {
 bool visible_inventory(const game::MainView* view) {
     const auto groups = visible_groups(view);
     return view && std::find(groups.begin(), groups.end(),
-                             field(view, offsetof(game::MainView, inventory))) != groups.end();
+                             native_game::MainViewRef(view).inventory().data()) != groups.end();
 }
 
 bool move_cursor(HWND window, POINT point) {
@@ -78,7 +75,7 @@ bool focus_item(HWND window, const game::MainView* view, const RECT& bounds) {
 
 std::vector<InventoryEntry> collect_inventory(const game::MainView* view, bool details) {
     game::Inventory inventory{};
-    if (!view || !read(field(view, offsetof(game::MainView, inventory)), inventory) ||
+    if (!view || !read(native_game::MainViewRef(view).inventory().data(), inventory) ||
         inventory.items.count > 256) {
         return {};
     }
@@ -109,11 +106,10 @@ std::vector<InventoryEntry> collect_inventory(const game::MainView* view, bool d
     return result;
 }
 
-std::vector<RECT> visible_bounds(const game::MainView* view, std::span<const std::size_t> offsets) {
+std::vector<RECT> visible_bounds(const game::MainView* view, std::span<const void* const> owners) {
     const auto groups = visible_groups(view);
     std::vector<RECT> result;
-    for (const auto offset : offsets) {
-        const auto owner = field(view, offset);
+    for (const auto owner : owners) {
         game::Inventory group{};
         if (std::find(groups.begin(), groups.end(), owner) == groups.end() || !read(owner, group) ||
             group.items.count > 64) {
@@ -166,18 +162,17 @@ std::vector<InventoryEntry> inventory_items(const game::MainView* view) {
 }
 
 std::vector<RECT> inventory_bounds(const game::MainView* view) {
-    constexpr std::array offsets{offsetof(game::MainView, inventory),
-                                 offsetof(game::MainView, evidence)};
-    return view ? visible_bounds(view, offsets) : std::vector<RECT>{};
+    const native_game::MainViewRef owner(view);
+    const std::array<const void*, 2> groups{owner.inventory().data(), owner.evidence().data()};
+    return view ? visible_bounds(view, groups) : std::vector<RECT>{};
 }
 
 std::vector<RECT> evidence_bounds(const game::MainView* view) {
-    constexpr std::array offsets{
-        offsetof(game::MainView, conversation_icons),
-        offsetof(game::MainView, conversation_icons) + sizeof(game::ConversationIcons),
-        offsetof(game::MainView, conversation_icons) + 2 * sizeof(game::ConversationIcons),
-        offsetof(game::MainView, evidence)};
-    return view ? visible_bounds(view, offsets) : std::vector<RECT>{};
+    const native_game::MainViewRef owner(view);
+    const std::array<const void*, 4> groups{
+        owner.conversation_icons(0).data(), owner.conversation_icons(1).data(),
+        owner.conversation_icons(2).data(), owner.evidence().data()};
+    return view ? visible_bounds(view, groups) : std::vector<RECT>{};
 }
 
 int inventory_target(std::span<const RECT> items, POINT cursor, int horizontal, int vertical) {
@@ -247,8 +242,8 @@ bool inventory_focused(HWND window) {
 }
 
 std::optional<RECT> inventory_item_bounds(const game::MainView* view, unsigned resource) {
-    constexpr std::array offsets{offsetof(game::MainView, inventory)};
-    const auto primary_bounds = view ? visible_bounds(view, offsets) : std::vector<RECT>{};
+    const std::array<const void*, 1> groups{native_game::MainViewRef(view).inventory().data()};
+    const auto primary_bounds = view ? visible_bounds(view, groups) : std::vector<RECT>{};
     if (primary_bounds.empty()) {
         return std::nullopt;
     }

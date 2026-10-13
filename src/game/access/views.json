@@ -1,0 +1,1070 @@
+{
+  "ui": {
+    "includes": [
+      "game/layouts/commands.h",
+      "game/layouts/native_objects.h",
+      "game/layouts/render.h"
+    ],
+    "objects": [
+      {
+        "name": "ResourceHeaderRef",
+        "layout": "ResourceHeader",
+        "fields": [
+          {
+            "name": "id",
+            "offset": "offsetof(ResourceHeader, id)"
+          },
+          {
+            "name": "type",
+            "offset": "offsetof(ResourceHeader, type)"
+          }
+        ]
+      },
+      {
+        "name": "RectangleRef",
+        "layout": "Rectangle",
+        "fields": [
+          {
+            "name": "bounds",
+            "offset": "offsetof(Rectangle, bounds)"
+          }
+        ]
+      },
+      {
+        "name": "CommandQueueRef",
+        "layout": "CommandQueue",
+        "fields": [
+          {
+            "name": "count",
+            "offset": "offsetof(CommandQueue, data) + offsetof(CommandQueuePrefix, count)",
+            "type": "decltype(CommandQueuePrefix::count)"
+          },
+          {
+            "name": "current",
+            "offset": "offsetof(CommandQueue, data) + offsetof(CommandQueuePrefix, current)",
+            "type": "decltype(CommandQueuePrefix::current)"
+          },
+          {
+            "name": "storage",
+            "offset": "offsetof(CommandQueue, data) + offsetof(CommandQueuePrefix, storage)",
+            "type": "decltype(CommandQueuePrefix::storage)"
+          },
+          {
+            "name": "capacity",
+            "offset": "offsetof(CommandQueue, data) + offsetof(CommandQueuePrefix, capacity)",
+            "type": "decltype(CommandQueuePrefix::capacity)"
+          },
+          {
+            "name": "last",
+            "offset": "offsetof(CommandQueue, last)"
+          }
+        ]
+      },
+      {
+        "name": "ApplicationRef",
+        "layout": "Application",
+        "fields": [
+          {
+            "name": "state",
+            "offset": "offsetof(Application, state)"
+          },
+          {
+            "name": "view",
+            "offset": "offsetof(Application, view)"
+          },
+          {
+            "name": "database",
+            "offset": "offsetof(Application, unknown)",
+            "member": "unknown"
+          },
+          {
+            "name": "preferences",
+            "offset": "offsetof(Application, preferences)"
+          },
+          {
+            "name": "commands",
+            "offset": "offsetof(ApplicationQueuesPrefix, commands)",
+            "view": "CommandQueueRef"
+          },
+          {
+            "name": "pointer_events",
+            "offset": "offsetof(ApplicationQueuesPrefix, pointer_events)",
+            "view": "CommandQueueRef"
+          }
+        ]
+      },
+      {
+        "name": "InventoryRef",
+        "layout": "Inventory",
+        "fields": [
+          {
+            "name": "items",
+            "offset": "offsetof(Inventory, items)"
+          }
+        ]
+      },
+      {
+        "name": "GraphicRef",
+        "layout": "InventoryIcon::Graphic",
+        "fields": [
+          {
+            "name": "resource",
+            "offset": "offsetof(InventoryIcon::Graphic, resource)"
+          }
+        ]
+      },
+      {
+        "name": "InventoryIconRef",
+        "layout": "InventoryIcon",
+        "fields": [
+          {
+            "name": "graphic",
+            "offset": "offsetof(InventoryIcon, graphic)"
+          },
+          {
+            "name": "rectangle",
+            "offset": "offsetof(InventoryIcon, rectangle)",
+            "view": "RectangleRef"
+          }
+        ]
+      },
+      {
+        "name": "MainViewRef",
+        "layout": "MainView",
+        "fields": [
+          {
+            "name": "children",
+            "offset": "build_profile->children",
+            "type": "List<ChildView>"
+          },
+          {
+            "name": "inventory",
+            "offset": "offsetof(MainView, inventory)",
+            "view": "InventoryRef"
+          },
+          {
+            "name": "evidence",
+            "offset": "offsetof(MainView, evidence)",
+            "view": "InventoryRef"
+          },
+          {
+            "name": "conversation_icons",
+            "offset": "offsetof(MainView, conversation_icons) + index * sizeof(ConversationIcons)",
+            "type": "ConversationIcons",
+            "argument": "unsigned index"
+          },
+          {
+            "name": "modal_background",
+            "offset": "offsetof(ModalViewPrefix, background)",
+            "member": "background",
+            "type": "Container"
+          },
+          {
+            "name": "modal_foreground",
+            "offset": "offsetof(ModalViewPrefix, foreground)",
+            "member": "foreground",
+            "type": "List<InventoryItem>"
+          },
+          {
+            "name": "canvas",
+            "offset": "build_profile->canvas",
+            "type": "CanvasPrefix"
+          }
+        ]
+      }
+    ]
+  },
+  "script": {
+    "includes": [
+      "ui.h",
+      "game/layouts/script.h"
+    ],
+    "objects": [
+      {
+        "name": "ScriptInputRef",
+        "layout": "ScriptInputPrefix",
+        "fields": [
+          {
+            "name": "visible",
+            "offset": "offsetof(ScriptInputPrefix, visible)"
+          },
+          {
+            "name": "enabled",
+            "offset": "offsetof(ScriptInputPrefix, enabled)"
+          },
+          {
+            "name": "disabled",
+            "offset": "offsetof(ScriptInputPrefix, disabled)"
+          },
+          {
+            "name": "resource",
+            "offset": "offsetof(ScriptInputPrefix, resource)"
+          },
+          {
+            "name": "actions",
+            "offset": "offsetof(ScriptInputPrefix, actions)"
+          }
+        ]
+      },
+      {
+        "name": "ScriptControlRef",
+        "layout": "ScriptControlPrefix",
+        "fields": [
+          {
+            "name": "input",
+            "offset": "offsetof(ScriptControlPrefix, input)",
+            "view": "ScriptInputRef"
+          },
+          {
+            "name": "id",
+            "offset": "offsetof(ScriptControlPrefix, id)"
+          },
+          {
+            "name": "rectangle",
+            "offset": "build_profile->control_rectangle",
+            "view": "RectangleRef"
+          },
+          {
+            "name": "action_count",
+            "offset": "offsetof(ScriptInputPrefix, actions) + offsetof(List<void>, count)",
+            "type": "unsigned"
+          },
+          {
+            "name": "graphic",
+            "offset": "offsetof(ScriptControlPrefix, graphic)"
+          }
+        ]
+      },
+      {
+        "name": "ScriptTextOwnerRef",
+        "layout": "ScriptTextOwner",
+        "fields": [
+          {
+            "name": "count",
+            "offset": "offsetof(ScriptTextOwner, count)"
+          },
+          {
+            "name": "current",
+            "offset": "offsetof(ScriptTextOwner, current)"
+          },
+          {
+            "name": "entries",
+            "offset": "offsetof(ScriptTextOwner, entries)"
+          }
+        ]
+      },
+      {
+        "name": "MainTextGroupRef",
+        "layout": "MainTextGroupPrefix",
+        "fields": [
+          {
+            "name": "rows",
+            "offset": "offsetof(MainTextGroupPrefix, rows)"
+          },
+          {
+            "name": "viewport",
+            "offset": "build_profile->main_text_rectangle",
+            "view": "RectangleRef"
+          }
+        ]
+      },
+      {
+        "name": "TextRef",
+        "layout": "TextPrefix",
+        "fields": [
+          {
+            "name": "string",
+            "offset": "offsetof(TextPrefix, string)"
+          }
+        ]
+      },
+      {
+        "name": "InputGraphicTextRef",
+        "layout": "InputGraphicTextPrefix",
+        "fields": [
+          {
+            "name": "text",
+            "offset": "offsetof(InputGraphicTextPrefix, text)"
+          }
+        ]
+      },
+      {
+        "name": "PhotoThumbnailRef",
+        "layout": "PhotoThumbnailPrefix",
+        "fields": [
+          {
+            "name": "graphic",
+            "offset": "offsetof(PhotoThumbnailPrefix, graphic)"
+          },
+          {
+            "name": "photo",
+            "offset": "offsetof(PhotoThumbnailPrefix, photo)"
+          },
+          {
+            "name": "point",
+            "offset": "offsetof(PhotoThumbnailPrefix, point)"
+          }
+        ]
+      },
+      {
+        "name": "PhotoGalleryRef",
+        "layout": "PhotoGallery",
+        "fields": [
+          {
+            "name": "photos",
+            "offset": "offsetof(PhotoGallery, photos)"
+          },
+          {
+            "name": "first",
+            "offset": "offsetof(PhotoGallery, first)"
+          }
+        ]
+      },
+      {
+        "name": "MainViewScriptRef",
+        "layout": "MainViewScriptPrefix",
+        "fields": [
+          {
+            "name": "text_owner",
+            "offset": "offsetof(MainViewScriptPrefix, text)",
+            "member": "text",
+            "view": "ScriptTextOwnerRef"
+          },
+          {
+            "name": "photo_owner",
+            "offset": "offsetof(MainViewScriptPrefix, photos)",
+            "member": "photos",
+            "view": "InventoryRef"
+          }
+        ]
+      },
+      {
+        "name": "ScriptStateRef",
+        "layout": "ScriptStatePrefix",
+        "fields": [
+          {
+            "name": "roots",
+            "offset": "offsetof(ScriptStatePrefix, roots)"
+          },
+          {
+            "name": "controls",
+            "offset": "offsetof(ScriptStatePrefix, controls)"
+          },
+          {
+            "name": "photos",
+            "offset": "offsetof(ScriptStatePrefix, photos)"
+          }
+        ]
+      },
+      {
+        "name": "ChoiceListRef",
+        "layout": "ChoiceList",
+        "fields": [
+          {
+            "name": "viewport",
+            "offset": "build_profile->choice_viewport",
+            "view": "RectangleRef"
+          },
+          {
+            "name": "scroll_position",
+            "offset": "build_profile->choice_viewport + offsetof(ChoiceViewportPrefix, scroll_position)",
+            "type": "unsigned"
+          }
+        ]
+      }
+    ]
+  },
+  "world": {
+    "includes": [
+      "ui.h",
+      "game/layouts/native_objects.h",
+      "game/layouts/input/events.h"
+    ],
+    "objects": [
+      {
+        "name": "SceneStateRef",
+        "layout": "SceneStatePrefix",
+        "fields": [
+          {
+            "name": "navigation",
+            "offset": "offsetof(SceneStatePrefix, navigation)"
+          },
+          {
+            "name": "pictures",
+            "offset": "offsetof(SceneStatePrefix, pictures)"
+          },
+          {
+            "name": "emotions",
+            "offset": "offsetof(SceneStatePrefix, emotions)"
+          },
+          {
+            "name": "owned_inventory",
+            "offset": "offsetof(SceneStatePrefix, owned_inventory)"
+          },
+          {
+            "name": "hotspots",
+            "offset": "offsetof(SceneStatePrefix, hotspots)"
+          },
+          {
+            "name": "selection_first",
+            "offset": "offsetof(SceneStatePrefix, selection_first)"
+          },
+          {
+            "name": "selection_second",
+            "offset": "offsetof(SceneStatePrefix, selection_second)"
+          },
+          {
+            "name": "modal",
+            "offset": "offsetof(SceneStatePrefix, modal)"
+          },
+          {
+            "name": "aiming_targets",
+            "offset": "offsetof(SceneStatePrefix, aiming_targets)"
+          }
+        ]
+      },
+      {
+        "name": "ModalViewRef",
+        "layout": "ModalViewPrefix",
+        "fields": [
+          {
+            "name": "background",
+            "offset": "offsetof(ModalViewPrefix, background)"
+          },
+          {
+            "name": "foreground",
+            "offset": "offsetof(ModalViewPrefix, foreground)"
+          }
+        ]
+      },
+      {
+        "name": "RuntimeActionRef",
+        "layout": "RuntimeActionPrefix",
+        "fields": [
+          {
+            "name": "resource",
+            "offset": "offsetof(RuntimeActionPrefix, resource)"
+          }
+        ]
+      },
+      {
+        "name": "OwnedInventoryItemRef",
+        "layout": "OwnedInventoryItemPrefix",
+        "fields": [
+          {
+            "name": "graphic",
+            "offset": "offsetof(OwnedInventoryItemPrefix, graphic)"
+          }
+        ]
+      },
+      {
+        "name": "AimingTargetRef",
+        "layout": "AimingTargetPrefix",
+        "fields": [
+          {
+            "name": "bounds",
+            "offset": "offsetof(AimingTargetPrefix, bounds)"
+          }
+        ]
+      },
+      {
+        "name": "EmotionRef",
+        "layout": "EmotionPrefix",
+        "fields": [
+          {
+            "name": "rectangle",
+            "offset": "offsetof(EmotionPrefix, rectangle)",
+            "view": "RectangleRef"
+          }
+        ]
+      },
+      {
+        "name": "MovieInputRef",
+        "layout": "MovieInputPrefix",
+        "fields": [
+          {
+            "name": "skippable",
+            "offset": "offsetof(MovieInputPrefix, skippable)"
+          }
+        ]
+      },
+      {
+        "name": "InventoryActionResourceRef",
+        "layout": "InventoryActionResourcePrefix",
+        "fields": [
+          {
+            "name": "action",
+            "offset": "offsetof(InventoryActionResourcePrefix, action)"
+          }
+        ]
+      },
+      {
+        "name": "PictureResourceRef",
+        "layout": "PictureResourcePrefix",
+        "fields": [
+          {
+            "name": "rectangle",
+            "offset": "offsetof(PictureResourcePrefix, rectangle)"
+          },
+          {
+            "name": "cursor",
+            "offset": "offsetof(PictureResourcePrefix, cursor)"
+          },
+          {
+            "name": "conversation",
+            "offset": "offsetof(PictureResourcePrefix, conversation)"
+          },
+          {
+            "name": "evidence",
+            "offset": "offsetof(PictureResourcePrefix, evidence)"
+          }
+        ]
+      },
+      {
+        "name": "NavigationResourceRef",
+        "layout": "NavigationResourcePrefix",
+        "fields": [
+          {
+            "name": "shape",
+            "offset": "offsetof(NavigationResourcePrefix, shape)"
+          }
+        ]
+      },
+      {
+        "name": "PreferencesRef",
+        "layout": "PreferencesPrefix",
+        "fields": [
+          {
+            "name": "skip_movies",
+            "offset": "offsetof(PreferencesPrefix, skip_movies)"
+          }
+        ]
+      },
+      {
+        "name": "ObjectFlagsRef",
+        "layout": "ObjectFlags",
+        "fields": [
+          {
+            "name": "enabled",
+            "offset": "offsetof(ObjectFlags, enabled)"
+          },
+          {
+            "name": "blocked",
+            "offset": "offsetof(ObjectFlags, blocked)"
+          },
+          {
+            "name": "type",
+            "offset": "offsetof(ObjectFlags, type)"
+          },
+          {
+            "name": "visible",
+            "offset": "offsetof(ObjectFlags, visible)"
+          }
+        ]
+      },
+      {
+        "name": "ResourceObjectRef",
+        "layout": "ResourceObject",
+        "fields": [
+          {
+            "name": "resource",
+            "offset": "offsetof(ResourceObject, resource)"
+          },
+          {
+            "name": "object",
+            "offset": "offsetof(ResourceObject, object)",
+            "view": "ObjectFlagsRef"
+          },
+          {
+            "name": "flags",
+            "offset": "offsetof(ResourceObject, flags)"
+          },
+          {
+            "name": "active",
+            "offset": "offsetof(ResourceObject, active)"
+          }
+        ]
+      },
+      {
+        "name": "RuntimeActionExpressionRef",
+        "layout": "RuntimeActionExpression",
+        "fields": [
+          {
+            "name": "left_kind",
+            "offset": "offsetof(RuntimeActionExpression, left_kind)"
+          },
+          {
+            "name": "operation",
+            "offset": "offsetof(RuntimeActionExpression, operation)"
+          },
+          {
+            "name": "left",
+            "offset": "offsetof(RuntimeActionExpression, left)"
+          },
+          {
+            "name": "right",
+            "offset": "offsetof(RuntimeActionExpression, right)"
+          },
+          {
+            "name": "right_kind",
+            "offset": "offsetof(RuntimeActionExpression, right_kind)"
+          }
+        ]
+      },
+      {
+        "name": "InputEventsRef",
+        "layout": "InputEvents",
+        "fields": [
+          {
+            "name": "actions",
+            "offset": "offsetof(InputEvents, actions)"
+          }
+        ]
+      },
+      {
+        "name": "PictureActionsRef",
+        "layout": "PictureActions",
+        "fields": [
+          {
+            "name": "eligible",
+            "offset": "offsetof(PictureActions, eligible)"
+          }
+        ]
+      },
+      {
+        "name": "WorldPictureRef",
+        "layout": "WorldPicturePrefix",
+        "fields": [
+          {
+            "name": "actions",
+            "offset": "offsetof(WorldPicturePrefix, actions)",
+            "view": "PictureActionsRef"
+          }
+        ]
+      }
+    ]
+  },
+  "database": {
+    "includes": [
+      "ui.h",
+      "game/layouts/database/cache.h",
+      "game/layouts/database/story.h",
+      "game/layouts/database/variable.h"
+    ],
+    "objects": [
+      {
+        "name": "PersistentObjectRef",
+        "layout": "PersistentObject",
+        "fields": [
+          {
+            "name": "flags",
+            "offset": "offsetof(PersistentObject, flags)"
+          },
+          {
+            "name": "references",
+            "offset": "offsetof(PersistentObject, references)"
+          },
+          {
+            "name": "vtable",
+            "offset": "offsetof(PersistentObject, vtable)"
+          },
+          {
+            "name": "id",
+            "offset": "offsetof(PersistentObject, id)"
+          }
+        ]
+      },
+      {
+        "name": "ConversationAssociationRef",
+        "layout": "ConversationAssociationPrefix",
+        "fields": [
+          {
+            "name": "tree",
+            "offset": "offsetof(ConversationAssociationPrefix, tree)"
+          },
+          {
+            "name": "count",
+            "offset": "offsetof(ConversationAssociationPrefix, count)"
+          },
+          {
+            "name": "index_class",
+            "offset": "offsetof(ConversationAssociationPrefix, index_class)"
+          },
+          {
+            "name": "tag",
+            "offset": "offsetof(ConversationAssociationPrefix, tag)"
+          },
+          {
+            "name": "cached_root",
+            "offset": "offsetof(ConversationAssociationPrefix, cached_root)"
+          }
+        ]
+      },
+      {
+        "name": "DatabaseNodeRef",
+        "layout": "DatabaseNode",
+        "fields": [
+          {
+            "name": "count",
+            "offset": "offsetof(DatabaseNode, count)"
+          },
+          {
+            "name": "branch_entry",
+            "offset": "sizeof(DatabaseNode) + index * sizeof(DatabaseBranchEntry)",
+            "type": "DatabaseBranchEntry",
+            "argument": "unsigned index"
+          },
+          {
+            "name": "class_entry",
+            "offset": "sizeof(DatabaseNode) + index * sizeof(DatabaseClassEntry)",
+            "type": "DatabaseClassEntry",
+            "argument": "unsigned index"
+          },
+          {
+            "name": "object_entry",
+            "offset": "sizeof(DatabaseNode) + index * sizeof(DatabaseObjectEntry)",
+            "type": "DatabaseObjectEntry",
+            "argument": "unsigned index"
+          },
+          {
+            "name": "id_list",
+            "offset": "sizeof(DatabaseNode)",
+            "type": "std::uint32_t"
+          }
+        ]
+      },
+      {
+        "name": "DatabaseClassEntryRef",
+        "layout": "DatabaseClassEntry",
+        "fields": [
+          {
+            "name": "indexes",
+            "offset": "offsetof(DatabaseClassEntry, indexes)"
+          }
+        ]
+      },
+      {
+        "name": "DatabaseCacheRef",
+        "layout": "DatabaseCachePrefix",
+        "fields": [
+          {
+            "name": "root",
+            "offset": "offsetof(DatabaseCachePrefix, root)"
+          }
+        ]
+      },
+      {
+        "name": "DatabaseManagerRef",
+        "layout": "DatabaseManagerPrefix",
+        "fields": [
+          {
+            "name": "hdb",
+            "offset": "offsetof(DatabaseManagerPrefix, hdb)",
+            "view": "DatabaseCacheRef"
+          },
+          {
+            "name": "state",
+            "offset": "offsetof(DatabaseManagerPrefix, state)",
+            "view": "DatabaseCacheRef"
+          },
+          {
+            "name": "conversations",
+            "offset": "offsetof(DatabaseManagerPrefix, conversations)"
+          }
+        ]
+      },
+      {
+        "name": "StoryHotspotRef",
+        "layout": "StoryHotspot",
+        "fields": [
+          {
+            "name": "left",
+            "offset": "offsetof(StoryHotspot, left)"
+          },
+          {
+            "name": "name_id",
+            "offset": "offsetof(StoryHotspot, name_id)"
+          },
+          {
+            "name": "rectangle",
+            "offset": "offsetof(StoryHotspot, rectangle_vtable)",
+            "view": "RectangleRef"
+          },
+          {
+            "name": "shape_value",
+            "offset": "offsetof(StoryHotspot, shape_value)"
+          }
+        ]
+      },
+      {
+        "name": "StoryStandardActionRef",
+        "layout": "StoryStandardAction",
+        "fields": [
+          {
+            "name": "action_id",
+            "offset": "offsetof(StoryStandardAction, action_id)"
+          }
+        ]
+      },
+      {
+        "name": "StoryTitleRef",
+        "layout": "StoryTitle",
+        "fields": [
+          {
+            "name": "name_id",
+            "offset": "offsetof(StoryTitle, name_id)"
+          },
+          {
+            "name": "trigger_list_id",
+            "offset": "offsetof(StoryTitle, trigger_list_id)"
+          }
+        ]
+      },
+      {
+        "name": "StoryNameRef",
+        "layout": "StoryName",
+        "fields": [
+          {
+            "name": "strings",
+            "offset": "offsetof(StoryName, strings)"
+          }
+        ]
+      },
+      {
+        "name": "StoryReferenceListRef",
+        "layout": "StoryReferenceList",
+        "fields": [
+          {
+            "name": "cached_resource",
+            "offset": "offsetof(StoryReferenceList, cached_resource)"
+          }
+        ]
+      },
+      {
+        "name": "StoryContextRef",
+        "layout": "StoryContext",
+        "fields": [
+          {
+            "name": "values",
+            "offset": "offsetof(StoryContext, values)"
+          }
+        ]
+      },
+      {
+        "name": "StoryTriggerRef",
+        "layout": "StoryTrigger",
+        "fields": [
+          {
+            "name": "integers",
+            "offset": "offsetof(StoryTrigger, integers)"
+          },
+          {
+            "name": "booleans",
+            "offset": "offsetof(StoryTrigger, booleans)"
+          },
+          {
+            "name": "bytes",
+            "offset": "offsetof(StoryTrigger, bytes)"
+          },
+          {
+            "name": "context",
+            "offset": "offsetof(StoryTrigger, context)"
+          },
+          {
+            "name": "action_list_id",
+            "offset": "offsetof(StoryTrigger, action_list_id)"
+          },
+          {
+            "name": "raw_type",
+            "offset": "offsetof(StoryTrigger, raw_type)"
+          }
+        ]
+      },
+      {
+        "name": "StoryActionRef",
+        "layout": "StoryAction",
+        "fields": [
+          {
+            "name": "payload_size",
+            "offset": "offsetof(StoryAction, payload_size)"
+          },
+          {
+            "name": "cached_payload",
+            "offset": "offsetof(StoryAction, cached_payload)"
+          },
+          {
+            "name": "raw_type",
+            "offset": "offsetof(StoryAction, raw_type)"
+          }
+        ]
+      },
+      {
+        "name": "VariableRef",
+        "layout": "Variable",
+        "fields": [
+          {
+            "name": "id",
+            "offset": "offsetof(Variable, id)"
+          },
+          {
+            "name": "raw_value",
+            "offset": "offsetof(Variable, raw_value)"
+          },
+          {
+            "name": "type_flags",
+            "offset": "offsetof(Variable, type_flags)"
+          },
+          {
+            "name": "name",
+            "offset": "offsetof(Variable, name)"
+          }
+        ]
+      },
+      {
+        "name": "ConversationRegistryRef",
+        "layout": "ConversationRegistry",
+        "fields": [
+          {
+            "name": "entries",
+            "offset": "offsetof(ConversationRegistry, entries)"
+          },
+          {
+            "name": "count",
+            "offset": "offsetof(ConversationRegistry, count)"
+          }
+        ]
+      },
+      {
+        "name": "PersistentVTableRef",
+        "layout": "PersistentVTablePrefix",
+        "fields": [
+          {
+            "name": "class_getter",
+            "offset": "offsetof(PersistentVTablePrefix, class_getter)"
+          }
+        ]
+      }
+    ]
+  },
+  "render": {
+    "includes": [
+      "ui.h",
+      "game/layouts/render.h"
+    ],
+    "objects": [
+      {
+        "name": "PositionedDrawableRef",
+        "layout": "PositionedDrawable",
+        "fields": [
+          {
+            "name": "position",
+            "offset": "offsetof(PositionedDrawable, position)"
+          },
+          {
+            "name": "effect",
+            "offset": "offsetof(PositionedDrawable, effect)"
+          }
+        ]
+      },
+      {
+        "name": "CreditGroupVTableRef",
+        "layout": "CreditGroupVTable",
+        "fields": [
+          {
+            "name": "update",
+            "offset": "offsetof(CreditGroupVTable, update)"
+          },
+          {
+            "name": "draw",
+            "offset": "offsetof(CreditGroupVTable, draw)"
+          }
+        ]
+      },
+      {
+        "name": "CreditGroupRef",
+        "layout": "CreditGroupPrefix",
+        "fields": [
+          {
+            "name": "drawables",
+            "offset": "offsetof(CreditGroupPrefix, drawables)"
+          }
+        ]
+      },
+      {
+        "name": "MainViewCreditsRef",
+        "layout": "MainViewCreditsPrefix",
+        "fields": [
+          {
+            "name": "credits",
+            "offset": "offsetof(MainViewCreditsPrefix, credits)"
+          }
+        ]
+      },
+      {
+        "name": "CreditTextOwnerRef",
+        "layout": "CreditTextOwnerPrefix",
+        "fields": [
+          {
+            "name": "text",
+            "offset": "offsetof(CreditTextOwnerPrefix, text)"
+          },
+          {
+            "name": "position",
+            "offset": "build_profile->credit_position",
+            "type": "RenderPoint"
+          }
+        ]
+      },
+      {
+        "name": "CreditTextRef",
+        "layout": "CreditTextPrefix",
+        "fields": [
+          {
+            "name": "rectangle",
+            "offset": "offsetof(CreditTextPrefix, rectangle)"
+          },
+          {
+            "name": "owner",
+            "offset": "offsetof(CreditTextOwnerPrefix, text)",
+            "before": true,
+            "view": "CreditTextOwnerRef"
+          }
+        ]
+      },
+      {
+        "name": "CanvasBackendRef",
+        "layout": "CanvasBackendPrefix",
+        "fields": [
+          {
+            "name": "kind",
+            "offset": "offsetof(CanvasBackendPrefix, kind)"
+          },
+          {
+            "name": "port",
+            "offset": "offsetof(CanvasBackendPrefix, port)"
+          }
+        ]
+      },
+      {
+        "name": "CanvasVTableRef",
+        "layout": "CanvasVTable",
+        "fields": [
+          {
+            "name": "invalidate",
+            "offset": "offsetof(CanvasVTable, invalidate)"
+          }
+        ]
+      },
+      {
+        "name": "CanvasRef",
+        "layout": "CanvasPrefix",
+        "fields": [
+          {
+            "name": "backend",
+            "offset": "offsetof(CanvasPrefix, backend)"
+          }
+        ]
+      }
+    ]
+  }
+}

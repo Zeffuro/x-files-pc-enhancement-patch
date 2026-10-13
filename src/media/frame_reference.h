@@ -24,6 +24,17 @@ inline bool navigation_archive(const std::filesystem::path& path) {
            ((name[3] >= L'1' && name[3] <= L'7') || name[3] == L'm');
 }
 
+inline bool navigation_loop(const std::filesystem::path& path) {
+    auto parent = path.parent_path().filename().wstring();
+    auto extension = path.extension().wstring();
+    std::transform(parent.begin(), parent.end(), parent.begin(), std::towlower);
+    std::transform(extension.begin(), extension.end(), extension.begin(), std::towlower);
+    const auto name = path.stem().wstring();
+    return parent == L"xn" && extension == L".xmv" && !name.empty() &&
+           std::all_of(name.begin(), name.end(),
+                       [](wchar_t ch) { return ch >= L'0' && ch <= L'9'; });
+}
+
 inline std::wstring frame_key(const std::filesystem::path& path, const FrameReference& frame) {
     auto name = path.generic_wstring();
     std::transform(name.begin(), name.end(), name.begin(), std::towlower);

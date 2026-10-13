@@ -3,6 +3,7 @@
 #include "game/layouts/database/story.h"
 #include "game/layouts/database/variable.h"
 #include "game/profiles/variables.h"
+#include "game/functions/runtime.h"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -26,7 +27,7 @@ std::wstring story_variable_name(const NativeDatabaseObject& object) {
     native_game::Variable copied{};
     native_game::StoryString descriptor{};
     std::memcpy(&copied, object.bytes.data(), sizeof(copied));
-    std::memcpy(&descriptor, object.bytes.data() + 0x28, sizeof(descriptor));
+    std::memcpy(&descriptor, &copied.name, sizeof(descriptor));
     if (!descriptor.data || !descriptor.capacity) {
         return L"<name uncached>";
     }
@@ -67,11 +68,12 @@ std::vector<StateVariable> story_state_variables(const NativeDatabaseSnapshot& s
     }
     std::vector<std::pair<std::uint32_t, std::wstring>> registrations;
     if (image && profile) {
+        const native_game::NativeRuntime native(image, *profile);
         for (const auto& slot : native_game::registered_variables) {
             std::uint32_t pointer = 0;
             const auto rva = slot.rva(*profile);
             if (rva &&
-                database_copy(reinterpret_cast<std::uintptr_t>(image + rva), &pointer,
+                database_copy(native.registered_variable(slot).address(), &pointer,
                               sizeof(pointer)) &&
                 pointer) {
                 registrations.emplace_back(pointer, slot.registration);

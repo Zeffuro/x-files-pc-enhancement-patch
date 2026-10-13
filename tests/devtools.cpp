@@ -405,9 +405,12 @@ int main() {
         require(native_game::inventory_selection_name(0) == L"None" &&
                     native_game::inventory_selection_name(9) == L"Gun" &&
                     native_game::inventory_selection_name(12) == L"Lockpick" &&
-                    native_game::inventory_selection_name(2).empty() &&
-                    native_game::inventory_selection_name(3) == L"PDA" &&
-                    native_game::inventory_selection_name(1).empty() &&
+                    native_game::inventory_selection_name(2) == L"Binoculars" &&
+                    native_game::inventory_selection_name(3) == L"Camera" &&
+                    native_game::inventory_selection_name(14) == L"PDA" &&
+                    native_game::inventory_selection_name(20) == L"Photo of Smolnikoff" &&
+                    native_game::inventory_selection_name(23) == L"Stiletto" &&
+                    native_game::inventory_selection_name(1) == L"Badge" &&
                     native_game::inventory_selection_name(0x1be8).empty(),
                 "Inventory selection enum confused a graphic resource or unknown value");
         for (const auto* text : {L"00:00:10,3", L"10.3", L"0:10.300", L" 10,300 "}) {

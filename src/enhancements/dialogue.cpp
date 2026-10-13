@@ -1,5 +1,8 @@
 #include "input_source.h"
 #include "dialogue.h"
+#include "game/layouts/script.h"
+#include "game/functions/runtime.h"
+#include "game/access/script.h"
 #include "game_strings.h"
 #include "game_ui.h"
 #include "identity.h"
@@ -17,8 +20,8 @@
 namespace enhancements {
 namespace {
 
-using DrawList = int(__stdcall*)(game::Container*, void*, void*);
-using ScrollList = void(__stdcall*)(game::ChoiceList*);
+using DrawList = native_game::NativeFunctions::DrawList;
+using ScrollList = native_game::NativeFunctions::MainScrollUp;
 
 ImportHooks imports;
 DrawList original_draw = nullptr;
@@ -193,7 +196,7 @@ bool advance_scroll(ScrollNavigation& request) {
         return false;
     }
     const auto position =
-        reinterpret_cast<const std::byte*>(request.list) + game::edition().choice_viewport + 0x9c;
+        native_game::ChoiceListRef(request.list, &game::edition()).scroll_position().data();
     std::uint32_t before = 0, after = 0;
     std::memcpy(&before, position, sizeof(before));
     request.generation = draw_generation;
@@ -267,34 +270,14 @@ void attach_dialogue(HWND window) {
         set_game_string_dvd_fallback(identity.build->id == native_game::BuildId::dvd_20000);
         auto* base = reinterpret_cast<std::byte*>(GetModuleHandleW(nullptr));
         const auto& addresses = *identity.build->profile;
-        draw_slot = reinterpret_cast<DrawList*>(base + addresses.draw_slot);
-        original_draw = reinterpret_cast<DrawList>(base + addresses.draw_list);
-        talk_list = reinterpret_cast<game::ChoiceList*>(base + addresses.talk_list);
-        history_list = reinterpret_cast<game::ChoiceList*>(base + addresses.history_list);
-        application = reinterpret_cast<game::Application**>(base + addresses.application);
-        std::uint32_t up = 0, down = 0;
-        switch (identity.build->id) {
-            case native_game::BuildId::cd_10012:
-                up = 0x150c40;
-                down = 0x150da0;
-                break;
-            case native_game::BuildId::cd_10019:
-                up = 0x153c60;
-                down = 0x153dc0;
-                break;
-            case native_game::BuildId::cd_10020:
-                up = 0x154200;
-                down = 0x154360;
-                break;
-            case native_game::BuildId::dvd_20000:
-                up = 0x13a9d0;
-                down = 0x13ab30;
-                break;
-            default:
-                break;
-        }
-        scroll_up = up ? reinterpret_cast<ScrollList>(base + up) : nullptr;
-        scroll_down = down ? reinterpret_cast<ScrollList>(base + down) : nullptr;
+        const native_game::NativeRuntime functions(base, addresses);
+        draw_slot = functions.draw_slot().get();
+        original_draw = functions.draw_list_target();
+        talk_list = functions.talk_list().get();
+        history_list = functions.history_list().get();
+        application = functions.application().get();
+        scroll_up = functions.main_scroll_up_target();
+        scroll_down = functions.main_scroll_down_target();
         if (*draw_slot != original_draw ||
             !imports.install(GetModuleHandleW(nullptr), "USER32.dll", resolve) ||
             !replace_draw(draw_list)) {

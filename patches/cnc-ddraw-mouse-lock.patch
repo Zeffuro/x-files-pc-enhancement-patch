@@ -1,0 +1,298 @@
+diff --git a/inc/mouse.h b/inc/mouse.h
+index 1181ac2..a599568 100644
+--- a/inc/mouse.h
++++ b/inc/mouse.h
+@@ -1,6 +1,13 @@
+ #ifndef MOUSE_H
+ #define MOUSE_H
+ 
++BOOL xfiles_windowed_mouse_active(void);
++LRESULT xfiles_set_windowed_mouse(WPARAM request, LPARAM paused);
++void xfiles_release_windowed_mouse(void);
++void xfiles_resume_windowed_mouse(void);
++void xfiles_suspend_windowed_mouse(BOOL suspend);
++void xfiles_refresh_windowed_mouse(void);
++
+ void mouse_lock();
+ void mouse_unlock();
+ LRESULT CALLBACK mouse_hook_proc(int Code, WPARAM wParam, LPARAM lParam);
+diff --git a/src/dd.c b/src/dd.c
+index 1be989a..39d8985 100644
+--- a/src/dd.c
++++ b/src/dd.c
+@@ -619,6 +619,8 @@ HRESULT dd_GetVerticalBlankStatus(LPBOOL lpbIsInVB)
+ 
+ HRESULT dd_RestoreDisplayMode()
+ {
++    if (xfiles_windowed_mouse_active())
++        mouse_unlock();
+     if (!g_ddraw.render.run)
+     {
+         return DD_OK;
+diff --git a/src/keyboard.c b/src/keyboard.c
+index 2ca9fbb..9066bea 100644
+--- a/src/keyboard.c
++++ b/src/keyboard.c
+@@ -96,7 +96,7 @@ LRESULT CALLBACK keyboard_hook_proc(int code, WPARAM wParam, LPARAM lParam)
+         if ((real_GetAsyncKeyState(VK_CONTROL) & 0x8000) && 
+             (real_GetAsyncKeyState(g_config.hotkeys.unlock_cursor1) & 0x8000))
+         {
+-            mouse_unlock();
++            xfiles_release_windowed_mouse();
+ 
+             if (key_down)
+                 return 1;
+@@ -108,7 +108,7 @@ LRESULT CALLBACK keyboard_hook_proc(int code, WPARAM wParam, LPARAM lParam)
+         if ((real_GetAsyncKeyState(VK_RMENU) & 0x8000) && 
+             (real_GetAsyncKeyState(g_config.hotkeys.unlock_cursor2) & 0x8000))
+         {
+-            mouse_unlock();
++            xfiles_release_windowed_mouse();
+ 
+             if (key_down)
+                 return 1;
+diff --git a/src/mouse.c b/src/mouse.c
+index e2366bb..257fabd 100644
+--- a/src/mouse.c
++++ b/src/mouse.c
+@@ -5,14 +5,92 @@
+ #include "hook.h"
+ #include "utils.h"
+ #include "config.h"
++#include "mouse.h"
+ 
+ 
+ BOOL g_mouse_locked;
+ HHOOK g_mouse_hook;
+ HOOKPROC g_mouse_proc;
+ 
++static BOOL xfiles_windowed_mouse_enabled;
++static BOOL xfiles_windowed_mouse_locked;
++static BOOL xfiles_windowed_mouse_paused;
++static BOOL xfiles_windowed_mouse_released;
++static BOOL xfiles_windowed_mouse_suspended;
++
++BOOL xfiles_windowed_mouse_active(void)
++{
++    return xfiles_windowed_mouse_enabled && g_config.windowed && !g_config.fullscreen;
++}
++
++LRESULT xfiles_set_windowed_mouse(WPARAM request, LPARAM paused)
++{
++    if ((request == 1 || request == 2) &&
++        (xfiles_windowed_mouse_enabled != (request == 2) || xfiles_windowed_mouse_paused != !!paused))
++    {
++        if (xfiles_windowed_mouse_locked)
++            mouse_unlock();
++        if (xfiles_windowed_mouse_enabled != (request == 2))
++            xfiles_windowed_mouse_released = FALSE;
++        xfiles_windowed_mouse_enabled = request == 2;
++        xfiles_windowed_mouse_paused = !!paused;
++        if (xfiles_windowed_mouse_active())
++            mouse_lock();
++    }
++    return xfiles_windowed_mouse_enabled ? 2 : 1;
++}
++
++void xfiles_release_windowed_mouse(void)
++{
++    if (xfiles_windowed_mouse_active())
++        xfiles_windowed_mouse_released = TRUE;
++    mouse_unlock();
++}
++
++void xfiles_resume_windowed_mouse(void)
++{
++    if (xfiles_windowed_mouse_active() && real_GetForegroundWindow() == g_ddraw.hwnd)
++    {
++        xfiles_windowed_mouse_released = FALSE;
++        mouse_lock();
++    }
++}
++
++void xfiles_suspend_windowed_mouse(BOOL suspend)
++{
++    xfiles_windowed_mouse_suspended = suspend;
++    if (suspend && xfiles_windowed_mouse_locked)
++        mouse_unlock();
++    else if (!suspend && xfiles_windowed_mouse_active())
++        mouse_lock();
++}
++
++void xfiles_refresh_windowed_mouse(void)
++{
++    if (xfiles_windowed_mouse_locked)
++        mouse_lock();
++}
++
+ void mouse_lock()
+ {
++    if (xfiles_windowed_mouse_active())
++    {
++        if (!g_hook_active || !g_ddraw.ref || !g_ddraw.width || !g_ddraw.render.run ||
++            xfiles_windowed_mouse_released || xfiles_windowed_mouse_suspended || xfiles_windowed_mouse_paused ||
++            xfiles_tool_cursor_active() || g_ddraw.bnet_active || !g_ddraw.hwnd ||
++            util_is_minimized(g_ddraw.hwnd) || real_GetForegroundWindow() != g_ddraw.hwnd)
++            return;
++
++        /* Real APIs use the physical client, including any scaling bars. */
++        RECT rc = { 0 };
++        if (real_GetClientRect(g_ddraw.hwnd, &rc) && !IsRectEmpty(&rc))
++        {
++            real_MapWindowPoints(g_ddraw.hwnd, HWND_DESKTOP, (LPPOINT)&rc, 2);
++            if (real_ClipCursor(&rc))
++                xfiles_windowed_mouse_locked = g_mouse_locked = TRUE;
++        }
++        return;
++    }
+     if (xfiles_tool_cursor_active() || g_config.devmode || g_ddraw.bnet_active || !g_ddraw.hwnd)
+         return;
+ 
+@@ -55,6 +133,13 @@ void mouse_lock()
+ 
+ void mouse_unlock()
+ {
++    if (xfiles_windowed_mouse_locked)
++    {
++        xfiles_windowed_mouse_locked = g_mouse_locked = FALSE;
++        real_ClipCursor(NULL);
++        ReleaseCapture();
++        return;
++    }
+     if (g_config.devmode || !g_hook_active || !g_ddraw.hwnd)
+         return;
+ 
+diff --git a/src/winapi_hooks.c b/src/winapi_hooks.c
+index 7ef3678..3cd5cb0 100644
+--- a/src/winapi_hooks.c
++++ b/src/winapi_hooks.c
+@@ -100,6 +100,11 @@ BOOL WINAPI fake_GetCursorPos(LPPOINT lpPoint)
+ 
+ BOOL WINAPI fake_ClipCursor(const RECT* lpRect)
+ {
++    if (xfiles_windowed_mouse_active())
++    {
++        xfiles_refresh_windowed_mouse();
++        return TRUE;
++    }
+     if (g_ddraw.ref && g_ddraw.hwnd && g_ddraw.width)
+     {
+         RECT dst_rc = {
+@@ -162,6 +167,8 @@ void xfiles_set_tool_cursor(unsigned request)
+     if (enabled)
+     {
+         InterlockedExchange(&xfiles_tool_cursor, TRUE);
++        if (xfiles_windowed_mouse_active())
++            mouse_unlock();
+         int count = real_ShowCursor(TRUE);
+         if (count > 0) real_ShowCursor(FALSE);
+         else while (count < 0) count = real_ShowCursor(TRUE);
+@@ -177,6 +184,8 @@ void xfiles_set_tool_cursor(unsigned request)
+         while (count < target) count = real_ShowCursor(TRUE);
+         while (count > target) count = real_ShowCursor(FALSE);
+         real_SetCursor((HCURSOR)InterlockedExchangeAdd((LONG*)&g_ddraw.old_cursor, 0));
++        if (xfiles_windowed_mouse_active())
++            mouse_lock();
+     }
+ }
+ 
+diff --git a/src/wndproc.c b/src/wndproc.c
+index fdb88f6..9c5095c 100644
+--- a/src/wndproc.c
++++ b/src/wndproc.c
+@@ -79,6 +79,9 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+     static BOOL in_size_move = FALSE;
+     static int redraw_count = 0;
+ 
++    if (uMsg == RegisterWindowMessageA("XFilesEnhancement.WindowedMouseLock"))
++        return xfiles_set_windowed_mouse(wParam, lParam);
++
+     if (uMsg == RegisterWindowMessageA("XFilesEnhancement.DisplayMode"))
+     {
+         if ((wParam == 1 || wParam == 2) && g_config.windowed &&
+@@ -391,6 +394,7 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+         if (g_config.windowed)
+         {
+             in_size_move = TRUE;
++            xfiles_suspend_windowed_mouse(TRUE);
+         }
+         break;
+     }
+@@ -402,6 +406,7 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+ 
+             if (!g_ddraw.render.thread)
+                 dd_SetDisplayMode(0, 0, 0, 0);
++            xfiles_suspend_windowed_mouse(FALSE);
+         }
+         break;
+     }
+@@ -557,6 +562,10 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+     }
+     case WM_SIZE:
+     {
++        if (wParam == SIZE_MINIMIZED && xfiles_windowed_mouse_active())
++            mouse_unlock();
++        else
++            xfiles_refresh_windowed_mouse();
+         if (g_config.windowed)
+         {
+             WORD width = LOWORD(lParam);
+@@ -637,6 +646,7 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+     }
+     case WM_MOVE:
+     {
++        xfiles_refresh_windowed_mouse();
+         if (g_config.windowed)
+         {
+             int x = (int)(short)LOWORD(lParam);
+@@ -746,6 +756,13 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+     }
+     case WM_ACTIVATE:
+     {
++        if (xfiles_windowed_mouse_active())
++        {
++            if (LOWORD(wParam) == WA_INACTIVE)
++                mouse_unlock();
++            else
++                xfiles_resume_windowed_mouse();
++        }
+         if (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE)
+         {
+             if (g_ddraw.got_child_windows)
+@@ -809,6 +826,8 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+     }
+     case WM_ACTIVATEAPP:
+     {
++        if (wParam)
++            xfiles_resume_windowed_mouse();
+         if (wParam)
+         {
+             if (!g_config.windowed)
+@@ -820,7 +839,8 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+                     mouse_lock();
+                 }
+             }
+-            else if (g_config.fullscreen && real_GetForegroundWindow() == g_ddraw.hwnd)
++            else if ((g_config.fullscreen || xfiles_windowed_mouse_active()) &&
++                real_GetForegroundWindow() == g_ddraw.hwnd)
+             {
+                 mouse_lock();
+             }
+@@ -958,6 +978,7 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+     case WM_RBUTTONUP:
+     case WM_MBUTTONUP:
+     {
++        xfiles_resume_windowed_mouse();
+         if (!g_config.devmode && !g_mouse_locked)
+         {
+             int x = GET_X_LPARAM(lParam);
+@@ -1002,6 +1023,9 @@ LRESULT CALLBACK fake_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam
+     case WM_MBUTTONDOWN:
+     case WM_MOUSEMOVE:
+     {
++        if (uMsg == WM_LBUTTONDOWN || uMsg == WM_RBUTTONDOWN || uMsg == WM_MBUTTONDOWN ||
++            uMsg == WM_XBUTTONDOWN)
++            xfiles_resume_windowed_mouse();
+         if (!g_config.devmode && !g_mouse_locked)
+         {
+             return 0;

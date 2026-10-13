@@ -2,12 +2,21 @@
 #include "game_ui.h"
 #include "dialogue.h"
 #include "game_resources.h"
+#include "game/layouts/native_objects.h"
+#include "game/layouts/database/variable.h"
+#include "game/layouts/input/events.h"
+#include "game/layouts/commands.h"
+#include "game/layouts/script.h"
+#include "game/layouts/input/inventory_selection.h"
+#include "game/access/world.h"
+#include "game/access/database.h"
+#include "game/functions/runtime.h"
 
 namespace enhancements {
 namespace {
 
 thread_local bool equipping = false;
-constexpr int gun_action = 9;
+constexpr auto gun_action = native_game::inventory_selection::gun;
 
 template <class T> bool read(const void* address, T& value) {
     SIZE_T bytes = 0;
@@ -15,15 +24,6 @@ template <class T> bool read(const void* address, T& value) {
            ReadProcessMemory(GetCurrentProcess(), address, &value, sizeof(value), &bytes) &&
            bytes == sizeof(value);
 }
-
-const void* field(const void* object, std::size_t offset) {
-    return reinterpret_cast<const void*>(reinterpret_cast<std::uintptr_t>(object) + offset);
-}
-
-struct Object {
-    void* vtable;
-    unsigned visible, enabled, disabled;
-};
 
 template <class Callback> bool visit(const void* address, Callback callback) {
     game::List<std::byte> list{};
@@ -67,61 +67,85 @@ struct Selection {
 bool inspect(std::byte* image, const game::Edition& profile, Selection& selection) {
     unsigned scene = 0, registered_action = 0, queued = 0;
     std::uint8_t variable_type = 0;
-    if (!image || !read(image + profile.application, selection.application) ||
+    if (!image ||
+        !read(native_game::NativeRuntime(image, profile).application().data(),
+              selection.application) ||
         !read(selection.application, selection.app) || !selection.app.state ||
-        !selection.app.view || !read(image + profile.scene_active, scene) || !scene ||
-        !read(image + profile.registered_gun_action, registered_action) || !registered_action ||
-        !read(image + profile.inventory_action_variable, selection.variable) ||
-        !read(field(selection.variable, 0x41), variable_type) || (variable_type & 0x7f) != 1 ||
-        !read(field(selection.variable, 0x38), selection.mode) ||
-        !read(field(selection.application, 0x26c), queued) || queued) {
+        !selection.app.view ||
+        !read(native_game::NativeRuntime(image, profile).scene_active().data(), scene) || !scene ||
+        !read(native_game::NativeRuntime(image, profile).registered_gun_action().data(),
+              registered_action) ||
+        !registered_action ||
+        !read(native_game::NativeRuntime(image, profile).inventory_action_variable().data(),
+              selection.variable) ||
+        !read(native_game::VariableRef(selection.variable).type_flags().data(), variable_type) ||
+        (variable_type & native_game::variable_type_mask) !=
+            static_cast<unsigned>(native_game::VariableKind::integer) ||
+        !read(native_game::VariableRef(selection.variable).raw_value().data(), selection.mode) ||
+        !read(native_game::ApplicationRef(selection.application).commands().count().data(),
+              queued) ||
+        queued) {
         return false;
     }
     unsigned matches = 0;
-    const bool valid = visit(field(selection.app.state, 0x144), [&](std::byte* item) {
-        Object object{};
-        if (!read(item, object) || object.vtable != image + profile.owned_inventory_item) {
-            return false;
-        }
-        void* graphic = nullptr;
-        void* graphic_resource = nullptr;
-        unsigned id = 0;
-        if (!read(field(item, 0x1e4), graphic) || !read(field(graphic, 0x18), graphic_resource) ||
-            !read(field(graphic_resource, 4), id)) {
-            return false;
-        }
-        if (id != resource::inventory_gun) {
-            return true;
-        }
-        ++matches;
-        unsigned action = 0;
-        return object.enabled && !object.disabled && read(field(item, 0x18), selection.resource) &&
-               read(field(selection.resource, 0x38), action) && action == registered_action &&
-               action_list(field(item, 0x1c));
-    });
+    const bool valid = visit(
+        native_game::SceneStateRef(selection.app.state).owned_inventory().data(),
+        [&](std::byte* item) {
+            native_game::ObjectFlags object{};
+            if (!read(item, object) ||
+                object.type !=
+                    native_game::NativeRuntime(image, profile).owned_inventory_item_type()) {
+                return false;
+            }
+            void* graphic = nullptr;
+            void* graphic_resource = nullptr;
+            unsigned id = 0;
+            if (!read(native_game::OwnedInventoryItemRef(item).graphic().data(), graphic) ||
+                !read(native_game::GraphicRef(graphic).resource().data(), graphic_resource) ||
+                !read(native_game::ResourceHeaderRef(graphic_resource).id().data(), id)) {
+                return false;
+            }
+            if (id != resource::inventory_gun) {
+                return true;
+            }
+            ++matches;
+            unsigned action = 0;
+            return object.enabled && !object.blocked &&
+                   read(native_game::ResourceObjectRef(item).resource().data(),
+                        selection.resource) &&
+                   read(native_game::InventoryActionResourceRef(selection.resource).action().data(),
+                        action) &&
+                   action == registered_action &&
+                   action_list(native_game::InputEventsRef(item).actions().data());
+        });
     if (!valid || matches != 1) {
         return false;
     }
     // The selector consults both resources and the existing native action lists.
     unsigned selected_action = 0;
-    return read(image + profile.selected_inventory, selection.selected) &&
-           (!selection.selected || read(field(selection.selected, 0x38), selected_action)) &&
-           visit(field(selection.app.state, 0x1a8),
+    return read(native_game::NativeRuntime(image, profile).selected_inventory().data(),
+                selection.selected) &&
+           (!selection.selected ||
+            read(native_game::InventoryActionResourceRef(selection.selected).action().data(),
+                 selected_action)) &&
+           visit(native_game::SceneStateRef(selection.app.state).selection_first().data(),
                  [](std::byte* item) {
-                     Object object{};
-                     return read(item, object) && object.vtable;
+                     native_game::ObjectFlags object{};
+                     return read(item, object) && object.type;
                  }) &&
-           visit(field(selection.app.state, 0x1e4), [](std::byte* item) {
-               Object object{};
-               return read(item, object) && object.vtable;
-           });
+           visit(native_game::SceneStateRef(selection.app.state).selection_second().data(),
+                 [](std::byte* item) {
+                     native_game::ObjectFlags object{};
+                     return read(item, object) && object.type;
+                 });
 }
 
 bool unchanged(std::byte* image, const game::Edition& profile, const Selection& before) {
     game::Application* application = nullptr;
     game::Application app{};
-    return read(image + profile.application, application) && application == before.application &&
-           read(application, app) && app.state == before.app.state && app.view == before.app.view;
+    return read(native_game::NativeRuntime(image, profile).application().data(), application) &&
+           application == before.application && read(application, app) &&
+           app.state == before.app.state && app.view == before.app.view;
 }
 
 }
@@ -140,28 +164,19 @@ bool refresh_native_cursor(POINT position) {
     game::Application* application = nullptr;
     game::Application app{};
 
-    struct Queue {
-        void* vtable;
-        unsigned count, current;
-        void* storage;
-        unsigned capacity;
-    } queue{};
+    native_game::CommandQueuePrefix queue{};
 
-    if (!image || !read(image + profile.application, application) || !read(application, app) ||
-        !app.state || !app.view || !read(field(application, 0x280), queue) || !queue.vtable ||
-        !queue.storage || queue.capacity > 256 || queue.count >= queue.capacity) {
+    if (!image ||
+        !read(native_game::NativeRuntime(image, profile).application().data(), application) ||
+        !read(application, app) || !app.state || !app.view ||
+        !read(native_game::ApplicationRef(application).pointer_events().data(), queue) ||
+        !queue.vtable || !queue.storage || queue.capacity > 256 || queue.count >= queue.capacity) {
         return false;
     }
 
-    struct Point {
-        void* vtable;
-        POINT value;
-    } point{nullptr, position};
-
-    static_assert(sizeof(Point) == 12);
+    native_game::NativePoint point{nullptr, position};
     // WM_MOUSEMOVE ignores unchanged positions. Native events also clear an old hover target.
-    using Move = void(__stdcall*)(void*, const Point*, const Point*);
-    reinterpret_cast<Move>(image + profile.queue_mouse_move)(application, &point, &point);
+    native_game::NativeFunctions(image, profile).queue_mouse_move(application, &point, &point);
     return true;
 }
 
@@ -191,17 +206,16 @@ bool equip_controller_gun() {
         }
     } guard;
 
-    using Select = void(__stdcall*)(void*, void*);
-    using SetAction = void(__stdcall*)(int, void*);
-    auto queue = reinterpret_cast<std::byte*>(selection.application) + 0x268;
+    auto queue = native_game::ApplicationRef(selection.application).commands().data();
     // Both calls append native events. Asset loading can reenter controller polling.
-    reinterpret_cast<Select>(image + profile.select_inventory)(selection.resource, queue);
+    native_game::NativeFunctions(image, profile).select_inventory(selection.resource, queue);
     if (!unchanged(image, profile, selection)) {
         return false;
     }
-    reinterpret_cast<SetAction>(image + profile.set_inventory_action)(gun_action, queue);
+    native_game::NativeFunctions(image, profile).set_inventory_action(gun_action, queue);
     int mode = 0;
-    return unchanged(image, profile, selection) && read(field(selection.variable, 0x38), mode) &&
+    return unchanged(image, profile, selection) &&
+           read(native_game::VariableRef(selection.variable).raw_value().data(), mode) &&
            mode == gun_action;
 }
 

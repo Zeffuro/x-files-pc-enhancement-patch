@@ -1,4 +1,5 @@
 #include "enhancements/scene_overlay.h"
+#include "playback/inspection.h"
 #include <iostream>
 #include <stdexcept>
 
@@ -10,6 +11,7 @@ void* native_pending = nullptr;
 int state = 1, other_state = 2;
 int view = 1;
 bool eligible = true, load_pending = false, attached = true, modal = false;
+bool story_movie = false;
 unsigned input = 0, pauses = 0, resumes = 0;
 
 void require(bool value, const char* reason) {
@@ -78,6 +80,17 @@ bool saving_available() {
 ScriptControls script_controls() {
     return {};
 }
+
+RECT scene_bounds() {
+    return {20, 90, 620, 330};
+}
+}
+
+namespace playback {
+bool scene_movie_playing(int width, int height) {
+    require(width == 600 && height == 240, "Movie guard ignored the native scene bounds");
+    return story_movie;
+}
 }
 
 int main() {
@@ -125,6 +138,20 @@ int main() {
         modal = true;
         require(!overlay.begin(false), "Transcript interrupted a native confirmation");
         modal = false;
+        story_movie = true;
+        require(!overlay.begin() && !overlay.begin(false),
+                "An overlay interrupted a story movie with exploration controls still enabled");
+        story_movie = false;
+        require(overlay.begin(), "Cannot pause before an in-place story transition");
+        const auto before_story = resumes;
+        story_movie = true;
+        require(!overlay.valid() && !scene_overlay_checkpoint_available(),
+                "An in-place movie retained the old overlay's checkpoint authorization");
+        overlay.end();
+        overlay.end();
+        require(resumes == before_story + 1 && !overlay.active(),
+                "Same-owner movie cleanup did not release its native pause exactly once");
+        story_movie = false;
         std::cout << "Scene pause ownership and load transfer passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

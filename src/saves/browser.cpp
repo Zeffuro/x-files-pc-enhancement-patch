@@ -1,5 +1,6 @@
 #include "browser.h"
 #include "browser_state.h"
+#include "browser_session.h"
 #include "recent.h"
 #include "artwork.h"
 #include "enhancements/game_ui.h"
@@ -17,6 +18,7 @@
 namespace saves {
 namespace {
 std::shared_ptr<Browser> browser;
+LoadBrowserSession load_session;
 bool committing = false;
 bool consumed_left = false;
 enhancements::NavigationKeys naming_keys;
@@ -34,6 +36,9 @@ void repaint() {
 }
 
 void close() {
+    if (browser) {
+        load_session.remember(*browser, settings().remember_load_browser);
+    }
     native_game::set_canvas_source(nullptr);
     browser.reset();
     scene_pause.end();
@@ -79,6 +84,7 @@ void open(bool saving) {
         state->quicksaves = read_quicksaves(state->root);
         state->autosaves = read_autosaves(state->root);
     }
+    load_session.restore(*state, settings().remember_load_browser);
     load_browser_art(*state);
     load_browser_page(*state);
     draw_browser(*state);
@@ -289,8 +295,10 @@ HDC browser_canvas(HDC native) {
 }
 
 void update_browser(HWND) {
+    if (!settings().remember_load_browser) {
+        load_session = {};
+    }
     if (browser && scene_pause.active() && !scene_pause.valid()) {
-        scene_pause.end(true);
         close();
     }
     if (browser) {
@@ -528,6 +536,9 @@ bool browser_message(HWND window, UINT message, WPARAM value, LPARAM data, Brows
 }
 
 void release_browser() {
+    if (browser) {
+        load_session.remember(*browser, settings().remember_load_browser);
+    }
     scene_pause.end(true);
     native_game::set_canvas_source(nullptr);
     browser.reset();

@@ -25,4 +25,5 @@ struct MovieSnapshot {
 // Call on the movie thread. Copies state without advancing clocks or delivering callbacks.
 std::vector<MovieSnapshot> inspect_movies();
 std::uint64_t inspect_time(std::uint64_t id);
+bool scene_movie_playing(int width, int height);
 }
