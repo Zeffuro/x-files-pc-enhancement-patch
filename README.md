@@ -71,5 +71,9 @@ You can include a save. Nothing is uploaded automatically.
 [FFmpeg](https://ffmpeg.org/) and [zlib](https://zlib.net/).
 See [third-party notices](THIRD_PARTY.md).
 
-Thanks to [mthcore/x-files-game](https://github.com/mthcore/x-files-game) and
-[Agrippa](https://github.com/xesf/agrippa) for their game format research.
+Thanks to [mthcore/x-files-game](https://github.com/mthcore/x-files-game),
+[Agrippa](https://github.com/xesf/agrippa) and
+[xesf/the-x-files-game](https://github.com/xesf/the-x-files-game) for game format
+research and regression scenarios.
+
+Thanks to TotalGames for the disc-start checkpoint scenarios.

@@ -19,6 +19,7 @@ struct Profile {
     std::uint32_t talk_list;
     std::uint32_t history_list;
     std::uint32_t current_input;
+    std::uint32_t native_input_list;
     std::uint32_t main_menu;
     std::uint32_t script_root;
     std::uint32_t script_control;
@@ -131,6 +132,7 @@ inline constexpr Profile profile_cd_10012{
     .talk_list = 0x2bd018,
     .history_list = 0x2bd168,
     .current_input = 0x40c60,
+    .native_input_list = 0x253638,
     .main_menu = 0x256718,
     .script_root = 0x253a30,
     .script_control = 0x257510,
@@ -235,6 +237,7 @@ inline constexpr Profile profile_cd_10019{
     .talk_list = 0x2c0180,
     .history_list = 0x2c02d0,
     .current_input = 0x40700,
+    .native_input_list = 0x2554e8,
     .main_menu = 0x2587a0,
     .script_root = 0x255db8,
     .script_control = 0x2595a8,
@@ -339,6 +342,7 @@ inline constexpr Profile profile_dvd_20000{
     .talk_list = 0x2c0270,
     .history_list = 0x2c03c0,
     .current_input = 0x407c0,
+    .native_input_list = 0x256278,
     .main_menu = 0x25d8c0,
     .script_root = 0x25b848,
     .script_control = 0x25d830,
@@ -443,6 +447,7 @@ inline constexpr Profile profile_cd_10020{
     .talk_list = 0x2c11e0,
     .history_list = 0x2c1330,
     .current_input = 0x40800,
+    .native_input_list = 0x2564e8,
     .main_menu = 0x259798,
     .script_root = 0x256ee0,
     .script_control = 0x25a5a0,

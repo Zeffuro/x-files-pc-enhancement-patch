@@ -42,8 +42,7 @@ struct SceneStatePrefix {
     List<void> hotspots, selection_first;
     std::byte before_selection_second[0x1e4 - 0x1bc];
     List<void> selection_second;
-    std::byte before_modal[0x20c - 0x1f8];
-    List<void> modal;
+    List<void> inputs, modal;
     std::byte before_aiming[0x248 - 0x220];
     List<void> aiming_targets;
 };
@@ -121,6 +120,7 @@ inline constexpr auto owned_inventory = offsetof(SceneStatePrefix, owned_invento
 inline constexpr auto hotspots = offsetof(SceneStatePrefix, hotspots);
 inline constexpr auto selection_first = offsetof(SceneStatePrefix, selection_first);
 inline constexpr auto selection_second = offsetof(SceneStatePrefix, selection_second);
+inline constexpr auto inputs = offsetof(SceneStatePrefix, inputs);
 inline constexpr auto modal = offsetof(SceneStatePrefix, modal);
 inline constexpr auto aiming_targets = offsetof(SceneStatePrefix, aiming_targets);
 }
@@ -174,8 +174,11 @@ static_assert(state_offset::owned_inventory == 0x144);
 static_assert(state_offset::hotspots == 0x194);
 static_assert(state_offset::selection_first == 0x1a8);
 static_assert(state_offset::selection_second == 0x1e4);
+static_assert(state_offset::inputs == 0x1f8);
+static_assert(sizeof(decltype(SceneStatePrefix::inputs)) == 0x14);
 static_assert(state_offset::modal == 0x20c);
 static_assert(state_offset::aiming_targets == 0x248);
+static_assert(sizeof(SceneStatePrefix) == 0x25c);
 static_assert(main_view_offset::modal_background == 0x59c);
 static_assert(main_view_offset::modal_foreground == 0x5d8);
 static_assert(object_offset::runtime_action_resource == 0x13c);

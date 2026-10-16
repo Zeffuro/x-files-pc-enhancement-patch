@@ -450,6 +450,16 @@ int main() {
         }
         require(export_rejected && load_rejected && serialized == before_movie && native_loads == 0,
                 "Direct export or checkpoint loading bypassed the playing-movie guard");
+        bool recipe_rejected = false;
+        const auto recipe_path = fixture_root / L"recipe.JSON";
+        std::ofstream(recipe_path) << "{}";
+        try {
+            enhancements::load_checkpoint(nullptr, recipe_path);
+        } catch (const std::exception&) {
+            recipe_rejected = true;
+        }
+        require(recipe_rejected && native_loads == 0 && enhancements::busy == false,
+                "Recipe loading bypassed the playing-movie guard");
         fixture_menu = true;
         require(enhancements::export_save_available() && enhancements::checkpoint_available(),
                 "The original pause menu lost save/load authorization");
@@ -457,6 +467,18 @@ int main() {
         movies[0].playing = false;
         require(enhancements::safe_save_available() && enhancements::checkpoint_available(),
                 "A stopped movie frame prevented ordinary exploration saves");
+        recipe_rejected = false;
+        try {
+            enhancements::load_checkpoint(nullptr, recipe_path);
+        } catch (const std::exception&) {
+            recipe_rejected = true;
+        }
+        require(recipe_rejected && native_loads == 0 && enhancements::checkpoint_available(),
+                "Invalid recipe reached native load or left loading busy");
+        for (const auto& entry : fs::directory_iterator(fixture_root / L"saves")) {
+            require(!entry.path().filename().wstring().starts_with(L"CHECKPOINT.LOAD."),
+                    "Invalid recipe left a temporary save");
+        }
         movies[0].path = L"navm.nmv";
         stable_update();
         require(serialized == 1 && published == 1 && previews == 1 &&

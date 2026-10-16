@@ -8,6 +8,7 @@
 #include "game/database/database.h"
 #include "game/database/io.h"
 #include "game/database/offline_index.h"
+#include "game/database/reference_index.h"
 #include <commctrl.h>
 #include <array>
 #include <memory>
@@ -65,12 +66,14 @@ struct Destination {
     std::optional<DatabaseObjectKey> object;
     std::filesystem::path asset;
     bool stored = false;
+    std::filesystem::path database_path{};
 };
 
 struct BrowserView {
     unsigned mode = 0, filter = 0;
     std::uint32_t class_id = 0;
     std::wstring query;
+    std::filesystem::path database_path;
     std::optional<std::uint64_t> selection;
     std::optional<std::filesystem::path> asset;
     std::wstring asset_type;
@@ -114,6 +117,7 @@ struct Browser {
     std::optional<game_assets::ClipIndex> clips;
     DatabaseAssetCatalog assets;
     game_assets::OfflineDatabaseIndex stored;
+    std::optional<game_assets::ReferenceIndex> references;
     game_assets::DatabaseIoSnapshot io;
     NativeDatabaseSnapshot native, previous;
     std::vector<DatabaseObjectKey> changes;
@@ -146,6 +150,9 @@ void select_mode(Browser& state);
 std::uint64_t row_key(DatabaseObjectKey key);
 const Row* selected_row(const Browser& state);
 void describe(Browser& state);
+void reference_properties(Browser& state, std::uint32_t class_id, std::uint32_t id,
+                          bool state_database = false, bool native_object = false);
+void reload(Browser& state, bool reset = false);
 void asset_content(Browser& state, const DatabaseAsset& asset, std::wstring& raw);
 void text_candidate_content(Browser& state, const Row& row);
 void create_string_controls(Browser& state, HMODULE module, HFONT font);

@@ -1,11 +1,14 @@
 #include "stored_action.h"
+#include "stored_format.h"
 #include <algorithm>
 
 namespace game_assets {
+namespace format = stored_format;
+
 std::optional<StoredAction> parse_stored_action(std::span<const std::uint8_t> bytes,
                                                 const OfflineDatabaseIndex& index,
                                                 std::uint32_t class_id, std::uint32_t id) {
-    if (class_id != 0x41 || !id) {
+    if (class_id != format::class_id::action || !id) {
         return {};
     }
     const auto found = find_database_record(index, class_id, id);
@@ -22,8 +25,8 @@ std::optional<StoredAction> parse_stored_action(std::span<const std::uint8_t> by
     const auto half = [&](std::size_t at) {
         return static_cast<std::uint16_t>((std::uint16_t(bytes[at]) << 8) | bytes[at + 1]);
     };
-    if (bytes.size() < 32 || bytes.size() > 128u * 1024u * 1024u || word(0) != 5 ||
-        word(20) != 0x501 || word(24) != 0x40000 || word(28) != 256) {
+    if (bytes.size() < format::header_size || bytes.size() > format::max_database_bytes ||
+        word(0) != 5 || word(20) != 0x501 || word(24) != 0x40000 || word(28) != 256) {
         return {};
     }
     const auto offset = std::size_t(index.records[*found].offset);
@@ -40,9 +43,11 @@ std::optional<StoredAction> parse_stored_action(std::span<const std::uint8_t> by
     };
     const auto aliases =
         std::equal_range(index.definition_offsets.begin(), index.definition_offsets.end(), offset);
-    if (offset < 32 || !has(offset, 15) || !(bytes[offset] & 0x80) || word(offset + 2) != 1 ||
+    if (offset < format::header_size || !has(offset, format::action::descriptor_size) ||
+        !(bytes[offset] & format::definition_flag) || word(offset + 2) != 1 ||
         std::distance(aliases.first, aliases.second) != 1 ||
-        contains_definition(offset + 1, offset + 15) || overlaps_index(offset, offset + 15)) {
+        contains_definition(offset + 1, offset + format::action::descriptor_size) ||
+        overlaps_index(offset, offset + format::action::descriptor_size)) {
         return {};
     }
     StoredAction result;
@@ -58,12 +63,12 @@ std::optional<StoredAction> parse_stored_action(std::span<const std::uint8_t> by
                                                                : std::nullopt;
     }
     const auto start = std::size_t(result.resource_mark);
-    if (start < 32 || !has(start, result.encoded_length)) {
+    if (start < format::header_size || !has(start, result.encoded_length)) {
         return {};
     }
     const auto end = start + result.encoded_length;
-    if ((start < offset + 15 && offset < end) || overlaps_index(start, end) ||
-        contains_definition(start, end)) {
+    if ((start < offset + format::action::descriptor_size && offset < end) ||
+        overlaps_index(start, end) || contains_definition(start, end)) {
         return {};
     }
     result.payload.assign(bytes.begin() + start, bytes.begin() + end);
@@ -71,34 +76,35 @@ std::optional<StoredAction> parse_stored_action(std::span<const std::uint8_t> by
         return StoredActionExpression{
             {word(at), bytes[at + 8]}, {word(at + 4), bytes[at + 9]}, bytes[at + 10]};
     };
-    const std::size_t prefix = (result.action_type & 0x80) ? 12 : 0;
+    const std::size_t prefix = (result.action_type & format::action::conditional_flag) ? 12 : 0;
     if (prefix && result.encoded_length >= prefix) {
         result.predicate = expression(start);
     }
+    const auto type = result.action_type & format::action::type_mask;
     // The file reader swaps these two words before native operand construction.
-    if ((result.action_type & 0x7f) == 0 && result.encoded_length == prefix + 11) {
+    if (type == format::action::statement && result.encoded_length == prefix + 11) {
         result.statement = expression(start + prefix);
     }
-    if ((result.action_type & 0x7f) == 1 && result.encoded_length == prefix + 5) {
+    if (type == format::action::asset && result.encoded_length == prefix + 5) {
         result.asset = StoredAssetAction{word(start + prefix), bytes[start + prefix + 4]};
     }
-    if ((result.action_type & 0x7f) == 2 && result.encoded_length == prefix + 6) {
+    if (type == format::action::timer && result.encoded_length == prefix + 6) {
         result.timer = StoredTimerAction{word(start + prefix), bytes[start + prefix + 4],
                                          bytes[start + prefix + 5]};
     }
-    if ((result.action_type & 0x7f) == 3 && result.encoded_length == prefix + 9) {
+    if (type == format::action::enable && result.encoded_length == prefix + 9) {
         result.enable = StoredEnableAction{word(start + prefix), word(start + prefix + 4),
                                            bytes[start + prefix + 8]};
     }
-    if ((result.action_type & 0x7f) == 4 && result.encoded_length == prefix + 16) {
+    if (type == format::action::set_view && result.encoded_length == prefix + 16) {
         result.set_view = StoredSetViewAction{word(start + prefix), word(start + prefix + 4),
                                               word(start + prefix + 8), word(start + prefix + 12)};
     }
-    if ((result.action_type & 0x7f) == 5 && result.encoded_length == prefix + 5) {
+    if (type == format::action::interface_action && result.encoded_length == prefix + 5) {
         result.interface_action =
             StoredInterfaceAction{word(start + prefix), bytes[start + prefix + 4]};
     }
-    if ((result.action_type & 0x7f) == 6 && result.encoded_length >= prefix + 16) {
+    if (type == format::action::function && result.encoded_length >= prefix + 16) {
         const auto body = start + prefix;
         const auto count = std::size_t(bytes[body + 15]);
         if (result.encoded_length == prefix + 16 + 5 * count) {
@@ -112,7 +118,7 @@ std::optional<StoredAction> parse_stored_action(std::span<const std::uint8_t> by
             result.function = std::move(function);
         }
     }
-    if ((result.action_type & 0x7f) == 7 && result.encoded_length == prefix + 10) {
+    if (type == format::action::sound && result.encoded_length == prefix + 10) {
         const auto body = start + prefix;
         result.sound = StoredSoundAction{word(body), bytes[body + 4], bytes[body + 5],
                                          half(body + 6), half(body + 8)};

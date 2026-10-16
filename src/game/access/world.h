@@ -45,6 +45,11 @@ public:
             this->offset_address(offsetof(SceneStatePrefix, selection_second)), this->profile());
     }
 
+    auto inputs() const {
+        return MemoryRef<decltype(SceneStatePrefix::inputs)>(
+            this->offset_address(offsetof(SceneStatePrefix, inputs)), this->profile());
+    }
+
     auto modal() const {
         return MemoryRef<decltype(SceneStatePrefix::modal)>(
             this->offset_address(offsetof(SceneStatePrefix, modal)), this->profile());

@@ -414,6 +414,10 @@
             "offset": "offsetof(SceneStatePrefix, selection_second)"
           },
           {
+            "name": "inputs",
+            "offset": "offsetof(SceneStatePrefix, inputs)"
+          },
+          {
             "name": "modal",
             "offset": "offsetof(SceneStatePrefix, modal)"
           },

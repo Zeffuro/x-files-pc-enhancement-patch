@@ -1,6 +1,7 @@
 #include "browser.h"
 #include "assets.h"
 #include "source.h"
+#include "devtools/checkpoints.h"
 #include <shlobj.h>
 #include "standalone_preview.h"
 #include "settings.h"
@@ -20,12 +21,13 @@ void trace_value(const char*, std::uint32_t) {}
 
 namespace {
 constexpr wchar_t host_class[] = L"XFilesStandaloneDatabase";
-constexpr unsigned open_id = 4100, folder_id = 4103;
+constexpr unsigned open_id = 4100, folder_id = 4103, checkpoints_id = 4104;
 constexpr UINT open_source_message = WM_APP + 1;
 using namespace devtools::standalone;
 
 struct Host {
     HWND window = nullptr, open = nullptr, folder = nullptr, path = nullptr, browser = nullptr;
+    HWND checkpoints = nullptr;
     HMODULE module = nullptr;
     HFONT font = nullptr;
     std::filesystem::path root;
@@ -79,7 +81,8 @@ void layout(Host& state) {
     GetClientRect(state.window, &bounds);
     MoveWindow(state.open, 12, 10, 130, 28, TRUE);
     MoveWindow(state.folder, 150, 10, 130, 28, TRUE);
-    MoveWindow(state.path, 292, 14, std::max(1L, bounds.right - 304), 24, TRUE);
+    MoveWindow(state.checkpoints, 288, 10, 130, 28, TRUE);
+    MoveWindow(state.path, 430, 14, std::max(1L, bounds.right - 442), 24, TRUE);
     MoveWindow(state.browser, 12, 50, std::max(1L, bounds.right - 24),
                std::max(1L, bounds.bottom - 62), TRUE);
 }
@@ -206,6 +209,9 @@ LRESULT CALLBACK host_proc(HWND window, UINT message, WPARAM value, LPARAM data)
                                 BS_PUSHBUTTON | WS_TABSTOP, open_id);
             state->folder = child(window, state->module, state->font, L"BUTTON", L"Open folder...",
                                   BS_PUSHBUTTON | WS_TABSTOP, folder_id);
+            state->checkpoints =
+                child(window, state->module, state->font, L"BUTTON", L"Checkpoints...",
+                      BS_PUSHBUTTON | WS_TABSTOP, checkpoints_id);
             state->path = child(window, state->module, state->font, L"STATIC",
                                 L"Open a folder, HDB, PFF or asset file", SS_LEFT);
             SetTimer(window, 1, 500, nullptr);
@@ -225,6 +231,10 @@ LRESULT CALLBACK host_proc(HWND window, UINT message, WPARAM value, LPARAM data)
         }
         if (message == WM_COMMAND && LOWORD(value) == folder_id) {
             choose_folder(*state);
+            return 0;
+        }
+        if (message == WM_COMMAND && LOWORD(value) == checkpoints_id) {
+            devtools::show_checkpoints(state->window, state->module, state->font, state->root);
             return 0;
         }
         if (message == open_source_message && !state->pending_source.empty()) {

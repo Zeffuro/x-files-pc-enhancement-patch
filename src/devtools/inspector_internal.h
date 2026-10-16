@@ -61,7 +61,8 @@ enum : int {
     frame_tracks_id,
     frame_list_id,
     column_splitter_id,
-    preview_splitter_id
+    preview_splitter_id,
+    checkpoints_id
 };
 
 struct Row {
@@ -117,7 +118,7 @@ struct State {
     std::array<std::shared_ptr<const Artwork>, 64> shown_artwork;
     bool showing_state = false;
     bool showing_database = false;
-    HWND database_button = nullptr, database = nullptr;
+    HWND database_button = nullptr, database = nullptr, checkpoints_button = nullptr;
     std::unique_ptr<Preview> player;
     std::unique_ptr<CaptionIndex> caption_index;
     unsigned indexed = 0;
@@ -135,6 +136,7 @@ struct State {
     std::vector<Row> rows;
     std::vector<std::array<std::wstring, 3>> row_cells;
     std::filesystem::path selected;
+    std::filesystem::path pending_checkpoint;
     std::uint64_t selected_movie = 0;
 };
 

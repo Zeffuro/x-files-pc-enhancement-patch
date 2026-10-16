@@ -1,4 +1,5 @@
 #include "inspector.h"
+#include "enhancements/quick_save.h"
 #include "inspector_internal.h"
 #include "message_pump.h"
 #include "diagnostics/game_context.h"
@@ -19,6 +20,7 @@
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 
 namespace devtools::inspector {
 thread_local State state;
@@ -371,6 +373,10 @@ void request_inspector() {
     state.requested = true;
 }
 
+void request_checkpoint(const std::filesystem::path& path) {
+    state.pending_checkpoint = path;
+}
+
 void pump_inspector_messages() {
     if (!state.prompting && IsWindowEnabled(state.window)) {
         pump_tool_messages(state.window);
@@ -383,6 +389,16 @@ void update_inspector(HWND game, bool available) {
         return;
     }
     try {
+        if (!state.pending_checkpoint.empty()) {
+            // Movie callbacks also pump the tools, so load only from the normal game update.
+            const auto checkpoint = std::exchange(state.pending_checkpoint, {});
+            try {
+                enhancements::load_checkpoint(game, checkpoint);
+            } catch (const std::exception& error) {
+                MessageBoxA(game, error.what(), "The X-Files checkpoint", MB_OK | MB_ICONERROR);
+            }
+            return;
+        }
         if (state.requested) {
             state.requested = false;
             open(game);

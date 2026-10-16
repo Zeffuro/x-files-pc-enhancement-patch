@@ -10,7 +10,7 @@
 namespace diagnostics {
 namespace {
 std::filesystem::path choose(HWND owner, bool writing, bool zip,
-                             const std::filesystem::path& directory) {
+                             const std::filesystem::path& directory, bool include_recipes = false) {
     std::vector<wchar_t> buffer(32768);
     if (writing) {
         SYSTEMTIME time{};
@@ -24,8 +24,11 @@ std::filesystem::path choose(HWND owner, bool writing, bool zip,
     dialog.lpstrFile = buffer.data();
     dialog.nMaxFile = static_cast<DWORD>(buffer.size());
     dialog.lpstrInitialDir = directory.c_str();
-    dialog.lpstrFilter =
-        zip ? L"Troubleshooting ZIP\0*.zip\0\0" : L"X-Files PC saved game\0*.x\0\0";
+    dialog.lpstrFilter = zip ? L"Troubleshooting ZIP\0*.zip\0\0"
+                         : include_recipes && !writing
+                             ? L"Saved games and recipes\0*.x;*.json\0Saved games\0*.x\0"
+                               L"Numeric recipes\0*.json\0\0"
+                             : L"X-Files PC saved game\0*.x\0\0";
     dialog.lpstrDefExt = zip ? L"zip" : L"x";
     dialog.lpstrTitle = ui::translate(zip       ? L"Save troubleshooting report"
                                       : writing ? L"Save game to file"
@@ -43,8 +46,9 @@ std::filesystem::path choose(HWND owner, bool writing, bool zip,
 }
 
 std::filesystem::path choose_save_file(HWND owner, bool writing,
-                                       const std::filesystem::path& directory) {
-    return choose(owner, writing, false, directory);
+                                       const std::filesystem::path& directory,
+                                       bool include_recipes) {
+    return choose(owner, writing, false, directory, include_recipes);
 }
 
 void save_report_dialog(HWND owner, const std::filesystem::path& directory,

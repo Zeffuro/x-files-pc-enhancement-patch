@@ -26,3 +26,7 @@ To remove it, delete that folder. It can also be tried with Wine on Linux.
 
 The tools use the MIT license. See `LICENSE` and `THIRD_PARTY.md` in this ZIP.
 Matching FFmpeg source and build instructions are included in `source/ffmpeg`.
+
+Use **Checkpoints** to create recipes and rebuild saves with your original game files.
+Game files are detected when the tools are in or near the game folder. These actions
+work without Python. Loading saves or recipes uses the in-game tools.

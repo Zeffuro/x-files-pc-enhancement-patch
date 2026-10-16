@@ -58,6 +58,15 @@ appear in the selected variable's details.
 Editing changes the running game and may affect progress. Stale values require
 a fresh snapshot before they can be changed.
 
+## Checkpoints
+
+**Checkpoints** opens saved games and bundled numeric recipes. It detects the original
+game files in a running game or a nearby game folder. **Create recipe** and **Rebuild save**
+write a new file, including in the game folder. These actions work without Python.
+Recipes omit saved pictures and changed text and require matching original game files.
+In-game, **Load recipe** rebuilds a temporary save and loads it when the scene permits.
+**Load selected save** opens an existing save.
+
 ## Database browser
 
 **Database & assets** browses database records, files, media labels and native reads.
@@ -86,6 +95,11 @@ Select an action or trigger list to see its ordered IDs on **Overview** and foll
 available records on **Links**.
 Stored actions show their encoded conditions and supported Statements. Search
 their operands or follow available variable definitions on **Links**.
+
+Incoming **From** rows on **Links** show supported variable, function and resource
+references. Follow a row to its source, then use **Back** to return. Keep matching
+HDB and GAM files together and **Refresh** after changes. **Properties** marks
+incomplete scans, whose empty results cannot establish that a resource is unused.
 
 ## Standalone browser
 

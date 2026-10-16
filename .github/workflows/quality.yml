@@ -27,8 +27,16 @@ jobs:
         run: python tests/dvd_media_probe.py
       - name: DVD registration tests
         run: python tests/dvd_registration.py
+      - name: Native scenario preservation tests
+        run: |
+          python tests/native_story_files.py
+          python tests/native_story_scenarios.py
+          python tests/save_recipe.py
       - name: Portable tests
         run: |
+          mkdir -p /tmp/xfiles-recipe-checks
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/native_recipe.cpp src/devtools/recipes/{database,files,hash,json,schema,writer}.cpp -o /tmp/xfiles-recipe-checks/native-recipe
+          /tmp/xfiles-recipe-checks/native-recipe
           mkdir -p /tmp/xfiles-asset-checks
           g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_asset_ref.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_asset_ref.cpp -o /tmp/xfiles-asset-checks/asset-ref
           /tmp/xfiles-asset-checks/asset-ref
@@ -75,6 +83,8 @@ jobs:
           /tmp/xfiles-checks/database-stored-action
           g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_stored_asset_list.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/stored_asset_list.cpp -o /tmp/xfiles-checks/database-stored-asset-list
           /tmp/xfiles-checks/database-stored-asset-list
+          g++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/database_references.cpp src/game/database/database.cpp src/game/database/offline_index.cpp src/game/database/reference_index.cpp src/game/database/stored_action.cpp src/game/database/stored_list.cpp src/game/database/stored_trigger.cpp src/game/database/stored_fields.cpp src/game/database/stored_asset_list.cpp -o /tmp/xfiles-checks/database-references
+          /tmp/xfiles-checks/database-references
       - name: Script syntax
         run: |
           bash -n tools/build-ffmpeg.sh

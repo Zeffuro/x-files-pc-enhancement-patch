@@ -15,6 +15,8 @@
 #include "saves/recent.h"
 #include "autosave.h"
 #include "playback/inspection.h"
+#include "devtools/checkpoints_files.h"
+#include "devtools/recipes/recipe.h"
 
 #include <array>
 #include <filesystem>
@@ -315,8 +317,21 @@ void load_checkpoint(HWND window, const std::filesystem::path& path) {
     prepare_save_directory();
     const auto name = checkpoint_name();
     // A local ASCII name also supports checkpoints selected from Unicode paths.
-    if (!prepare_load_copy(window, path, name)) {
-        return;
+    if (_wcsicmp(path.extension().c_str(), L".json") == 0) {
+        const auto executable = devtools::checkpoint_module_file(nullptr);
+        const auto bytes = devtools::recipes::reconstruct(path, executable,
+                                                          executable.parent_path() / L"XFILES.GAM");
+        devtools::recipes::write_new(name, bytes,
+                                     {path, executable, executable.parent_path() / L"XFILES.GAM"});
+        if (const auto error = saves::load_compatibility_error(name, game::edition().application !=
+                                                                         game::cd.application)) {
+            std::filesystem::remove(name);
+            throw std::runtime_error(error);
+        }
+    } else {
+        if (!prepare_load_copy(window, path, name)) {
+            return;
+        }
     }
     checkpoint_file = name;
     NativeString save_name_buffer(name.c_str());

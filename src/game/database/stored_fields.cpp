@@ -1,8 +1,11 @@
 #include "stored_fields.h"
+#include "stored_format.h"
 #include <algorithm>
 #include <numeric>
 
 namespace game_assets {
+namespace format = stored_format;
+
 namespace {
 std::span<const unsigned> schema(std::uint32_t class_id) {
     static constexpr unsigned one[] = {4}, two[] = {4, 4}, three[] = {4, 4, 4};
@@ -21,7 +24,7 @@ std::span<const unsigned> schema(std::uint32_t class_id) {
     static constexpr unsigned state[] = {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 8, 8,
                                          8, 8, 8, 1, 1, 1, 1, 1, 1, 1, 4, 1, 4, 4, 4, 2};
     switch (class_id) {
-        case 0x27:
+        case format::class_id::title:
             return title;
         case 0x28:
             return node;
@@ -42,7 +45,7 @@ std::span<const unsigned> schema(std::uint32_t class_id) {
         case 0x33:
         case 0x3e:
         case 0x40:
-        case 0x54:
+        case format::class_id::standard_action:
             return three;
         case 0x37:
         case 0x39:
@@ -51,7 +54,7 @@ std::span<const unsigned> schema(std::uint32_t class_id) {
             return category;
         case 0x3d:
             return point;
-        case 0x46:
+        case format::class_id::enabled_object:
             return enabled;
         case 0x47:
         case 0x48:
@@ -103,12 +106,12 @@ std::optional<StoredFields> parse_stored_fields(std::span<const std::uint8_t> by
         return (std::uint32_t(bytes[at]) << 24) | (std::uint32_t(bytes[at + 1]) << 16) |
                (std::uint32_t(bytes[at + 2]) << 8) | bytes[at + 3];
     };
-    if (bytes.size() < 32 || bytes.size() > 128u * 1024u * 1024u || word(0) != 5 ||
-        word(20) != 0x501 || word(24) != 0x40000 || word(28) != 256) {
+    if (bytes.size() < format::header_size || bytes.size() > format::max_database_bytes ||
+        word(0) != 5 || word(20) != 0x501 || word(24) != 0x40000 || word(28) != 256) {
         return {};
     }
     const auto conflict = [&](std::size_t at, std::size_t size, bool descriptor = false) {
-        if (at < 32 || !has(at, size)) {
+        if (at < format::header_size || !has(at, size)) {
             return true;
         }
         const auto range =
@@ -124,7 +127,7 @@ std::optional<StoredFields> parse_stored_fields(std::span<const std::uint8_t> by
     const auto aliases =
         std::equal_range(index.definition_offsets.begin(), index.definition_offsets.end(), offset);
     if (conflict(offset, extent, true) || std::distance(aliases.first, aliases.second) != 1 ||
-        !(bytes[offset] & 0x80) || word(offset + 2) != 1) {
+        !(bytes[offset] & format::definition_flag) || word(offset + 2) != 1) {
         return {};
     }
     StoredFields result;
@@ -167,7 +170,7 @@ std::optional<StoredFields> parse_stored_fields(std::span<const std::uint8_t> by
         }
         at += width;
     }
-    if (class_id >= 0x27 && class_id <= 0x2a) {
+    if (class_id >= format::class_id::title && class_id <= 0x2a) {
         result.list = parse_stored_object_list(bytes, index, class_id, id);
         if (!result.list) {
             return {};

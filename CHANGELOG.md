@@ -1,5 +1,12 @@
 # What's new
 
+## 0.4.4
+
+- Developer tools show incoming variable, function and resource references.
+- Developer tools detect nearby game files and create and rebuild numeric save recipes without Python.
+- In-game tools can load saves or recipes directly. New outputs can be saved in the game folder.
+- Bundled numeric starting points for all seven CD discs, with matching DVD checkpoints.
+
 ## 0.4.3
 
 - Optional remembering of Load categories, pages and selected slots during the current session.

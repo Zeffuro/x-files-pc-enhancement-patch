@@ -42,6 +42,19 @@ void stage_patch_files(const fs::path& package, const fs::path& destination) {
     for (const auto* name : {L"ddraw.ini", L"patch.ini"}) {
         files.emplace_back(fs::path(L"defaults") / name);
     }
+    files.emplace_back(L"tools/save-recipe.py");
+    for (const auto* name :
+         {L"bomb-office-cd-10012.json", L"bomb-office-dvd-20000.json",
+          L"story-office-cd-10012.json", L"story-office-dvd-20000.json",
+          L"disc-01-field-office-cd-10012.json", L"disc-02-comity-inn-cd-10012.json",
+          L"disc-03-field-office-cd-10012.json", L"disc-04-apartment-cd-10012.json",
+          L"disc-05-apartment-cd-10012.json", L"disc-06-hospital-cd-10012.json",
+          L"disc-07-rauch-house-cd-10012.json", L"disc-01-field-office-dvd-20000.json",
+          L"disc-02-comity-inn-dvd-20000.json", L"disc-03-field-office-dvd-20000.json",
+          L"disc-04-apartment-dvd-20000.json", L"disc-05-apartment-dvd-20000.json",
+          L"disc-06-hospital-dvd-20000.json", L"disc-07-rauch-house-dvd-20000.json"}) {
+        files.emplace_back(fs::path(L"tools/save-recipes") / name);
+    }
     for (const auto& file : files) {
         if (!fs::is_regular_file(package / file)) {
             throw std::runtime_error("The patch package is incomplete: " + file.string());

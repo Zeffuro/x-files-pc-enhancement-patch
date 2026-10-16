@@ -14,6 +14,9 @@ import time
 
 
 CHECKS = (
+    "native-recipe",
+    "checkpoint-tools",
+    "native-story-state", "database-references", "database-references-browser",
     "imports",
     "hotspot-reveal", "hotspot-reveal-input", "world-interactions", "world-cursors", "scrolling", "script-scroll", "native-access", "readable-documents", "documents-view",
     "keyboard-navigation", "game-strings",

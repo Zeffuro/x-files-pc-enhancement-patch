@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(XFILES_VERSION "0.4.3" CACHE STRING "Release version (major.minor.patch)")
+set(XFILES_VERSION "0.4.4" CACHE STRING "Release version (major.minor.patch)")
 if(NOT XFILES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "XFILES_VERSION must be major.minor.patch")
 endif()
@@ -184,6 +184,7 @@ target_link_libraries(controller-input PUBLIC user32 xinput)
 add_library(clip-index STATIC src/game/assets/clip_index.cpp)
 target_include_directories(clip-index PUBLIC src)
 add_library(database-browser-ui STATIC
+    src/devtools/database/browser_references.cpp src/game/database/reference_index.cpp
     src/devtools/database/browser.cpp src/devtools/database/browser_controls.cpp
     src/devtools/database/browser_details.cpp src/devtools/database/browser_rows.cpp
     src/devtools/database/browser_navigation.cpp src/devtools/database/assets.cpp
@@ -212,9 +213,18 @@ add_library(database-browser-ui STATIC
 target_include_directories(database-browser-ui PUBLIC src)
 target_link_libraries(database-browser-ui PUBLIC clip-index comctl32 comdlg32 user32 gdi32
     uiautomationcore oleaut32 uuid)
+add_library(save-recipes STATIC
+    src/devtools/recipes/database.cpp src/devtools/recipes/files.cpp
+    src/devtools/recipes/hash.cpp src/devtools/recipes/json.cpp
+    src/devtools/recipes/schema.cpp src/devtools/recipes/writer.cpp)
+target_include_directories(save-recipes PUBLIC src)
+add_library(checkpoint-tools STATIC src/devtools/checkpoints.cpp src/devtools/checkpoints_files.cpp)
+target_include_directories(checkpoint-tools PUBLIC src)
+target_link_libraries(checkpoint-tools PUBLIC save-recipes comctl32 comdlg32 user32 gdi32)
+
 add_library(clip-notes STATIC src/devtools/clip_notes.cpp)
 target_include_directories(clip-notes PUBLIC src)
-target_link_libraries(quicktime PRIVATE database-browser-ui clip-notes controller-input movie-grading uxtheme)
+target_link_libraries(quicktime PRIVATE checkpoint-tools database-browser-ui clip-notes controller-input movie-grading uxtheme)
 target_include_directories(quicktime PRIVATE src src/enhancements/ui)
 target_link_libraries(quicktime PRIVATE advapi32 bcrypt comctl32 comdlg32 dxguid gdi32 msimg32 shell32 user32 uuid winmm xaudio2 xinput)
 
@@ -289,7 +299,8 @@ add_executable(xfiles-devtools WIN32 src/devtools/database/standalone.cpp
     src/devtools/preview.cpp src/playback/audio.cpp src/playback/output.cpp
     src/platform/audio_endpoint.cpp
     "${CMAKE_BINARY_DIR}/generated/version.rc" "${CMAKE_BINARY_DIR}/generated/icon.rc")
-target_link_libraries(xfiles-devtools PRIVATE database-browser-ui movie
+add_dependencies(xfiles-devtools checkpoint-files)
+target_link_libraries(xfiles-devtools PRIVATE checkpoint-tools database-browser-ui movie
     comdlg32 shell32 xaudio2 uuid ole32)
 add_dependencies(xfiles-setup xfiles-devtools)
 add_library(dvd-player STATIC src/dvd/player.cpp src/dvd/files.cpp src/dvd/captions.cpp
@@ -309,6 +320,16 @@ if(XFILES_BUILD_TOOLS)
     add_executable(xfiles-probe tools/probe/main.cpp "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
     target_link_libraries(xfiles-probe PRIVATE launcher-common)
     add_dependencies(xfiles-probe xfiles-patch)
+    add_executable(xfiles-native-state tools/native-story/main.cpp tools/native-story/state.cpp src/identity.cpp)
+    target_include_directories(xfiles-native-state PRIVATE src tools/native-story)
+    target_link_libraries(xfiles-native-state PRIVATE bcrypt user32)
+    add_dependencies(xfiles-native-state native-profile-check)
+    add_executable(xfiles-native-input tools/native-story/input.cpp src/identity.cpp)
+    target_include_directories(xfiles-native-input PRIVATE src)
+    target_link_libraries(xfiles-native-input PRIVATE bcrypt user32)
+    add_executable(xfiles-native-save tools/native-story/save.cpp)
+    target_include_directories(xfiles-native-save PRIVATE src)
+    target_link_libraries(xfiles-native-save PRIVATE database-browser-ui)
 endif()
 
 include(cmake/tests.cmake)

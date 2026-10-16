@@ -27,7 +27,7 @@ Nothing is installed or published.
 Useful options:
 
 ```powershell
-.\build.ps1 -Version 0.4.3
+.\build.ps1 -Version 0.4.4
 .\build.ps1 -BuildDirectory build-release -Jobs 4
 .\build.ps1 -FFmpegRoot C:/dependencies/ffmpeg -Clean
 ```
@@ -138,13 +138,33 @@ This selects the DVD Dolby sequence, teaser and one English game-over scene
 when subtitles are set to On or Off. The warehouse binocular scene and other
 scenes keep QuickTime playback.
 
+## Native game checks
+
+Build with `XFILES_BUILD_TOOLS=ON`. Reconstruct the edition-matched
+[numeric checkpoints](../tests/fixtures/save-recipes/README.md) with
+`python tools/save-recipe.py reconstruct --help`, using your original database
+and executable. Outputs need a new filename and can be saved in the game folder.
+`extract --help` explains how to make a recipe from another selected save.
+Recipes omit saved pictures and changed text. Check new recipes in the original game.
+
+Run `python -m tools.native_story --help` for the death/retry and inventory save/load
+checks. Supply the bomb checkpoint and its SHA-256 with `--fixture` and
+`--fixture-sha256`, plus the longer story checkpoint with `--story-fixture` and
+`--story-fixture-sha256`. Allow several minutes per retry. `--skip-clips` uses the
+game's permitted skips.
+
+Use a disposable test installation with no other game running. Windows checks use
+focus and the pointer. Wine needs an idle prefix and private Xvfb display above 99.
+Keep the new results directory outside the installation and private. It contains
+save backups, restored with settings after the test game exits.
+
 ## Release
 
 Pushing code runs the GitHub checks. After local testing, tag the release:
 
 ```sh
-git tag -a v0.4.3 -m "v0.4.3"
-git push origin v0.4.3
+git tag -a v0.4.4 -m "v0.4.4"
+git push origin v0.4.4
 ```
 
 The tag sets the release version. If all checks pass, GitHub creates a draft
@@ -155,7 +175,7 @@ For packaging after a manual build, run CPack and then prepare both downloads:
 
 ```powershell
 cpack --config build/CPackConfig.cmake -C Release
-python tools/package-release.py build/packages/xfiles-enhancement-0.4.3-windows-x86.zip --version 0.4.3
+python tools/package-release.py build/packages/xfiles-enhancement-0.4.4-windows-x86.zip --version 0.4.4
 ```
 
 Keep dependency licenses and matching FFmpeg source with redistributed packages.

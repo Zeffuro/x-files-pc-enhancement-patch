@@ -1,8 +1,11 @@
 #include "inspector_internal.h"
+#include "inspector.h"
 #include "state_capture.h"
 #include "subtitle_editor.h"
 #include "database/browser.h"
 #include "database/browser_accessibility.h"
+#include "checkpoints.h"
+#include "enhancements/quick_save.h"
 #include "enhancements/game_ui.h"
 #include "platform/tool_cursor.h"
 #include "platform/tool_theme.h"
@@ -88,6 +91,8 @@ void create_controls() {
                              BS_PUSHLIKE | BS_AUTORADIOBUTTON | WS_TABSTOP, game_state_id);
     state.database_button = child(L"BUTTON", L"Database && assets",
                                   BS_PUSHLIKE | BS_AUTORADIOBUTTON | WS_TABSTOP, database_id);
+    state.checkpoints_button =
+        child(L"BUTTON", L"Checkpoints...", BS_PUSHBUTTON | WS_TABSTOP, checkpoints_id);
     create_state_controls();
     state.filenames = child(L"BUTTON", L"Filename", BS_AUTOCHECKBOX | WS_TABSTOP, filename_id);
     state.labels = child(L"BUTTON", L"Labels", BS_AUTOCHECKBOX | WS_TABSTOP, labels_id);
@@ -256,6 +261,26 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             }
             if (id == IDCANCEL) {
                 SendMessageW(window, WM_CLOSE, 0, 0);
+                return 0;
+            }
+            if (id == checkpoints_id) {
+                if (!leave_notes()) {
+                    return 0;
+                }
+                bool requested = false;
+                platform::ToolCursor cursor(state.game);
+                show_checkpoints(
+                    state.window, state.module, state.font, state.catalog.root,
+                    {enhancements::checkpoint_available, [&requested](const auto& path) {
+                         request_checkpoint(path);
+                         requested = true;
+                     }});
+                if (requested) {
+                    const auto game = state.game;
+                    SendMessageW(window, WM_CLOSE, 0, 0);
+                    SetForegroundWindow(game);
+                    SetFocus(game);
+                }
                 return 0;
             }
             if (id == play_id || id == subtitle_id) {

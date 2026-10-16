@@ -23,6 +23,36 @@ install(FILES "${CMAKE_SOURCE_DIR}/docs/controls.md" "${CMAKE_SOURCE_DIR}/docs/b
     "${CMAKE_SOURCE_DIR}/docs/linux.md"
     DESTINATION docs)
 
+install(FILES "${CMAKE_SOURCE_DIR}/tools/save-recipe.py" DESTINATION tools)
+set(checkpoint_recipes
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/bomb-office-cd-10012.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/bomb-office-dvd-20000.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/story-office-cd-10012.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/story-office-dvd-20000.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-01-field-office-cd-10012.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-02-comity-inn-cd-10012.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-03-field-office-cd-10012.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-04-apartment-cd-10012.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-05-apartment-cd-10012.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-06-hospital-cd-10012.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-07-rauch-house-cd-10012.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-01-field-office-dvd-20000.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-02-comity-inn-dvd-20000.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-03-field-office-dvd-20000.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-04-apartment-dvd-20000.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-05-apartment-dvd-20000.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-06-hospital-dvd-20000.json"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/save-recipes/disc-07-rauch-house-dvd-20000.json")
+install(FILES ${checkpoint_recipes} DESTINATION tools/save-recipes)
+add_custom_target(checkpoint-files ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:quicktime>/tools/save-recipes"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/tools/save-recipe.py"
+        "$<TARGET_FILE_DIR:quicktime>/tools"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${checkpoint_recipes}
+        "$<TARGET_FILE_DIR:quicktime>/tools/save-recipes"
+    VERBATIM)
+add_dependencies(quicktime checkpoint-files)
+
 install(FILES "${CMAKE_SOURCE_DIR}/data/clip-labels.tsv" DESTINATION defaults)
 install(FILES "${CMAKE_SOURCE_DIR}/assets/patch.ico" "${CMAKE_SOURCE_DIR}/assets/patch.svg"
     DESTINATION icons)

@@ -22,11 +22,33 @@ REQUIRED = RUNTIME | {
     "source/ffmpeg/build-ffmpeg.sh", "defaults/clip-labels.tsv", "icons/patch.ico", "icons/patch.svg",
     "docs/standalone-devtools.md", "docs/devtools-notices.md",
 }
+CHECKPOINT_FILES = {
+    "tools/save-recipe.py": "tools/save-recipe.py",
+    **{f"tools/save-recipes/{name}.json": f"tests/fixtures/save-recipes/{name}.json"
+       for name in ("bomb-office-cd-10012", "bomb-office-dvd-20000",
+                    "story-office-cd-10012", "story-office-dvd-20000",
+                    "disc-01-field-office-cd-10012",
+                    "disc-02-comity-inn-cd-10012",
+                    "disc-03-field-office-cd-10012",
+                    "disc-04-apartment-cd-10012",
+                    "disc-05-apartment-cd-10012",
+                    "disc-06-hospital-cd-10012",
+                    "disc-07-rauch-house-cd-10012",
+                    "disc-01-field-office-dvd-20000",
+                    "disc-02-comity-inn-dvd-20000",
+                    "disc-03-field-office-dvd-20000",
+                    "disc-04-apartment-dvd-20000",
+                    "disc-05-apartment-dvd-20000",
+                    "disc-06-hospital-dvd-20000",
+                    "disc-07-rauch-house-dvd-20000")},
+}
+REQUIRED |= CHECKPOINT_FILES.keys()
 DEVTOOLS_RUNTIME = {"xfiles-devtools.exe"}
 DEVTOOLS_REQUIRED = DEVTOOLS_RUNTIME | {
     "LICENSE", "THIRD_PARTY.md", "README.md", "FFmpeg.LICENSE", "zlib.LICENSE",
     "docs/developer-tools.md", "source/ffmpeg/build-ffmpeg.sh",
 }
+DEVTOOLS_REQUIRED |= CHECKPOINT_FILES.keys()
 COMPONENTS = ("avformat", "avcodec", "avfilter", "avutil", "swresample", "swscale")
 
 
@@ -118,6 +140,10 @@ def check_package(path: pathlib.Path, version: str, script_path: pathlib.Path,
             expected = (ROOT / "config" / name).read_bytes().replace(b"\r\n", b"\n")
             if archive.read("defaults/" + name).replace(b"\r\n", b"\n") != expected:
                 raise PackageError(f"The bundled defaults/{name} differs from this checkout")
+        for name, source in CHECKPOINT_FILES.items():
+            expected = (ROOT / source).read_bytes().replace(b"\r\n", b"\n")
+            if archive.read(name).replace(b"\r\n", b"\n") != expected:
+                raise PackageError(f"The bundled {name} differs from this checkout")
         notices = {"LICENSE": "LICENSE", "THIRD_PARTY.md": "THIRD_PARTY.md"}
         if kind == "devtools":
             notices.update({"README.md": "docs/standalone-devtools.md",

@@ -529,6 +529,13 @@ void describe(Browser& state) {
             raw = L"File data unavailable. Use Refresh to retry.";
         }
     }
+    if (row && row->stored) {
+        const auto& record = state.stored.records[*row->stored];
+        reference_properties(state, record.class_id, record.id);
+    } else if (row && row->object && *row->object < state.native.objects.size()) {
+        const auto& object = state.native.objects[*row->object];
+        reference_properties(state, object.class_id, object.id, object.state_database, true);
+    }
     if (state.manual_offset && state.database && !asset_selected) {
         raw = state.database->hex(*state.manual_offset);
     }

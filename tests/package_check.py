@@ -37,6 +37,8 @@ class PackageTests(unittest.TestCase):
             self.files[name] = (ROOT / name).read_bytes()
         for name in ("docs/standalone-devtools.md", "docs/devtools-notices.md"):
             self.files[name] = (ROOT / name).read_bytes()
+        self.files.update({name: (ROOT / source).read_bytes()
+                           for name, source in package.CHECKPOINT_FILES.items()})
         self.files["source/ffmpeg/build-ffmpeg.sh"] = self.script.read_bytes()
         self.files["source/ffmpeg/ffmpeg-1.2.3.tar.xz"] = self.source
 
@@ -89,6 +91,17 @@ class PackageTests(unittest.TestCase):
                         self.check()
                 finally:
                     del self.files[name]
+
+    def test_changed_checkpoint_tool_or_recipe(self):
+        for name in package.CHECKPOINT_FILES:
+            with self.subTest(name=name):
+                original = self.files[name]
+                self.files[name] += b"changed"
+                try:
+                    with self.assertRaisesRegex(package.PackageError, "differs from this checkout"):
+                        self.check()
+                finally:
+                    self.files[name] = original
 
     def test_changed_defaults(self):
         self.files["defaults/patch.ini"] += b"\nchanged=1\n"

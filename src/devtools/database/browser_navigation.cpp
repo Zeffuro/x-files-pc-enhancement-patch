@@ -8,6 +8,7 @@ BrowserView current_view(const Browser& state) {
     view.filter = state.filter_index;
     view.class_id = filter_class(state);
     view.query = text(state.search);
+    view.database_path = state.path;
     view.offset = state.manual_offset;
     view.pane = selected_pane(state);
     view.database_pane = state.database_pane;
@@ -30,6 +31,10 @@ BrowserView current_view(const Browser& state) {
 }
 
 void restore_view(Browser& state, const BrowserView& view) {
+    if (!view.database_path.empty() && view.database_path != state.path) {
+        state.requested_path = view.database_path;
+        reload(state);
+    }
     state.mode_index = view.mode;
     if (view.mode == 7) {
         state.database_pane = view.database_pane;
@@ -119,6 +124,21 @@ void update_navigation(Browser& state) {
 }
 
 void navigate(Browser& state, const Destination& destination, bool remember) {
+    if (!destination.database_path.empty() && destination.database_path != state.path) {
+        auto local = destination;
+        const auto source = current_view(state);
+        if (remember && source.selection) {
+            if (state.history.size() == 64) {
+                state.history.erase(state.history.begin());
+            }
+            state.history.push_back(source);
+        }
+        state.requested_path = local.database_path;
+        reload(state);
+        local.database_path.clear();
+        navigate(state, local, false);
+        return;
+    }
     const auto stored =
         destination.stored && destination.object
             ? game_assets::find_database_record(state.stored, destination.object->class_id,

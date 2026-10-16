@@ -1,13 +1,16 @@
 #include "stored_list.h"
+#include "stored_format.h"
 #include <algorithm>
 #include <utility>
 
 namespace game_assets {
+namespace format = stored_format;
+
 std::optional<StoredReferenceList> parse_stored_reference_list(std::span<const std::uint8_t> bytes,
                                                                const OfflineDatabaseIndex& index,
                                                                std::uint32_t class_id,
                                                                std::uint32_t id) {
-    if (class_id != 0x42 && class_id != 0x52) {
+    if (class_id != format::class_id::action_list && class_id != format::class_id::trigger_list) {
         return {};
     }
     const auto found = find_database_record(index, class_id, id);
@@ -21,8 +24,8 @@ std::optional<StoredReferenceList> parse_stored_reference_list(std::span<const s
         return (std::uint32_t(bytes[at]) << 24) | (std::uint32_t(bytes[at + 1]) << 16) |
                (std::uint32_t(bytes[at + 2]) << 8) | bytes[at + 3];
     };
-    if (bytes.size() < 32 || bytes.size() > 128u * 1024u * 1024u || word(0) != 5 ||
-        word(20) != 0x501 || word(24) != 0x40000 || word(28) != 256) {
+    if (bytes.size() < format::header_size || bytes.size() > format::max_database_bytes ||
+        word(0) != 5 || word(20) != 0x501 || word(24) != 0x40000 || word(28) != 256) {
         return {};
     }
     const auto offset = std::size_t(index.records[*found].offset);
@@ -32,9 +35,11 @@ std::optional<StoredReferenceList> parse_stored_reference_list(std::span<const s
                              [](const auto& range, auto start) { return range.second <= start; });
         return range != index.node_ranges.end() && range->first < end;
     };
-    if (offset < 32 || !has(offset, 32) || !(bytes[offset] & 0x80) || word(offset + 2) != 1 ||
+    if (offset < format::header_size || !has(offset, format::reference_list::descriptor_size) ||
+        !(bytes[offset] & format::definition_flag) || word(offset + 2) != 1 ||
         word(offset + 6) > 4096 || word(offset + 14) != 0x0b || word(offset + 22) != 1 ||
-        word(offset + 28) != 0 || overlaps_index(offset, offset + 32)) {
+        word(offset + 28) != 0 ||
+        overlaps_index(offset, offset + format::reference_list::descriptor_size)) {
         return {};
     }
     StoredReferenceList result;
@@ -46,16 +51,18 @@ std::optional<StoredReferenceList> parse_stored_reference_list(std::span<const s
     result.needs_release_raw = bytes[offset + 26];
     result.duplicate_raw = bytes[offset + 27];
     result.resource_id = word(offset + 28);
-    result.target_class = class_id == 0x42 ? 0x41u : 0x51u;
+    result.target_class = class_id == format::class_id::action_list ? format::class_id::action
+                                                                    : format::class_id::trigger;
     const auto expected = std::size_t(word(offset + 6));
     if (!result.resource_mark) {
         return expected == 0 ? std::optional{result} : std::nullopt;
     }
-    std::vector<std::pair<std::size_t, std::size_t>> ranges{{offset, offset + 32}};
+    std::vector<std::pair<std::size_t, std::size_t>> ranges{
+        {offset, offset + format::reference_list::descriptor_size}};
     result.ids.reserve(expected);
     const auto read = [&](auto&& self, std::size_t mark, unsigned depth) -> bool {
-        if (depth >= 32 || result.resource_nodes >= 512 || mark < 32 || !has(mark, 8) ||
-            word(mark + 2) != 1 || bytes[mark + 6] != 0) {
+        if (depth >= 32 || result.resource_nodes >= 512 || mark < format::header_size ||
+            !has(mark, 8) || word(mark + 2) != 1 || bytes[mark + 6] != 0) {
             return false;
         }
         const auto count = std::size_t(bytes[mark + 7]);
@@ -71,7 +78,7 @@ std::optional<StoredReferenceList> parse_stored_reference_list(std::span<const s
         ranges.emplace_back(mark, mark + extent);
         ++result.resource_nodes;
         result.decoded_resource_bytes += extent;
-        if (bytes[mark] & 0x80) {
+        if (bytes[mark] & format::definition_flag) {
             if (count > expected - result.ids.size()) {
                 return false;
             }

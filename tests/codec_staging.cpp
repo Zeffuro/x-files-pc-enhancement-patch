@@ -52,8 +52,30 @@ int wmain(int argc, wchar_t** argv) {
         std::ofstream(staged_patch / L"patch.ini") << "preserved personal settings";
         const auto personal_settings = sha256(staged_patch / L"patch.ini");
         stage_patch_files(package, staged_patch);
-        for (const auto* name : {L"xfiles-devtools.exe", L"README.md", L"CHANGELOG.md",
-                                 L"docs/developer-tools.md", L"defaults/patch.ini"}) {
+        for (const auto* name : {L"xfiles-devtools.exe",
+                                 L"README.md",
+                                 L"CHANGELOG.md",
+                                 L"docs/developer-tools.md",
+                                 L"defaults/patch.ini",
+                                 L"tools/save-recipe.py",
+                                 L"tools/save-recipes/bomb-office-cd-10012.json",
+                                 L"tools/save-recipes/bomb-office-dvd-20000.json",
+                                 L"tools/save-recipes/story-office-cd-10012.json",
+                                 L"tools/save-recipes/story-office-dvd-20000.json",
+                                 L"tools/save-recipes/disc-01-field-office-cd-10012.json",
+                                 L"tools/save-recipes/disc-02-comity-inn-cd-10012.json",
+                                 L"tools/save-recipes/disc-03-field-office-cd-10012.json",
+                                 L"tools/save-recipes/disc-04-apartment-cd-10012.json",
+                                 L"tools/save-recipes/disc-05-apartment-cd-10012.json",
+                                 L"tools/save-recipes/disc-06-hospital-cd-10012.json",
+                                 L"tools/save-recipes/disc-07-rauch-house-cd-10012.json",
+                                 L"tools/save-recipes/disc-01-field-office-dvd-20000.json",
+                                 L"tools/save-recipes/disc-02-comity-inn-dvd-20000.json",
+                                 L"tools/save-recipes/disc-03-field-office-dvd-20000.json",
+                                 L"tools/save-recipes/disc-04-apartment-dvd-20000.json",
+                                 L"tools/save-recipes/disc-05-apartment-dvd-20000.json",
+                                 L"tools/save-recipes/disc-06-hospital-dvd-20000.json",
+                                 L"tools/save-recipes/disc-07-rauch-house-dvd-20000.json"}) {
             require(sha256(staged_patch / name) == sha256(package / name),
                     "Fresh install omitted or changed a browser or guide file");
         }

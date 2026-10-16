@@ -53,6 +53,16 @@ void select(HWND list, int row) {
     ListView_SetItemState(list, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
     ListView_SetItemState(list, row, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 }
+
+int direction_count(HWND list, const wchar_t* direction) {
+    int count = 0;
+    for (int row = 0; row < ListView_GetItemCount(list); ++row) {
+        wchar_t label[32]{};
+        ListView_GetItemText(list, row, 0, label, 32);
+        count += std::wstring(label) == direction;
+    }
+    return count;
+}
 }
 
 int main() {
@@ -113,8 +123,8 @@ int main() {
                     fields.find(L"Decoded resource bytes: 28") != std::wstring::npos,
                 "Stored list did not preserve unsigned IDs/order or mixed cached fields");
         const auto links = GetDlgItem(browser, 3108);
-        require(ListView_GetItemCount(links) == 6,
-                "Static ordered links/cache destination missing");
+        require(direction_count(links, L"To") == 6 && direction_count(links, L"From") == 1,
+                "Static ordered links/cache destination or typed trigger reference missing");
         for (int row = 0; row < 5; ++row) {
             wchar_t label[128]{};
             ListView_GetItemText(links, row, 1, label, 128);
@@ -179,8 +189,9 @@ int main() {
             fields = properties(browser);
             require(fields.find(L"Action[0]") == std::wstring::npos &&
                         text(GetDlgItem(browser, 3117)).empty() &&
-                        ListView_GetItemCount(links) == 0 &&
-                        !IsWindowEnabled(GetDlgItem(browser, 3109)),
+                        direction_count(links, L"To") == 0 &&
+                        bool(IsWindowEnabled(GetDlgItem(browser, 3109))) ==
+                            (direction_count(links, L"From") != 0),
                     "Unsupported refresh retained stale fields or destinations");
             require(failure == 4 || fields.find(L"decoding unavailable") != std::wstring::npos,
                     "Unsupported list gave no explicit unavailable notice");

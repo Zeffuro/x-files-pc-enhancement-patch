@@ -240,6 +240,13 @@ void table_panes(HWND parent, const std::filesystem::path& root) {
     select(classes, 2);
     pane(browser, L"Links");
     select(classes, 0);
+    require(pane_name(browser) == L"Links" && ListView_GetItemCount(GetDlgItem(browser, 3108)) == 1,
+            "Typed incoming action-list reference did not retain its Links tab");
+    SetWindowTextW(GetDlgItem(browser, 3101), L"302 VCAction");
+    require(ListView_GetItemCount(list) == 1, "Unlinked action fixture is ambiguous");
+    select(list, 0);
+    require(ListView_GetItemCount(GetDlgItem(browser, 3108)) == 0,
+            "Unlinked action fixture unexpectedly has references");
     require(pane_name(browser) == L"Overview", "Unavailable Links tab did not fall back safely");
     press(browser, 3129);
     press(browser, 3132);
@@ -334,7 +341,12 @@ int main() {
     HWND parent = nullptr;
     try {
         std::filesystem::create_directories(root / L"XT");
-        const auto bytes = stored_list_fixture::make();
+        auto bytes = stored_list_fixture::make();
+        bytes[263] = 3;
+        stored_list_fixture::word(bytes, 280, 720);
+        stored_list_fixture::word(bytes, 284, 302);
+        bytes[720] = 0xc3;
+        stored_list_fixture::word(bytes, 722, 1);
         std::ofstream(root / L"XFILES.HDB", std::ios::binary)
             .write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
         std::ofstream(root / L"XT/context.xtx") << "Readable context\n";

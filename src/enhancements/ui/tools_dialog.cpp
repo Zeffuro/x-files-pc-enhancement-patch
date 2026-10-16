@@ -91,8 +91,8 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
                 return TRUE;
             case IDC_LOAD_CHECKPOINT:
                 if (checkpoint_available()) {
-                    state->checkpoint =
-                        diagnostics::choose_save_file(window, false, state->directory / L"saves");
+                    state->checkpoint = diagnostics::choose_save_file(
+                        window, false, state->directory / L"saves", true);
                     if (!state->checkpoint.empty()) {
                         EndDialog(window, IDOK);
                     }

@@ -86,7 +86,7 @@ void snapshot(Browser& state, bool reset, bool replacing_assets = false) {
     state.native_updated = GetTickCount64();
 }
 
-void reload(Browser& state, bool reset = false) {
+void reload(Browser& state, bool reset) {
     auto io = game_assets::database_io_snapshot();
     reset = reset || io.session != state.io.session || io.path != state.io.path;
     state.io = std::move(io);
@@ -97,6 +97,7 @@ void reload(Browser& state, bool reset = false) {
             ? database_asset_file(state.root, L"XFILES.HDB").value_or(std::filesystem::path{})
             : std::filesystem::path(state.io.path);
     state.stored = {};
+    state.references.reset();
     state.resource_strings_path.reset();
     state.database.reset();
     state.clips.reset();

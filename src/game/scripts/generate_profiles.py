@@ -8,7 +8,7 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 FIELDS = (
     "application database_manager database_class_node database_branch_node database_object_node "
-    "draw_slot draw_list talk_list history_list current_input main_menu "
+    "draw_slot draw_list talk_list history_list current_input native_input_list main_menu "
     "script_root script_control input_graphic text main_text movie action_movie emotion picture "
     "world_picture world_hotspot registry_container conversation_association "
     "conversation_association_tree association_id_node "
