@@ -3,6 +3,7 @@
 #include "dialogue.h"
 #include "focus.h"
 #include "game_ui.h"
+#include "game_resources.h"
 #include "inventory.h"
 #include "screens.h"
 
@@ -30,7 +31,7 @@ bool activate_group(HWND window, std::span<const RECT> items) {
 
 }
 
-bool navigate_keyboard(HWND window, WPARAM key) {
+bool navigate_keyboard(HWND window, WPARAM key, LPARAM data) {
     const int horizontal = (key == VK_RIGHT) - (key == VK_LEFT);
     const int vertical = (key == VK_DOWN) - (key == VK_UP);
     if ((!horizontal && !vertical && key != VK_RETURN && key != VK_BACK && key != VK_TAB) ||
@@ -39,8 +40,18 @@ bool navigate_keyboard(HWND window, WPARAM key) {
         (GetKeyState(VK_RWIN) & 0x8000)) {
         return false;
     }
+    if ((key == VK_RETURN || key == VK_BACK) && !game::input_vtable()) {
+        const auto script = game::script_controls();
+        // These pages own the original invisible cheat-code editor.
+        if (std::any_of(script.resources.begin(), script.resources.end(), [](unsigned id) {
+                return id == resource::pda_region || id == resource::pda_city ||
+                       id == resource::pda_addresses;
+            })) {
+            return false;
+        }
+    }
     if (navigate_screen(window, horizontal, vertical, key == VK_RETURN, key == VK_BACK,
-                        key == VK_TAB, true)) {
+                        key == VK_TAB, true, key == VK_RETURN && (data & (1L << 24)))) {
         return true;
     }
     if (!game::input_vtable() && game::script_controls().text_input) {

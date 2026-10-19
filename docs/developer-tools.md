@@ -18,6 +18,35 @@ the divider below the preview controls to give the image more or less height.
 You can also focus a divider with Tab, use arrow keys to resize, or press Home
 to reset it. The layout stays as you switch views or resize the tools window.
 
+## Easter eggs
+
+**F10 → Tools → Easter eggs** opens the secrets panel directly. It is also available
+inside Developer tools. Select a PDA cheat and click **Use in game** to run it during
+ordinary exploration, without opening the PDA or typing the code. The tools close
+and the original game performs the action. Story conditions still apply.
+
+**HyperBole Studios: visit the developer office** goes directly to the original
+office during exploration, regardless of chapter, without changing story variables
+or your system date. Close the PDA first. Save before visiting so you can load that
+save to return.
+
+To type a PDA code yourself, open its Puget Sound map, Seattle map or address book.
+Type it without quotes and press Enter. The text stays invisible, and letter case
+does not matter. The notes and e-mail pages do not accept cheats.
+
+The panel shows live Asta, Paranoia, Loss and X scores with their variable names and IDs.
+It also shows Asta's current low and high thresholds. Score cheats set values to
+150 or 50. **Variable paths** opens the selected score's
+database record on **Links**, where incoming references lead to its conditions and writes.
+
+Search also finds hidden logins and other secrets that require their original steps.
+**Copy code** copies the selected code, password or phone number. The reference guide
+works in the standalone tools, where direct use and live scores are unavailable.
+
+Some secrets change story progress or inventory. Save first. Instructions credit
+[Shiloh's research](https://github.com/Asterber/shiloh/blob/main/EASTER-EGGS.md)
+and identify uncertain behavior.
+
 ## Game state
 
 **Game state** shows copied game values, named story variables and inventory.

@@ -1,6 +1,7 @@
 #include "preferences/hooks.h"
 #include "media/files.h"
 #include "saves/dialogs.h"
+#include "platform/game_timers.h"
 
 #include <cstdlib>
 
@@ -27,10 +28,13 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID reserved) {
             remove_preferences_hooks();
             return FALSE;
         }
-    } else if (reason == DLL_PROCESS_DETACH && !reserved) {
-        saves::remove_dialog_hooks();
-        remove_preferences_hooks();
-        media::remove_file_hooks();
+    } else if (reason == DLL_PROCESS_DETACH) {
+        platform::remove_game_timers(reserved != nullptr);
+        if (!reserved) {
+            saves::remove_dialog_hooks();
+            remove_preferences_hooks();
+            media::remove_file_hooks();
+        }
     }
     return TRUE;
 }

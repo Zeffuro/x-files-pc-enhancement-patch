@@ -5,6 +5,7 @@
 #include "database/browser.h"
 #include "database/browser_accessibility.h"
 #include "checkpoints.h"
+#include "easter_eggs.h"
 #include "enhancements/quick_save.h"
 #include "enhancements/game_ui.h"
 #include "platform/tool_cursor.h"
@@ -93,6 +94,8 @@ void create_controls() {
                                   BS_PUSHLIKE | BS_AUTORADIOBUTTON | WS_TABSTOP, database_id);
     state.checkpoints_button =
         child(L"BUTTON", L"Checkpoints...", BS_PUSHBUTTON | WS_TABSTOP, checkpoints_id);
+    state.easter_eggs_button = child(L"BUTTON", L"Easter eggs",
+                                     BS_PUSHLIKE | BS_AUTORADIOBUTTON | WS_TABSTOP, easter_eggs_id);
     create_state_controls();
     state.filenames = child(L"BUTTON", L"Filename", BS_AUTOCHECKBOX | WS_TABSTOP, filename_id);
     state.labels = child(L"BUTTON", L"Labels", BS_AUTOCHECKBOX | WS_TABSTOP, labels_id);
@@ -368,12 +371,18 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             if (id == save_id && save_notes()) {
                 populate();
             }
-            if (id == live_id || id == library_id || id == game_state_id || id == database_id) {
+            if (id == live_id || id == library_id || id == game_state_id || id == database_id ||
+                id == easter_eggs_id) {
                 if (leave_notes()) {
                     state.frame_player = nullptr;
                     state.player.reset();
                     state.showing_state = id == game_state_id;
                     state.showing_database = id == database_id;
+                    state.showing_easter_eggs = id == easter_eggs_id;
+                    if (state.showing_easter_eggs && !state.easter_eggs) {
+                        create_inspector_eggs();
+                        layout();
+                    }
                     if (state.showing_database && !state.database) {
                         state.database = create_database_browser(
                             state.window, state.module, state.font, state.catalog.root,
@@ -392,13 +401,14 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
                         collect_state_history(state.state_history, state.snapshot, true);
                         state.state_updated = GetTickCount64();
                         update_game_state_view();
-                    } else if (!state.showing_database) {
+                    } else if (!state.showing_database && !state.showing_easter_eggs) {
                         populate();
                         describe();
                     }
                 }
                 SendMessageW(state.live, BM_SETCHECK,
-                             !state.browsing && !state.showing_state && !state.showing_database
+                             !state.browsing && !state.showing_state && !state.showing_database &&
+                                     !state.showing_easter_eggs
                                  ? BST_CHECKED
                                  : BST_UNCHECKED,
                              0);
@@ -408,6 +418,8 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
                              state.showing_state ? BST_CHECKED : BST_UNCHECKED, 0);
                 SendMessageW(state.database_button, BM_SETCHECK,
                              state.showing_database ? BST_CHECKED : BST_UNCHECKED, 0);
+                SendMessageW(state.easter_eggs_button, BM_SETCHECK,
+                             state.showing_easter_eggs ? BST_CHECKED : BST_UNCHECKED, 0);
             }
             return 0;
         }
@@ -479,6 +491,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             platform::tool_cursor(state.game, false);
             state.window = nullptr;
             state.database = nullptr;
+            state.easter_eggs = nullptr;
             return 0;
         }
     } catch (const std::exception& error) {

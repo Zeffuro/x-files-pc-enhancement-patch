@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(XFILES_VERSION "0.4.4" CACHE STRING "Release version (major.minor.patch)")
+set(XFILES_VERSION "0.4.5" CACHE STRING "Release version (major.minor.patch)")
 if(NOT XFILES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "XFILES_VERSION must be major.minor.patch")
 endif()
@@ -48,6 +48,11 @@ add_library(quicktime SHARED
     src/devtools/inspector_window.cpp
     src/devtools/inspector_layout.cpp
     src/devtools/inspector_frames.cpp
+    src/devtools/inspector_eggs.cpp
+    src/devtools/easter_egg_scores.cpp
+    src/game/cheats.cpp
+    src/devtools/easter_eggs.cpp
+    src/devtools/easter_egg_catalog.cpp
     src/devtools/inspector_state.cpp
     src/devtools/inspector_preview_details.cpp
     src/devtools/database/native.cpp
@@ -122,6 +127,8 @@ add_library(quicktime SHARED
     src/identity.cpp
     src/enhancements/ui/settings.rc
     src/platform/imports.cpp
+    src/platform/long_timers.cpp
+    src/platform/game_timers.cpp
     src/media/files.cpp
     src/saves/paths.cpp
     src/saves/dialogs.cpp
@@ -295,6 +302,7 @@ target_link_libraries(quicktime PRIVATE movie)
 target_link_libraries(database-browser-ui PUBLIC movie ole32 windowscodecs)
 target_include_directories(movie PUBLIC src/media)
 add_executable(xfiles-devtools WIN32 src/devtools/database/standalone.cpp
+    src/devtools/easter_eggs.cpp src/devtools/easter_egg_catalog.cpp
     src/devtools/database/standalone_preview.cpp
     src/devtools/preview.cpp src/playback/audio.cpp src/playback/output.cpp
     src/platform/audio_endpoint.cpp

@@ -170,6 +170,11 @@
       "field": "process_commands",
       "role": "Process queued native commands",
       "abi": "__stdcall(void*)"
+    },
+    {
+      "field": "queue_action_list",
+      "role": "Queue original trigger and action list commands",
+      "abi": "__stdcall(uint32 trigger, uint32 actions, void* queue, uintptr reserved_zero)"
     }
   ]
 }

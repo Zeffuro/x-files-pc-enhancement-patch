@@ -1,4 +1,4 @@
-"""Run a caption rendering variant with its own game settings file."""
+"""Run a movie runtime variant with its own game settings file."""
 
 from pathlib import Path
 import shutil
@@ -8,8 +8,8 @@ import tempfile
 
 
 def main():
-    if len(sys.argv) != 4 or sys.argv[3] not in {"below", "background"}:
-        raise SystemExit("Pass playback-test, QuickTime.qts and below or background")
+    if len(sys.argv) != 4 or sys.argv[3] not in {"below", "background", "menu"}:
+        raise SystemExit("Pass playback-test, QuickTime.qts and below, background or menu")
     executable = Path(sys.argv[1]).resolve(strict=True)
     quicktime = Path(sys.argv[2]).resolve(strict=True)
     mode = sys.argv[3]
@@ -28,6 +28,9 @@ def main():
             f"CaptionPlacement={int(mode == 'below')}\n",
             encoding="ascii",
         )
+        if mode == "menu":
+            with (folder / "patch.ini").open("a", encoding="ascii") as output:
+                output.write("[Enhancements]\nSkipMenuAnimation=1\n")
         result = subprocess.run(
             [str(target_executable), str(target_quicktime), "--no-audio",
              f"--caption-{mode}"],

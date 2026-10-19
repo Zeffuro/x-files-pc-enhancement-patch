@@ -62,7 +62,8 @@ enum : int {
     frame_list_id,
     column_splitter_id,
     preview_splitter_id,
-    checkpoints_id
+    checkpoints_id,
+    easter_eggs_id
 };
 
 struct Row {
@@ -118,6 +119,9 @@ struct State {
     std::array<std::shared_ptr<const Artwork>, 64> shown_artwork;
     bool showing_state = false;
     bool showing_database = false;
+    bool showing_easter_eggs = false;
+    bool requested_easter_eggs = false;
+    HWND easter_eggs_button = nullptr, easter_eggs = nullptr;
     HWND database_button = nullptr, database = nullptr, checkpoints_button = nullptr;
     std::unique_ptr<Preview> player;
     std::unique_ptr<CaptionIndex> caption_index;
@@ -173,5 +177,9 @@ void create_layout_controls();
 bool paint_splitter(const DRAWITEMSTRUCT& item);
 HWND child(const wchar_t* type, const wchar_t* caption, DWORD style = 0, int id = 0);
 void create_controls();
+void create_inspector_eggs();
+bool process_inspector_egg(HWND game);
+void clear_inspector_egg();
+void update_inspector_egg_scores();
 LRESULT CALLBACK window_proc(HWND, UINT, WPARAM, LPARAM);
 }

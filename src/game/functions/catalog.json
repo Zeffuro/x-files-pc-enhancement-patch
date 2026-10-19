@@ -31,7 +31,8 @@
     {"field": "main_scroll_down", "return": "void", "convention": "__stdcall", "params": [["ChoiceList*", "list"]], "evidence": "game/calls.h ScrollText"},
     {"field": "photo_scroll_up", "return": "void", "convention": "__stdcall", "params": [["void*", "owner"]], "evidence": "game/calls.h ScrollPhotos"},
     {"field": "photo_scroll_down", "return": "void", "convention": "__stdcall", "params": [["void*", "owner"]], "evidence": "game/calls.h ScrollPhotos"},
-    {"field": "process_commands", "return": "void", "convention": "__stdcall", "params": [["void*", "queue"]], "evidence": "game/calls.h ProcessCommands"}
+    {"field": "process_commands", "return": "void", "convention": "__stdcall", "params": [["void*", "queue"]], "evidence": "game/calls.h ProcessCommands"},
+    {"field": "queue_action_list", "return": "void", "convention": "__stdcall", "params": [["std::uint32_t", "trigger"], ["std::uint32_t", "actions"], ["void*", "queue"], ["std::uintptr_t", "reserved_zero"]], "evidence": "game/cheats.cpp original PDA dispatch and command ownership"}
   ],
   "globals": [
     ["application", "Application*"], ["database_manager", "std::uint32_t"],

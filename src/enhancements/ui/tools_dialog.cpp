@@ -66,8 +66,9 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             return FALSE;
         }
         switch (LOWORD(parameter)) {
-            case IDC_CLIP_INSPECTOR: {
-                EndDialog(window, IDC_CLIP_INSPECTOR);
+            case IDC_CLIP_INSPECTOR:
+            case IDC_EASTER_EGGS: {
+                EndDialog(window, LOWORD(parameter));
                 return TRUE;
             }
             case IDC_EXPORT_SUBTITLES:
@@ -150,6 +151,6 @@ ToolsResult show_tools_dialog(HWND owner, HMODULE module) {
         throw std::runtime_error("Cannot open game tools");
     }
     return {result == IDOK ? state.checkpoint : std::filesystem::path{},
-            result == IDC_CLIP_INSPECTOR};
+            result == IDC_CLIP_INSPECTOR, result == IDC_EASTER_EGGS};
 }
 }

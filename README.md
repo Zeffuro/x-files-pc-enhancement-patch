@@ -76,4 +76,7 @@ Thanks to [mthcore/x-files-game](https://github.com/mthcore/x-files-game),
 [xesf/the-x-files-game](https://github.com/xesf/the-x-files-game) for game format
 research and regression scenarios.
 
+Thanks to [Asterber / Shiloh](https://github.com/Asterber/shiloh) for research
+into the original game's easter eggs and hidden debug features.
+
 Thanks to TotalGames for the disc-start checkpoint scenarios.

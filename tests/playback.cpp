@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <array>
 #include <string_view>
 #include <vector>
 
@@ -166,11 +167,240 @@ struct TimeRecord {
 #pragma pack(pop)
 
 unsigned callbacks = 0;
+unsigned stopped_callbacks = 0;
+std::uint32_t expected_callback_time = 261;
 
 void __cdecl complete(void* callback, std::int32_t context) {
     require(context == 1234, "Callback context was corrupted.");
     ++callbacks;
     invoke(Selector::DisposeCallBack, address(callback));
+}
+
+void __cdecl stop_at_end(void* callback, std::int32_t handle) {
+    ++stopped_callbacks;
+    const auto time = invoke(Selector::GetMovieTime, handle);
+    require(time == expected_callback_time, "Callback entry passed its end time.");
+    Sleep(5);
+    require(invoke(Selector::GetMovieTime, handle) == time,
+            "The movie clock advanced during callback dispatch.");
+    invoke(Selector::StopMovie, static_cast<std::uint32_t>(handle));
+    require(invoke(Selector::GetMovieTime, handle) == time,
+            "Stopping within a callback advanced the movie clock.");
+    invoke(Selector::DisposeCallBack, address(callback));
+}
+
+void verify_rearmed_end(std::uint32_t handle, std::uint32_t base) {
+    invoke(Selector::SetMovieTimeValue, handle, 250);
+    invoke(Selector::MoviesTask, handle);
+    const auto arm = [&] {
+        const auto callback = invoke(Selector::NewCallBack, base, 1);
+        require(static_cast<short>(invoke(Selector::CallMeWhen, callback, address(stop_at_end),
+                                          handle, 1, 781, 3000)) == 0,
+                "Short media end callback registration failed.");
+    };
+    arm();
+    invoke(Selector::StartMovie, handle);
+    Sleep(40);
+    require(invoke(Selector::GetMovieTime, handle) == 261 && stopped_callbacks == 0,
+            "Clock queries passed a callback deadline before MoviesTask.");
+    invoke(Selector::MoviesTask, handle);
+    const auto stopped = invoke(Selector::GetMovieTime, handle);
+    require(stopped_callbacks == 1 && stopped == 261 && invoke(Selector::GetMovieRate, handle) == 0,
+            "Short media end advanced beyond its callback deadline.");
+    for (unsigned cycle = 0; cycle < 12; ++cycle) {
+        arm();
+        require(stopped_callbacks == cycle + 1,
+                "Registering an overdue end callback invoked it synchronously.");
+        invoke(Selector::MoviesTask, handle);
+        require(stopped_callbacks == cycle + 1, "A paused clock fired a forward callback.");
+        invoke(Selector::StartMovie, handle);
+        Sleep(5);
+        invoke(Selector::MoviesTask, handle);
+        require(stopped_callbacks == cycle + 2 && invoke(Selector::GetMovieRate, handle) == 0 &&
+                    invoke(Selector::GetMovieTime, handle) == stopped,
+                "Rearming a completed short media range allowed playback beyond its end.");
+        invoke(Selector::MoviesTask, handle);
+        require(stopped_callbacks == cycle + 2, "Rearmed end callback fired twice.");
+    }
+}
+
+std::array<std::uint32_t, 2> changing_callbacks{};
+unsigned changed_callbacks = 0;
+unsigned callback_change = 0;
+std::uint32_t changing_base = 0;
+
+void __cdecl change_other_callback(void*, std::int32_t index) {
+    if (++changed_callbacks == 1) {
+        const auto other = 1 - index;
+        if (callback_change == 0) {
+            invoke(Selector::CancelCallBack, changing_callbacks[other]);
+            return;
+        }
+        if (callback_change == 2) {
+            invoke(Selector::DisposeCallBack, changing_callbacks[other]);
+            changing_callbacks[other] = invoke(Selector::NewCallBack, changing_base, 1);
+        }
+        require(static_cast<short>(invoke(Selector::CallMeWhen, changing_callbacks[1 - index],
+                                          address(change_other_callback), 1 - index, 1, 450,
+                                          1000)) == 0,
+                "A callback could not reschedule another ready callback.");
+    }
+}
+
+void verify_callback_reschedule(std::uint32_t handle, std::uint32_t base) {
+    changing_base = base;
+    for (callback_change = 0; callback_change < 3; ++callback_change) {
+        changed_callbacks = 0;
+        invoke(Selector::SetMovieTimeValue, handle, 250);
+        invoke(Selector::MoviesTask, handle);
+        for (unsigned index = 0; index < changing_callbacks.size(); ++index) {
+            changing_callbacks[index] = invoke(Selector::NewCallBack, base, 1);
+            require(static_cast<short>(invoke(Selector::CallMeWhen, changing_callbacks[index],
+                                              address(change_other_callback), index, 1, 260,
+                                              1000)) == 0,
+                    "Reentrant callback registration failed.");
+        }
+        invoke(Selector::StartMovie, handle);
+        Sleep(40);
+        invoke(Selector::MoviesTask, handle);
+        require(invoke(Selector::GetMovieTime, handle) > 260,
+                "A non-stopping callback discarded the remaining elapsed time.");
+        invoke(Selector::StopMovie, handle);
+        require(changed_callbacks == 1,
+                "Stale readiness fired a callback after another callback rescheduled it.");
+        invoke(Selector::SetMovieTimeValue, handle, 450);
+        invoke(Selector::MoviesTask, handle);
+        require(changed_callbacks == (callback_change == 0 ? 1u : 2u),
+                "Cancellation or rescheduling lost the new callback state.");
+        for (const auto callback : changing_callbacks) {
+            invoke(Selector::DisposeCallBack, callback);
+        }
+    }
+}
+
+void verify_callback_direction(std::uint32_t handle, std::uint32_t base) {
+    invoke(Selector::SetMovieTimeValue, handle, 250);
+    invoke(Selector::MoviesTask, handle);
+    const auto backward = invoke(Selector::NewCallBack, base, 1);
+    const auto either = invoke(Selector::NewCallBack, base, 1);
+    require(static_cast<short>(invoke(Selector::CallMeWhen, backward, address(complete), 1234, 2,
+                                      200, 1000)) == 0 &&
+                static_cast<short>(invoke(Selector::CallMeWhen, either, address(complete), 1234, 3,
+                                          300, 1000)) == 0,
+            "Directional callback registration failed.");
+    invoke(Selector::StartMovie, handle);
+    Sleep(5);
+    invoke(Selector::MoviesTask, handle);
+    invoke(Selector::StopMovie, handle);
+    require(callbacks == 2, "A forward tick fired a backward or future callback.");
+    invoke(Selector::SetMovieTimeValue, handle, 200);
+    invoke(Selector::MoviesTask, handle);
+    require(callbacks == 2, "A backward seek fired a forward callback.");
+    invoke(Selector::SetMovieTimeValue, handle, 310);
+    invoke(Selector::MoviesTask, handle);
+    require(callbacks == 3, "The either-direction callback lost a forward seek.");
+    invoke(Selector::CancelCallBack, backward);
+    invoke(Selector::DisposeCallBack, backward);
+}
+
+unsigned self_callbacks = 0;
+
+void __cdecl rearm_self(void* callback, std::int32_t handle) {
+    invoke(Selector::StopMovie, handle);
+    if (++self_callbacks == 1) {
+        require(static_cast<short>(invoke(Selector::CallMeWhen, address(callback),
+                                          address(rearm_self), handle, 1, 260, 1000)) == 0,
+                "A callback could not rearm itself.");
+    } else {
+        invoke(Selector::DisposeCallBack, address(callback));
+    }
+}
+
+void verify_callback_self_rearm(std::uint32_t handle, std::uint32_t base) {
+    invoke(Selector::SetMovieTimeValue, handle, 250);
+    const auto callback = invoke(Selector::NewCallBack, base, 1);
+    require(static_cast<short>(invoke(Selector::CallMeWhen, callback, address(rearm_self), handle,
+                                      1, 260, 1000)) == 0,
+            "Cannot schedule the self-rearming callback.");
+    for (unsigned cycle = 1; cycle <= 2; ++cycle) {
+        invoke(Selector::StartMovie, handle);
+        Sleep(15);
+        invoke(Selector::MoviesTask, handle);
+        require(self_callbacks == cycle && invoke(Selector::GetMovieTime, handle) == 260,
+                "Self-rearming callback fired recursively or moved its endpoint.");
+    }
+}
+
+FileSpec callback_file;
+std::uint32_t replacement_movie = 0;
+
+std::uint32_t open_callback_movie() {
+    short reference = 0;
+    require(static_cast<short>(invoke(Selector::OpenMovieFile, address(&callback_file),
+                                      address(&reference), 1)) == 0,
+            "Cannot open the callback disposal fixture.");
+    void* movie = nullptr;
+    require(static_cast<short>(
+                invoke(Selector::NewMovieFromFile, address(&movie), reference, 0, 0, 1)) == 0 &&
+                movie,
+            "Cannot create the callback disposal movie.");
+    invoke(Selector::CloseMovieFile, reference);
+    const auto handle = address(movie);
+    invoke(Selector::SetTrackEnabled, invoke(Selector::GetMovieIndTrack, handle, 1), 0);
+    return handle;
+}
+
+void __cdecl replace_callback_movie(void*, std::int32_t handle) {
+    invoke(Selector::DisposeMovie, static_cast<std::uint32_t>(handle));
+    replacement_movie = open_callback_movie();
+}
+
+void verify_callback_disposal(const std::filesystem::path& path) {
+    const auto name = path.string();
+    callback_file.length = static_cast<std::uint8_t>(name.size());
+    std::copy(name.begin(), name.end(), callback_file.name);
+    const auto handle = open_callback_movie();
+    const auto callback =
+        invoke(Selector::NewCallBack, invoke(Selector::GetMovieTimeBase, handle), 1);
+    require(static_cast<short>(invoke(Selector::CallMeWhen, callback,
+                                      address(replace_callback_movie), handle, 1, 10, 1000)) == 0,
+            "Cannot schedule movie replacement from a callback.");
+    invoke(Selector::StartMovie, handle);
+    Sleep(20);
+    invoke(Selector::MoviesTask, handle);
+    require(replacement_movie != 0, "The callback did not replace its movie.");
+    invoke(Selector::StartMovie, replacement_movie);
+    Sleep(20);
+    invoke(Selector::StopMovie, replacement_movie);
+    require(invoke(Selector::GetMovieTime, replacement_movie) >= 10,
+            "Callback cleanup left the replacement movie clock frozen.");
+    invoke(Selector::DisposeMovie, replacement_movie);
+}
+
+void verify_skipped_entrance(const std::filesystem::path& path) {
+    const auto data = fixture();
+    std::ofstream output(path, std::ios::binary);
+    output.write(reinterpret_cast<const char*>(data.data()), data.size());
+    output.close();
+    const auto name = path.string();
+    callback_file.length = static_cast<std::uint8_t>(name.size());
+    std::copy(name.begin(), name.end(), callback_file.name);
+    const auto handle = open_callback_movie();
+    const auto base = invoke(Selector::GetMovieTimeBase, handle);
+    expected_callback_time = 500;
+    for (unsigned cycle = 0; cycle < 3; ++cycle) {
+        const auto callback = invoke(Selector::NewCallBack, base, 1);
+        require(static_cast<short>(invoke(Selector::CallMeWhen, callback, address(stop_at_end),
+                                          handle, 1, 500, 1000)) == 0,
+                "Cannot schedule a skipped entrance callback.");
+        invoke(Selector::StartMovie, handle);
+        require(invoke(Selector::GetMovieTime, handle) == 500 && stopped_callbacks == cycle,
+                "Skipped entrance did not complete through deferred servicing.");
+        invoke(Selector::MoviesTask, handle);
+        require(stopped_callbacks == cycle + 1,
+                "Rearming a skipped entrance at full duration lost its end callback.");
+    }
+    invoke(Selector::DisposeMovie, handle);
 }
 
 constexpr UINT dispose_message = WM_APP + 1;
@@ -343,6 +573,10 @@ void verify(const std::filesystem::path& path, bool audio_output) {
     require(callbacks == 2, "Seeking to the end lost the pending completion callback.");
     invoke(Selector::MoviesTask, handle);
     require(callbacks == 2, "Skip completion callback fired twice.");
+    verify_rearmed_end(handle, base);
+    verify_callback_reschedule(handle, base);
+    verify_callback_direction(handle, base);
+    verify_callback_self_rearm(handle, base);
     verify_message_pump(handle);
 }
 
@@ -511,6 +745,13 @@ int wmain(int argc, wchar_t** argv) {
         const bool below_variant = argc == 4 && std::wstring_view(argv[3]) == L"--caption-below";
         const bool background_variant =
             argc == 4 && std::wstring_view(argv[3]) == L"--caption-background";
+        if (argc == 4 && std::wstring_view(argv[3]) == L"--caption-menu") {
+            invoke(Selector::QTMLInitInternals, 2);
+            verify_skipped_entrance(directory / L"49583.XMV");
+            invoke(Selector::QTMLTermInternals);
+            FreeLibrary(library);
+            return 0;
+        }
         if (below_variant || background_variant) {
             const auto profile =
                 read_settings(std::filesystem::path(argv[0]).parent_path() / L"patch.ini");
@@ -592,6 +833,7 @@ int wmain(int argc, wchar_t** argv) {
         output.close();
         invoke(Selector::QTMLInitInternals, 2);
         verify(path, audio_output);
+        verify_callback_disposal(path);
         for (int index = audio_output ? 2 : 3; index < argc; ++index) {
             verify_external(argv[index]);
         }

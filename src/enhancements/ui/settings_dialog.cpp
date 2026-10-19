@@ -38,6 +38,7 @@ struct Dialog {
     unsigned scaling_filter = 0;
     unsigned original_filter = 0;
     bool inspect = false;
+    bool easter_eggs = false;
     SettingsTabs tabs;
 };
 
@@ -354,10 +355,12 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             const auto tools = show_tools_dialog(
                 window, reinterpret_cast<HMODULE>(GetWindowLongPtrW(window, GWLP_HINSTANCE)));
             state->checkpoint = tools.checkpoint;
-            if (tools.inspect) {
+            if (tools.inspect || tools.easter_eggs) {
                 state->inspect = true;
+                state->easter_eggs = tools.easter_eggs;
                 SendMessageW(window, WM_COMMAND, IDOK, 0);
                 state->inspect = false;
+                state->easter_eggs = false;
             }
             if (!state->checkpoint.empty()) {
                 EndDialog(window, IDC_LOAD_CHECKPOINT);
@@ -521,7 +524,11 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             ui::save_language(std::filesystem::path(module_path).parent_path() / L"patch.ini",
                               static_cast<ui::Language>(selected_language));
             if (state->inspect) {
-                devtools::request_inspector();
+                if (state->easter_eggs) {
+                    devtools::request_easter_eggs();
+                } else {
+                    devtools::request_inspector();
+                }
             }
             EndDialog(window, IDOK);
             return TRUE;

@@ -7,6 +7,7 @@
 #include "quickdraw/regions.h"
 #include "quickdraw/image_codec.h"
 #include "platform/game_fonts.h"
+#include "platform/game_timers.h"
 
 #include <windows.h>
 
@@ -24,6 +25,7 @@ short __cdecl initialize(long flags) {
     if (!initialization_depth) {
         // Register bundled faces before enhanced views create their fonts.
         platform::register_game_fonts();
+        platform::install_game_timers();
         initialization_flags = flags;
     }
     ++initialization_depth;

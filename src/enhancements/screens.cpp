@@ -53,7 +53,7 @@ bool navigate_emotions(HWND window, int direction, bool focus) {
 }
 
 bool navigate_screen(HWND window, int horizontal, int vertical, bool activate, bool cancel,
-                     bool change_group, bool keyboard) {
+                     bool change_group, bool keyboard, bool keypad_enter) {
     std::vector<RECT> items;
     if (quick_menu::expanded()) {
         if (cancel) {
@@ -188,6 +188,17 @@ bool navigate_screen(HWND window, int horizontal, int vertical, bool activate, b
                (has(resource::workstation_search) || has(resource::workstation_media)))) &&
              keyboard)) {
             return false;
+        }
+        if (phone && keypad_enter && !options && !save && !load && !help && pda == Pda::none) {
+            // The original phone's Call action remains authoritative for the entered number.
+            const RECT call{256, 288, 304, 316};
+            const auto target =
+                std::find_if(script.event_targets.begin(), script.event_targets.end(),
+                             [&](const auto& item) { return EqualRect(&item.bounds, &call); });
+            if (target != script.event_targets.end()) {
+                point_controller(window, target->bounds, true);
+            }
+            return true;
         }
         items = std::move(script.buttons);
         if (generic) {

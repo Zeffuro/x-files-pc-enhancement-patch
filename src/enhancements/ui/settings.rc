@@ -126,9 +126,9 @@ BEGIN
     PUSHBUTTON "Export subtitles...", IDC_EXPORT_SUBTITLES, 20, 217, 145, 16
     PUSHBUTTON "Install subtitles...", IDC_INSTALL_SUBTITLES, 173, 217, 145, 16
     GROUPBOX "Developer tools", -1, 10, 247, 320, 48
-    LTEXT "Preview live clips and add your own labels and notes.", -1, 20, 260, 297, 12
+    LTEXT "Browse game data, preview clips or use original cheats.", -1, 20, 260, 297, 12
     PUSHBUTTON "Open developer tools...", IDC_CLIP_INSPECTOR, 20, 275, 145, 16
-    LTEXT "Ctrl+F11 opens it during play.", -1, 173, 278, 145, 12
+    PUSHBUTTON "Easter eggs...", IDC_EASTER_EGGS, 173, 275, 145, 16
     LTEXT "", IDC_BUILD_VERSION, 10, 307, 175, 12
     PUSHBUTTON "About...", IDC_ABOUT, 208, 304, 59, 16
     DEFPUSHBUTTON "Close", IDCANCEL, 275, 304, 55, 16

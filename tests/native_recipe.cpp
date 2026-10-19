@@ -185,11 +185,38 @@ void suite() {
     check(digest(abc) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
           "abc hash");
     const auto base = fixture(), saved = fixture(true);
+    rejects([&] { studio_visit_data(base); });
+    rejects([&] { studio_visit_data({}); });
     const auto text = extract_data(base, saved, "dvd_20000");
     for (auto secret : {"SAVED_SECRET", "OPAQUE_SECRET", "SAVED_PHOTO", "AUTHORED_BASELINE"}) {
         check(text.find(secret) == std::string::npos, "recipe contains payload");
     }
     for (auto build : {"cd_10012", "cd_10019", "cd_10020", "dvd_20000"}) {
+        const auto original = fixture(true, build);
+        Database original_db(original);
+        const auto scene = original_db.records.at({0x57, 150});
+        auto positioned = original;
+        std::fill(positioned.begin() + scene + 113, positioned.begin() + scene + 122,
+                  std::uint8_t{0xff});
+        const auto studio = studio_visit_data(positioned);
+        Database studio_db(studio);
+        check(studio.size() == positioned.size(), "studio visit changed save extent");
+        for (std::size_t i = 0; i < studio.size(); ++i) {
+            if ((i >= scene + 6 && i < scene + 22) || (i >= scene + 113 && i < scene + 122)) {
+                continue;
+            }
+            check(studio[i] == positioned[i], "studio visit changed story or auxiliary data");
+        }
+        check(studio_db.number(scene + 6) == 0xa656 && studio_db.number(scene + 10) == 0x106de &&
+                  studio_db.number(scene + 14) == 0x12d7b &&
+                  studio_db.number(scene + 18) == 0x12d84 && studio_db.number(scene + 113) == 0 &&
+                  studio_db.number(scene + 117, 1) == 0 && studio_db.number(scene + 118) == 0,
+              "studio destination or media reset incorrect");
+        for (const auto offset : {122u, 126u}) {
+            auto overlay = original;
+            overlay[scene + offset + 3] = 1;
+            rejects([&] { studio_visit_data(overlay); });
+        }
         auto value = decode(extract_data(base, fixture(true, build), build));
         auto& timers = array(field(value, "timers"));
         timers.emplace_back(Json::Object{
@@ -313,6 +340,11 @@ void suite() {
 
 int main(int argc, char** argv) {
     try {
+        if (argc == 4 && std::string_view(argv[1]) == "studio-file") {
+            auto output = studio_visit_data(read_file(argv[2], max_database));
+            write_new(argv[3], output, {argv[2]});
+            return 0;
+        }
         if (argc == 6 && std::string_view(argv[1]) == "reconstruct-file") {
             auto output = reconstruct(argv[2], argv[3], argv[4]);
             write_new(argv[5], output, {argv[2], argv[3], argv[4]});

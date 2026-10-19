@@ -278,7 +278,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM dat
             navigation_keys.consume(value);
             return 0;
         }
-        if (navigate_keyboard(window, value)) {
+        if (navigate_keyboard(window, value, data)) {
             native_navigation_keys.consume(value);
             return 0;
         }

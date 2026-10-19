@@ -102,7 +102,9 @@
         "command_queue_type": 2451360,
         "photo_state_list_type": 2438712,
         "photo_preview": 2865908,
-        "process_commands": 10288
+        "process_commands": 10288,
+        "queue_action_list": 509568,
+        "cheat_table": 2443472
       },
       "offsets": {
         "children": 2048,
@@ -214,7 +216,9 @@
         "command_queue_type": 2459696,
         "photo_state_list_type": 2446568,
         "photo_preview": 2878396,
-        "process_commands": 10288
+        "process_commands": 10288,
+        "queue_action_list": 507072,
+        "cheat_table": 2451736
       },
       "offsets": {
         "children": 2052,
@@ -326,7 +330,9 @@
         "command_queue_type": 2466768,
         "photo_state_list_type": 2450040,
         "photo_preview": 2873052,
-        "process_commands": 10288
+        "process_commands": 10288,
+        "queue_action_list": 507200,
+        "cheat_table": 2473400
       },
       "offsets": {
         "children": 2052,
@@ -438,7 +444,9 @@
         "command_queue_type": 2463784,
         "photo_state_list_type": 2450664,
         "photo_preview": 2882588,
-        "process_commands": 10288
+        "process_commands": 10288,
+        "queue_action_list": 507424,
+        "cheat_table": 2455824
       },
       "offsets": {
         "children": 2052,

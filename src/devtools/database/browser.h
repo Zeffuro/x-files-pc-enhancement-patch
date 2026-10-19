@@ -12,4 +12,5 @@ HWND create_database_browser(HWND parent, HMODULE module, HFONT font,
                              const std::filesystem::path& hdb_path = {}, bool asset_view = false,
                              const std::filesystem::path& selected_asset = {});
 void update_database_browser(HWND window);
+bool show_database_variable_paths(HWND window, std::uint32_t id);
 }

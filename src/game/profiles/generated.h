@@ -111,6 +111,8 @@ struct Profile {
     std::uint32_t photo_state_list_type;
     std::uint32_t photo_preview;
     std::uint32_t process_commands;
+    std::uint32_t queue_action_list;
+    std::uint32_t cheat_table;
 };
 
 struct Build {
@@ -224,6 +226,8 @@ inline constexpr Profile profile_cd_10012{
     .photo_state_list_type = 0x253638,
     .photo_preview = 0x2bbaf4,
     .process_commands = 0x2830,
+    .queue_action_list = 0x7c680,
+    .cheat_table = 0x2548d0,
 };
 
 inline constexpr Profile profile_cd_10019{
@@ -329,6 +333,8 @@ inline constexpr Profile profile_cd_10019{
     .photo_state_list_type = 0x2554e8,
     .photo_preview = 0x2bebbc,
     .process_commands = 0x2830,
+    .queue_action_list = 0x7bcc0,
+    .cheat_table = 0x256918,
 };
 
 inline constexpr Profile profile_dvd_20000{
@@ -434,6 +440,8 @@ inline constexpr Profile profile_dvd_20000{
     .photo_state_list_type = 0x256278,
     .photo_preview = 0x2bd6dc,
     .process_commands = 0x2830,
+    .queue_action_list = 0x7bd40,
+    .cheat_table = 0x25bdb8,
 };
 
 inline constexpr Profile profile_cd_10020{
@@ -539,6 +547,8 @@ inline constexpr Profile profile_cd_10020{
     .photo_state_list_type = 0x2564e8,
     .photo_preview = 0x2bfc1c,
     .process_commands = 0x2830,
+    .queue_action_list = 0x7be20,
+    .cheat_table = 0x257910,
 };
 
 inline constexpr Build build_cd_10012{

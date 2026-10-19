@@ -67,6 +67,7 @@ struct Movie {
     std::int32_t serviced_time = 0;
     std::int32_t rate = 0;
     std::int32_t preferred_rate = unit_rate;
+    unsigned callback_dispatch_depth = 0;
     HeldFastForward fast_forward{movie_speed_input};
     enhancements::rumble::PlaybackCue rumble;
     std::int32_t selection_start = 0;
@@ -102,6 +103,8 @@ std::wstring current_caption(const Movie& movie, CaptionMode mode);
 bool draw_captions(Movie& movie, std::wstring text, const CaptionLayout& layout,
                    const CaptionStyle& style, bool video_changed);
 void run_callbacks(MovieHandle handle, std::int32_t before, std::int32_t after);
+std::int32_t limit_callback_time(Movie& movie, std::int32_t proposed, bool forward_tick);
+void reset_callback_clock(MovieHandle handle);
 void release_callbacks(MovieHandle handle = nullptr);
 
 }

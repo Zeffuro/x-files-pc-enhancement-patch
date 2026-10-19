@@ -1,5 +1,6 @@
 #include "movie.h"
 
+#include <algorithm>
 #include <unordered_map>
 
 namespace playback {
@@ -17,9 +18,12 @@ struct Callback {
     Direction direction = Direction::Forward;
     std::int32_t time = 0;
     std::int32_t scale = 1;
+    std::uint64_t generation = 0;
+    bool reached = false;
 };
 
 thread_local std::unordered_map<Callback*, std::unique_ptr<Callback>> callbacks;
+thread_local std::uint64_t next_generation = 0;
 
 MovieHandle __cdecl timebase(MovieHandle handle) {
     movie(handle);
@@ -60,15 +64,51 @@ Error __cdecl schedule(Callback* callback, CallbackProc procedure, std::int32_t 
     callback->direction = direction;
     callback->time = time;
     callback->scale = scale;
+    callback->generation = ++next_generation;
+    callback->reached = false;
     trace_movie("callback", movie(callback->movie), time);
+    trace_movie("callback_now", movie(callback->movie), movie(callback->movie).time);
+    trace_movie("callback_serviced", movie(callback->movie), movie(callback->movie).serviced_time);
     return Error::None;
 }
 
 }
 
+std::int32_t limit_callback_time(Movie& value, std::int32_t proposed, bool forward_tick) {
+    auto limited = std::int64_t(proposed);
+    for (const auto& [key, callback] : callbacks) {
+        if (callback->movie == &value.pointer && callback->procedure &&
+            callback->direction != Direction::Backward) {
+            const auto deadline =
+                (std::int64_t(callback->time) * value.media->timescale + callback->scale - 1) /
+                callback->scale;
+            limited = std::min(limited, std::max(std::int64_t(value.time), deadline));
+        }
+    }
+    if (forward_tick) {
+        for (const auto& [key, callback] : callbacks) {
+            if (callback->movie == &value.pointer && callback->procedure &&
+                callback->direction != Direction::Backward &&
+                limited * callback->scale >=
+                    std::int64_t(callback->time) * value.media->timescale) {
+                callback->reached = true;
+            }
+        }
+    }
+    return static_cast<std::int32_t>(limited);
+}
+
+void reset_callback_clock(MovieHandle handle) {
+    for (const auto& [key, callback] : callbacks) {
+        if (callback->movie == handle) {
+            callback->reached = false;
+        }
+    }
+}
+
 void run_callbacks(MovieHandle handle, std::int32_t before, std::int32_t after) {
     const auto scale = movie(handle).media->timescale;
-    std::vector<Callback*> ready;
+    std::vector<std::pair<Callback*, std::uint64_t>> ready;
     for (const auto& [key, value] : callbacks) {
         if (value->movie != handle || !value->procedure) {
             continue;
@@ -76,19 +116,38 @@ void run_callbacks(MovieHandle handle, std::int32_t before, std::int32_t after) 
         const auto target = static_cast<std::int64_t>(value->time) * scale;
         const auto previous = static_cast<std::int64_t>(before) * value->scale;
         const auto current = static_cast<std::int64_t>(after) * value->scale;
-        if (value->direction != Direction::Backward && current > previous && previous <= target &&
-            current >= target) {
-            ready.push_back(key);
+        if (value->direction != Direction::Backward && current >= target &&
+            (current > previous || value->reached)) {
+            ready.emplace_back(key, value->generation);
         }
     }
-    for (const auto key : ready) {
+    for (const auto& [key, generation] : ready) {
         const auto found = callbacks.find(key);
-        if (found == callbacks.end() || !found->second->procedure) {
+        if (found == callbacks.end() || !found->second->procedure ||
+            found->second->generation != generation) {
             continue;
         }
         const auto procedure = found->second->procedure;
         const auto context = found->second->context;
         found->second->procedure = nullptr;
+
+        struct Dispatch {
+            MovieHandle handle;
+            std::uint64_t identity;
+
+            explicit Dispatch(MovieHandle value)
+                : handle(value), identity(movie(value).inspection_id) {
+                ++movie(handle).callback_dispatch_depth;
+            }
+
+            ~Dispatch() {
+                if (movie_exists(handle) && movie(handle).inspection_id == identity) {
+                    --movie(handle).callback_dispatch_depth;
+                }
+            }
+        } dispatch(handle);
+
+        trace_movie("callback_fire_time", movie(handle), after);
         procedure(key, context);
     }
 }

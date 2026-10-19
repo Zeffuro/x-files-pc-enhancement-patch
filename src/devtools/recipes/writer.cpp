@@ -1,6 +1,34 @@
 #include "internal.h"
 
 namespace devtools::recipes {
+Bytes studio_visit_data(Bytes saved) {
+    using namespace detail;
+    const Database source(saved);
+    for (unsigned cls : auxiliary) {
+        require(source.identities(cls).size() == 1, "missing or ambiguous saved scene");
+    }
+    const auto scene = source.records.at({0x57, *source.identities(0x57).begin()});
+    for (auto [offset, cls] : scene_references) {
+        require(source.number(scene + offset) == *source.identities(cls).begin(),
+                "invalid saved scene reference");
+    }
+    require(!source.number(scene + 122) && !source.number(scene + 126),
+            "Close the game's device screens before visiting HyperBole Studios.");
+    for (unsigned offset = 66; offset <= 98; offset += 8) {
+        source.blob(scene + offset);
+    }
+    constexpr unsigned destination[]{0xa656, 0x106de, 0x12d7b, 0x12d84};
+    for (unsigned i = 0; i < 4; ++i) {
+        for (unsigned byte = 0; byte < 4; ++byte) {
+            saved[scene + 6 + i * 4 + byte] =
+                static_cast<std::uint8_t>(destination[i] >> (24 - byte * 8));
+        }
+    }
+    // A different panorama must not inherit the source movie's saved seek position.
+    std::fill(saved.begin() + scene + 113, saved.begin() + scene + 122, std::uint8_t{0});
+    return saved;
+}
+
 Bytes reconstruct_data(const Bytes& baseline, std::string_view text, std::string_view build_name) {
     using namespace detail;
     const auto& build = build_info(build_name);

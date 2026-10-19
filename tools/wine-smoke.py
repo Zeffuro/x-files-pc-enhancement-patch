@@ -14,10 +14,14 @@ import time
 
 
 CHECKS = (
+    "game-cheats",
+    "easter-egg-scores",
+    "easter-eggs",
     "native-recipe",
     "checkpoint-tools",
     "native-story-state", "database-references", "database-references-browser",
     "imports",
+    "long-timers",
     "hotspot-reveal", "hotspot-reveal-input", "world-interactions", "world-cursors", "scrolling", "script-scroll", "native-access", "readable-documents", "documents-view",
     "keyboard-navigation", "game-strings",
     "autosave-state", "save-recent", "continue-menu", "autosave-runtime", "scene-movie-playing",
@@ -28,7 +32,7 @@ CHECKS = (
     "controller-click", "navigation", "evidence-navigation", "dialogue-navigation", "native-gun", "options-navigation", "rumble",
     "fast-forward", "dvd-clock", "save-compatibility", "save-conversion",
     "save-storage", "save-slots", "installation", "compatibility", "welcome", "menu-colors",
-    "ui-colors", "movie", "audio", "tempo", "audio-endpoint", "playback-audio", "playback-output-missing", "dvd-no-audio-output", "compressed-audio", "video", "canvas-presentation",
+    "ui-colors", "movie", "playback", "audio", "tempo", "audio-endpoint", "playback-audio", "playback-output-missing", "dvd-no-audio-output", "compressed-audio", "video", "canvas-presentation",
     "transcript-history", "transcript-page", "transcript-capture", "transcript-view",
     "browser-session", "scene-overlay", "menu-control", "quick-menu", "quick-menu-navigation",
     "quick-menu-dialog", "settings-tabs", "settings-dialog", "controller-profile", "controller-dialog",
@@ -79,6 +83,9 @@ def main():
     executables = [binaries / (name + "-test.exe") for name in checks]
     if any(not path.is_file() for path in executables):
         parser.error("Build all selected test executables first")
+    quicktime = binaries / "QuickTime.qts"
+    if not quicktime.is_file():
+        parser.error("Build QuickTime.qts for the playback checks")
     display_config = [binaries / "ddraw.ini"] if args.display_monitors else []
     if any(not path.is_file() for path in display_config):
         parser.error("Monitor checks need the built ddraw.ini")
@@ -101,7 +108,7 @@ def main():
     }
     result = 0
     try:
-        for source in executables + list(binaries.glob("*.dll")) + display_config:
+        for source in executables + [quicktime] + list(binaries.glob("*.dll")) + display_config:
             target = stage / source.name
             shutil.copyfile(source, target)
             report["files"][source.name] = hashlib.sha256(target.read_bytes()).hexdigest()
@@ -113,24 +120,39 @@ def main():
             raise RuntimeError(f"Wine initialization failed ({code})")
         cases = [(name, edition) for name in checks
                  for edition in (range(4) if name == "native-writes" else (None,))]
+        cases.append(("playback", "menu"))
         for name, edition in cases:
             label = f"{name}-{edition}" if edition is not None else name
             started = time.monotonic()
             try:
+                executable = stage / (name + "-test.exe")
+                directory = stage
                 arguments = ["--visible"] if name == "standalone-preview" else []
                 if edition is not None:
                     arguments = [str(edition)]
-                if name in ("resource-browser", "database-usability"):
+                if name in ("resource-browser", "database-usability", "easter-eggs"):
                     arguments = ["--clipboard"]
                 if name == "display":
                     arguments = [str(stage / "ddraw.dll"), "--monitors-only"]
                 if name == "dvd-no-audio-output":
                     fixture = Path(__file__).resolve().parent.parent / "tests/fixtures/dvd-stream.mpg"
                     arguments = ["--no-audio", "Z:" + str(fixture)]
+                if name == "playback":
+                    if edition == "menu":
+                        directory = output / "playback-menu"
+                        directory.mkdir()
+                        for source in [executable, stage / "QuickTime.qts", *stage.glob("*.dll")]:
+                            os.link(source, directory / source.name)
+                        executable = directory / executable.name
+                        (directory / "patch.ini").write_text(
+                            "[Enhancements]\nSkipMenuAnimation=1\n", encoding="ascii")
+                    arguments = [str(directory / "QuickTime.qts"), "--no-audio"]
+                    if edition == "menu":
+                        arguments.append("--caption-menu")
                 check_environment = environment.copy()
                 if name == "display":
                     check_environment["WINEDLLOVERRIDES"] = "ddraw=n,b"
-                code = run([wine, str(stage / (name + "-test.exe"))] + arguments, stage, check_environment,
+                code = run([wine, str(executable)] + arguments, directory, check_environment,
                            logs / (label + ".log"), max(240, args.timeout) if name == "display" else args.timeout)
                 status = "passed" if code == 0 else "failed"
             except subprocess.TimeoutExpired:

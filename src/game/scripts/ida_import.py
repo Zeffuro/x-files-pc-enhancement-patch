@@ -1,4 +1,4 @@
-"""Preview native profile names in IDA. Call run(apply=True) to apply safe names."""
+"""Preview guarded native and supplemental IDA names. Apply only when requested."""
 
 import importlib.util
 import json
@@ -9,6 +9,13 @@ HERE = Path(__file__).resolve().parent
 
 def _generator():
     spec = importlib.util.spec_from_file_location("game_profile_generator", HERE / "generate_profiles.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _symbols():
+    spec = importlib.util.spec_from_file_location("game_ida_symbols", HERE / "ida_symbols.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -27,8 +34,28 @@ def _digest(value):
     return None
 
 
-def plan(data, adapter, functions=None):
-    """Return a build and (status, address, desired, current) decisions."""
+def _guard(adapter, symbol, base, symbols):
+    ea = base + symbol["rva"]
+    if not adapter.is_mapped(ea):
+        return "unmapped"
+    if symbol["kind"] == "function" and not adapter.is_function(ea):
+        return "not_function"
+    if symbol.get("source"):
+        if symbol["kind"] == "data":
+            check = getattr(adapter, "is_data_range", None)
+            if check is None:
+                return "unsupported_adapter"
+            if not check(ea, symbol["size"]):
+                return "not_data"
+        read = getattr(adapter, "read_bytes", None)
+        if symbol["fingerprint"] is not None and read is None:
+            return "bytes_unavailable"
+        if not symbols.matches(symbol, base, read):
+            return "fingerprint_mismatch"
+    return None
+
+
+def _plan(data, adapter, functions=None, research=True):
     generator = _generator()
     generator.validate(data)
     if functions is None:
@@ -43,12 +70,25 @@ def plan(data, adapter, functions=None):
         raise ValueError("Input executable SHA-256 is unknown")
     if build["rvas"] is None:
         raise ValueError("This build has no verified native mapping")
+    roles = {item["field"]: item["role"] for item in functions["functions"]}
+    definitions = [{"name": "XFiles_" + field, "rva": rva,
+                    "kind": "function" if field in function_fields else "profile",
+                    "role": roles.get(field, "")}
+                   for field, rva in build["rvas"].items()]
+    symbols = None
+    if research:
+        symbols = _symbols()
+        try:
+            catalog = symbols.load(data)
+        except OSError as error:
+            raise ValueError("Supplemental IDA catalog unavailable: " + str(error)) from error
+        definitions.extend(symbols.rows(catalog, build["id"]))
     base = adapter.imagebase()
     decisions = []
     addresses = set()
-    for field, rva in build["rvas"].items():
-        ea = base + rva
-        desired = "XFiles_" + field
+    for symbol in definitions:
+        ea = base + symbol["rva"]
+        desired = symbol["name"]
         alias = ea in addresses
         addresses.add(ea)
         if not adapter.is_mapped(ea):
@@ -58,8 +98,8 @@ def plan(data, adapter, functions=None):
             owner = adapter.name_owner(desired)
             if alias:
                 status = "alias"
-            elif field in function_fields and not adapter.is_function(ea):
-                status = "not_function"
+            elif invalid := _guard(adapter, symbol, base, symbols):
+                status = invalid
             elif current == desired:
                 status = "already"
             elif adapter.has_user_name(ea):
@@ -69,6 +109,12 @@ def plan(data, adapter, functions=None):
             else:
                 status = "ready"
         decisions.append((status, ea, desired, current))
+    return build, decisions, definitions, symbols
+
+
+def plan(data, adapter, functions=None, research=True):
+    """Return a build and (status, address, desired, current) decisions."""
+    build, decisions, _, _ = _plan(data, adapter, functions, research)
     return build, decisions
 
 
@@ -111,6 +157,14 @@ class IdaAdapter:
         function = self.funcs.get_func(ea)
         return function is not None and function.start_ea == ea
 
+    def is_data_range(self, ea, size):
+        return all(self.bytes.is_mapped(address) and
+                   not self.bytes.is_code(self.bytes.get_flags(address))
+                   for address in range(ea, ea + size))
+
+    def read_bytes(self, ea, size):
+        return self.bytes.get_bytes(ea, size)
+
     def name(self, ea):
         return self.names.get_name(ea)
 
@@ -128,7 +182,7 @@ class IdaAdapter:
         self.ui.msg(message + "\n")
 
 
-def run(apply=False, adapter=None):
+def run(apply=False, adapter=None, research=True):
     """Preview by default. Call explicitly with apply=True inside IDA to rename."""
     adapter = adapter or IdaAdapter()
     adapter.wait()
@@ -136,7 +190,7 @@ def run(apply=False, adapter=None):
     functions = json.loads((HERE.parent / "profiles/functions.json").read_text(encoding="utf-8"))
     planned_base = adapter.imagebase()
     try:
-        build, decisions = plan(data, adapter, functions)
+        build, decisions, definitions, symbols = _plan(data, adapter, functions, research)
     except ValueError as error:
         adapter.log("X-Files profile import stopped: " + str(error))
         return []
@@ -145,14 +199,13 @@ def run(apply=False, adapter=None):
         return []
     adapter.log(f"X-Files {build['label']} at {planned_base:#x}: " +
                 ("apply" if apply else "preview"))
-    roles = {"XFiles_" + item["field"]: item["role"] for item in functions["functions"]}
+    descriptions = {item["name"]: item for item in definitions}
     outcomes = []
     for status, ea, desired, current in decisions:
         if apply and status == "ready":
             if (adapter.imagebase() != planned_base or
                 _digest(adapter.input_sha256()) != build["sha256"] or
-                not adapter.is_mapped(ea) or
-                (desired in roles and not adapter.is_function(ea)) or
+                _guard(adapter, descriptions[desired], planned_base, symbols) or
                 adapter.name(ea) != current or adapter.has_user_name(ea) or
                 adapter.name_owner(desired) not in (None, ea)):
                 status = "changed_since_plan"
@@ -161,8 +214,12 @@ def run(apply=False, adapter=None):
             else:
                 status = "failed"
         outcomes.append((status, ea, desired, current))
+        description = descriptions[desired]
+        role = description.get("role", "")
+        source = description.get("source", "")
+        detail = role or (f"{source}; {description['kind']}; {description['size']} bytes" if source else "")
         adapter.log(f"  {status:18} {ea:#x} {desired}" +
-                    (f" [{roles[desired]}]" if desired in roles else "") +
+                    (f" [{detail}]" if detail else "") +
                     (f" (existing: {current})" if current else ""))
     return outcomes
 

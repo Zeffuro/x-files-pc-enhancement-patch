@@ -20,4 +20,5 @@ void write_new(const std::filesystem::path& path, std::span<const std::uint8_t> 
 
 std::string extract_data(const Bytes& baseline, const Bytes& saved, std::string_view build);
 Bytes reconstruct_data(const Bytes& baseline, std::string_view recipe, std::string_view build);
+Bytes studio_visit_data(Bytes saved);
 }

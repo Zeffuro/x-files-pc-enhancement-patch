@@ -132,8 +132,10 @@ void layout() {
     MoveWindow(state.library, 170, 18, 130, 34, TRUE);
     MoveWindow(state.game_state, 306, 18, 130, 34, TRUE);
     MoveWindow(state.database_button, 442, 18, 158, 34, TRUE);
-    MoveWindow(state.checkpoints_button, 606, 18, 126, 34, TRUE);
+    MoveWindow(state.easter_eggs_button, 606, 18, 126, 34, TRUE);
+    MoveWindow(state.checkpoints_button, 738, 18, 126, 34, TRUE);
     MoveWindow(state.database, 20, 66, width - 40, height - 120, TRUE);
+    MoveWindow(state.easter_eggs, 20, 66, width - 40, height - 120, TRUE);
     MoveWindow(state.search_label, 20, 70, 62, 24, TRUE);
     MoveWindow(state.search, 86, 66, split - 90, 30, TRUE);
     MoveWindow(state.filenames, 20, 100, 94, 24, TRUE);
@@ -147,7 +149,7 @@ void layout() {
     MoveWindow(state.list, 20, 200, split - 24, height - 254, TRUE);
     MoveWindow(state.column_splitter, split, 66, 12, height - 120, TRUE);
     layout_state_controls(width, height);
-    const int title_left = std::max(right, 746);
+    const int title_left = std::max(right, 878);
     MoveWindow(state.title, title_left, 20, std::max(1, width - title_left - 20), 32, TRUE);
     MoveWindow(state.preview, right, 66, detail_width, preview_height, TRUE);
     MoveWindow(state.clock, right, bottom + 6, detail_width, 24, TRUE);

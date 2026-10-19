@@ -18,6 +18,34 @@ void variable(Browser& state) {
     require(selected_row(state) && selected_row(state)->stored,
             "Cannot select exact stored variable");
 }
+
+void score_shortcut(HWND parent, HMODULE module, const std::filesystem::path& root) {
+    devtools::NativeDatabaseSnapshot snapshot;
+    snapshot.available = true;
+    for (const bool state : {false, true}) {
+        devtools::NativeDatabaseObject object;
+        object.class_id = 0x53;
+        object.id = 200;
+        object.state_database = state;
+        object.variable = devtools::DatabaseVariable{100, 1};
+        snapshot.objects.push_back(object);
+    }
+    const auto window = devtools::create_database_browser(
+        parent, module, static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT)), root, {},
+        [snapshot] { return snapshot; }, root / L"XFILES.GAM");
+    MoveWindow(window, 0, 0, 1000, 700, FALSE);
+    auto& state = *reinterpret_cast<Browser*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+    require(devtools::show_database_variable_paths(window, 200), "Score path shortcut failed");
+    const auto* row = selected_row(state);
+    require(row && row->object && state.native.objects[*row->object].state_database &&
+                selected_pane(state) == Pane::links &&
+                (GetWindowLongPtrW(state.relations, GWL_STYLE) & WS_VISIBLE) &&
+                !(GetWindowLongPtrW(state.properties, GWL_STYLE) & WS_VISIBLE),
+            "Score shortcut selected the wrong namespace or hid its Links pane");
+    require(!devtools::show_database_variable_paths(window, 999),
+            "Missing score variable was reported available");
+    DestroyWindow(window);
+}
 }
 
 int main() {
@@ -38,6 +66,7 @@ int main() {
         parent = CreateWindowExW(0, L"STATIC", L"", WS_OVERLAPPEDWINDOW, 0, 0, 1200, 800, nullptr,
                                  nullptr, module, nullptr);
         require(parent != nullptr, "Cannot create reference host");
+        score_shortcut(parent, module, root);
         const auto window = devtools::create_database_browser(
             parent, module, static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT)), root, {}, {},
             gam);

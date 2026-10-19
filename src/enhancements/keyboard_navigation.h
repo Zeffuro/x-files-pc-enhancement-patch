@@ -38,5 +38,5 @@ private:
     std::array<bool, 256> keys{};
 };
 
-bool navigate_keyboard(HWND window, WPARAM key);
+bool navigate_keyboard(HWND window, WPARAM key, LPARAM data = 0);
 }

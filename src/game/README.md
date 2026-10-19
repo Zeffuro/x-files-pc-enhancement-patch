@@ -7,6 +7,7 @@
 | `assets/` | Bounded clip-label index read from the installed game database. No game data is bundled. |
 | `database/` | Read-only HDB parsing and bounded file access. The browser and cached snapshot tools live in `src/devtools/database/`. |
 | `scripts/` | Profile generator and IDA naming bridge. |
+| `ida/` | Supplemental executable names with source revisions and byte fingerprints. |
 
 Run `python src/game/scripts/generate_profiles.py` after editing `profiles/builds.json`. Add `--check` to detect stale generated C++. The build runs this check automatically. The generator also validates `profiles/functions.json`. Function entries refer to profile fields and do not repeat build addresses.
 
@@ -59,7 +60,20 @@ mutation or guessed serialized-state mapping for older saves. Preview failure fa
 back to the thumbnail. Deleting a slot unpublishes its metadata before removing its
 generation files, leaving unrelated files alone.
 
-In IDA, execute `scripts/ida_import.py` to preview `XFiles_<field>` names for the input-file hash. To apply, import the script and explicitly call `run(apply=True)`. The bridge waits for autoanalysis, requires a matching 32-bit input hash, rebases each RVA, and requires each cataloged function to start at its target address. It skips user names, collisions and unmapped addresses. It never applies type declarations or changes existing types. It does not create functions, structures or data items.
+In IDA, execute `scripts/ida_import.py` to preview names for the input-file hash. To apply, import the script and explicitly call `run(apply=True)`. Use `run(research=False)` to preview only the native profile names, or add `apply=True` to apply that subset.
+
+Native profile names use `XFiles_<field>` and take precedence over supplemental aliases. Table names use `XFiles_table_<name>` and other labels use `XFiles_re_<name>`. These names were checked against the original executables using research from [Shiloh](https://github.com/Asterber/shiloh) and [xesf's The X-Files game project](https://github.com/xesf/the-x-files-game). `ida/symbols.json` records the pinned source revisions and per-build fingerprints.
+
+| Executable | Function labels | Data labels | Tables |
+| --- | ---: | ---: | ---: |
+| CD 1.00.12 | 399 | 14 | 41 |
+| CD 1.00.19 | 432 | 14 | 41 |
+| Japanese CD 1.00.20 | 427 | 14 | 41 |
+| DVD | 541 | 14 | 41 |
+
+CD matches include all 203 built-in handlers and 51 class factories. Matches use original registrations, verified references and instruction decoding from known entries. Unresolved DVD labels remain absent from the corresponding CD catalogs. Names identify routines without declaring their calling conventions or object layouts.
+
+The bridge waits for autoanalysis, requires a matching 32-bit input hash, rebases each RVA, and requires each cataloged function to start at its target address. Supplemental names also require matching byte fingerprints, including rebased pointers where present. For functions, `size` describes the fingerprint span. Data ranges must be mapped without code. The bridge skips user names, collisions and unmapped addresses, and rechecks candidates before applying them. It never applies type declarations or changes existing types. It does not create functions, structures or data items.
 
 Native UI, state, resource and queue prefixes live in `layouts/`. Known inventory
 selection values use one enum in `layouts/input/inventory_selection.h`, and
@@ -234,3 +248,11 @@ and do not assert execution or evaluate the game's trigger context.
 `profiles/variables.h` keeps registered variable slots and optional verified labels.
 Keep registration names visible when adding friendly labels. Unknown meanings
 remain unnamed rather than being inferred from current values.
+
+`cheats.cpp` queues the original 26 PDA trigger/action-list pairs through the
+hash-selected `queue_action_list` binding. It passes the primary command queue,
+not the Application object, and leaves execution to the normal game update.
+Requests require the game owner thread, stable session/view, idle queues and
+ordinary exploration. The native commands retain their resource references.
+The mapped `cheat_table` is checked before scheduling. Story predicates remain
+part of the original actions.

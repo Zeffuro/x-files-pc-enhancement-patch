@@ -245,11 +245,19 @@ void show_view() {
                         state.save,
                         state.column_splitter,
                         state.preview_splitter}) {
-        ShowWindow(window, state.showing_state || state.showing_database ? SW_HIDE : SW_SHOW);
+        ShowWindow(window,
+                   state.showing_state || state.showing_database || state.showing_easter_eggs
+                       ? SW_HIDE
+                       : SW_SHOW);
     }
-    show_frame_controls(!state.showing_state && !state.showing_database);
+    show_frame_controls(!state.showing_state && !state.showing_database &&
+                        !state.showing_easter_eggs);
     show_state_controls(state.showing_state);
     ShowWindow(state.database, state.showing_database ? SW_SHOW : SW_HIDE);
+    ShowWindow(state.easter_eggs, state.showing_easter_eggs ? SW_SHOW : SW_HIDE);
+    if (state.showing_easter_eggs) {
+        set_text(state.status, L"Original-game secrets. Research: Asterber / Shiloh.");
+    }
     if (state.showing_database) {
         set_text(state.status, L"Browse database tables or asset files. Values are read-only.");
     }
@@ -270,6 +278,7 @@ void open_database_asset(const std::filesystem::path& requested) {
     state.player.reset();
     state.showing_state = false;
     state.showing_database = false;
+    state.showing_easter_eggs = false;
     state.browsing = true;
     state.selected.clear();
     state.selected_movie = 0;
@@ -302,6 +311,7 @@ void open_database_asset(const std::filesystem::path& requested) {
     SendMessageW(state.library, BM_SETCHECK, BST_CHECKED, 0);
     SendMessageW(state.game_state, BM_SETCHECK, BST_UNCHECKED, 0);
     SendMessageW(state.database_button, BM_SETCHECK, BST_UNCHECKED, 0);
+    SendMessageW(state.easter_eggs_button, BM_SETCHECK, BST_UNCHECKED, 0);
     SetFocus(state.list);
 }
 
@@ -373,6 +383,11 @@ void request_inspector() {
     state.requested = true;
 }
 
+void request_easter_eggs() {
+    state.requested = true;
+    state.requested_easter_eggs = true;
+}
+
 void request_checkpoint(const std::filesystem::path& path) {
     state.pending_checkpoint = path;
 }
@@ -389,6 +404,9 @@ void update_inspector(HWND game, bool available) {
         return;
     }
     try {
+        if (process_inspector_egg(game)) {
+            return;
+        }
         if (!state.pending_checkpoint.empty()) {
             // Movie callbacks also pump the tools, so load only from the normal game update.
             const auto checkpoint = std::exchange(state.pending_checkpoint, {});
@@ -400,8 +418,13 @@ void update_inspector(HWND game, bool available) {
             return;
         }
         if (state.requested) {
+            const bool eggs = state.requested_easter_eggs;
             state.requested = false;
+            state.requested_easter_eggs = false;
             open(game);
+            if (eggs && state.window) {
+                SendMessageW(state.window, WM_COMMAND, easter_eggs_id, 0);
+            }
         }
         if (!state.window || IsIconic(state.window)) {
             show_hotspots(game, false, {});
@@ -430,6 +453,13 @@ void update_inspector(HWND game, bool available) {
         }
         if (state.showing_database) {
             update_database_browser(state.database);
+            return;
+        }
+        if (state.showing_easter_eggs) {
+            if (GetTickCount64() - state.state_updated >= 1000) {
+                update_inspector_egg_scores();
+                state.state_updated = GetTickCount64();
+            }
             return;
         }
         if ((SendMessageW(state.captions, BM_GETCHECK, 0, 0) ||
@@ -472,6 +502,7 @@ void update_inspector(HWND game, bool available) {
 }
 
 void release_inspector() {
+    clear_inspector_egg();
     release_state_capture();
     if (state.window) {
         DestroyWindow(state.window);

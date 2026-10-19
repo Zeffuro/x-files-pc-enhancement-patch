@@ -326,6 +326,17 @@ public:
         return process_commands_target()(arg_queue);
     }
 
+    using QueueActionList = void(__stdcall*)(std::uint32_t, std::uint32_t, void*, std::uintptr_t);
+
+    QueueActionList queue_action_list_target() const {
+        return bind<QueueActionList>(addresses_.queue_action_list);
+    }
+
+    void queue_action_list(std::uint32_t arg_trigger, std::uint32_t arg_actions, void* arg_queue,
+                           std::uintptr_t arg_reserved_zero) const {
+        return queue_action_list_target()(arg_trigger, arg_actions, arg_queue, arg_reserved_zero);
+    }
+
     using ObjectResource = std::byte*(__stdcall*)(void*);
 
     ObjectResource object_resource_target(void* arg_object) const {

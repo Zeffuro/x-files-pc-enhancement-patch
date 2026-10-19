@@ -142,7 +142,7 @@ bool navigate_emotions(HWND, int, bool) {
     return false;
 }
 
-bool navigate_screen(HWND, int, int, bool, bool, bool, bool) {
+bool navigate_screen(HWND, int, int, bool, bool, bool, bool, bool) {
     return false;
 }
 

@@ -2,6 +2,19 @@ option(XFILES_INTERACTIVE_TESTS "Run tests that change the display or play sound
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(game-cheats-test tests/game_cheats.cpp)
+    target_include_directories(game-cheats-test PRIVATE src)
+    target_link_libraries(game-cheats-test PRIVATE user32)
+    add_test(NAME native-cheat-dispatch COMMAND game-cheats-test)
+    add_executable(easter-egg-scores-test tests/easter_egg_scores.cpp)
+    target_include_directories(easter-egg-scores-test PRIVATE src)
+    target_link_libraries(easter-egg-scores-test PRIVATE user32)
+    add_test(NAME easter-egg-scores COMMAND easter-egg-scores-test)
+    add_executable(easter-eggs-test tests/easter_eggs.cpp
+        src/devtools/easter_eggs.cpp src/devtools/easter_egg_catalog.cpp)
+    target_include_directories(easter-eggs-test PRIVATE src)
+    target_link_libraries(easter-eggs-test PRIVATE comctl32 user32 gdi32)
+    add_test(NAME easter-eggs-browser COMMAND easter-eggs-test)
     add_executable(native-recipe-test tests/native_recipe.cpp)
     target_link_libraries(native-recipe-test PRIVATE save-recipes)
     add_test(NAME native-recipe COMMAND native-recipe-test)
@@ -400,6 +413,8 @@ if(BUILD_TESTING)
     add_test(NAME native-field-generation COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/src/game/access/generate.py" --check)
     add_test(NAME native-call-generation COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/src/game/functions/generate.py" --check)
     add_test(NAME native-ida-naming COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida.py")
+    add_test(NAME native-ida-catalog COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida_symbols.py")
+    add_test(NAME native-ida-research COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida_research.py")
     add_executable(game-strings-test tests/game_strings.cpp tests/game_strings.rc
         src/enhancements/game_strings.cpp)
     add_library(game-strings-fixture SHARED tests/game_strings_fixture.cpp tests/game_strings_fixture.rc)
@@ -599,6 +614,9 @@ if(BUILD_TESTING)
             "${PROJECT_SOURCE_DIR}/tests/run_caption_variant.py"
             $<TARGET_FILE:playback-test> $<TARGET_FILE:quicktime> ${mode})
     endforeach()
+    add_test(NAME movie-callback-menu-skip COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/run_caption_variant.py"
+        $<TARGET_FILE:playback-test> $<TARGET_FILE:quicktime> menu)
     if(XFILES_INTERACTIVE_TESTS)
     add_test(NAME movie-playback-audio COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/run_logged.py"
         "${CMAKE_BINARY_DIR}/test-logs/movie-playback-audio.log" $<TARGET_FILE:playback-test> $<TARGET_FILE:quicktime>)
@@ -635,6 +653,11 @@ if(BUILD_TESTING)
     target_include_directories(preferences-test PRIVATE src)
     target_link_libraries(preferences-test PRIVATE advapi32)
     add_test(NAME portable-preferences COMMAND preferences-test $<TARGET_FILE:quicktime>)
+
+    add_executable(long-timers-test tests/long_timers.cpp src/platform/long_timers.cpp)
+    target_include_directories(long-timers-test PRIVATE src)
+    target_link_libraries(long-timers-test PRIVATE winmm)
+    add_test(NAME long-multimedia-timers COMMAND long-timers-test)
 
     add_executable(display-test
         src/diagnostics/log_file.cpp

@@ -414,6 +414,23 @@ HWND create_database_browser(HWND parent, HMODULE module, HFONT font,
     }
 }
 
+bool show_database_variable_paths(HWND window, std::uint32_t id) {
+    using namespace database_browser;
+    auto* state = browser(window);
+    if (!state) {
+        return false;
+    }
+    snapshot(*state, false);
+    const DatabaseObjectKey key{0x53, id, true};
+    if (!database_find(state->native, key)) {
+        return false;
+    }
+    navigate(*state, {key, {}}, true);
+    select_pane(*state, Pane::links);
+    layout(*state);
+    return true;
+}
+
 void update_database_browser(HWND window) {
     using namespace database_browser;
     auto* state = browser(window);

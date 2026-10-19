@@ -52,6 +52,8 @@ const Edition& edition() {
 
 namespace devtools {
 void request_inspector() {}
+
+void request_easter_eggs() {}
 }
 
 namespace {

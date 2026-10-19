@@ -1,5 +1,17 @@
 # What's new
 
+## 0.4.5
+
+- Dedicated Easter eggs shortcut in the developer tools, with a searchable guide and direct use of the original PDA cheats.
+- Live hidden scores and relationship thresholds, with links to their game variables.
+- Fixed Easter egg actions being rejected when returning to the game with the quick menu enabled.
+- Direct HyperBole Studios shortcut and corrected developer-office instructions.
+- Fixed PDA keyboard navigation intercepting cheat submission and correction keys.
+- Fixed still-image scenes playing through other frames after returning from the game menu.
+- Numpad Enter calls the entered phone number.
+- Fixed Wine rejecting the bomb's two-minute countdown with Artificial Intuition enabled.
+- Expanded the IDA naming script with verified table, function and data labels.
+
 ## 0.4.4
 
 - Developer tools show incoming variable, function and resource references.

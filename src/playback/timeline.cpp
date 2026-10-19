@@ -26,6 +26,9 @@ bool supports_fast_forward(const Movie& value) {
 }
 
 void refresh_time(Movie& value) {
+    if (value.callback_dispatch_depth) {
+        return;
+    }
     if (!value.rate) {
         value.fast_forward.clear();
         return;
@@ -33,6 +36,7 @@ void refresh_time(Movie& value) {
     if (settings().skip_menu_animation && is_menu_entrance(value.filename)) {
         // Complete through the normal drawing/callback path, preserving menu initialization.
         value.time = static_cast<std::int32_t>(value.media->duration);
+        limit_callback_time(value, value.time, true);
         value.rate = 0;
         value.fast_forward.clear();
         if (value.audio) {
@@ -46,10 +50,14 @@ void refresh_time(Movie& value) {
     value.fast_forward.context();
     const auto speed = value.fast_forward.active() ? settings().movie_speed : 1;
     const auto ticks = static_cast<std::int64_t>(elapsed * value.media->timescale * speed);
-    const auto position = std::min<std::int64_t>(value.media->duration, value.time + ticks);
+    const auto proposed = std::min<std::int64_t>(value.media->duration, value.time + ticks);
+    const auto position =
+        limit_callback_time(value, static_cast<std::int32_t>(proposed), ticks > 0);
+    const auto admitted = position - value.time;
     value.time = static_cast<std::int32_t>(position);
     value.started += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-        std::chrono::duration<double>(static_cast<double>(ticks) / value.media->timescale / speed));
+        std::chrono::duration<double>(static_cast<double>(admitted) / value.media->timescale /
+                                      speed));
     if (static_cast<std::uint64_t>(position) == value.media->duration) {
         value.rate = 0;
         value.fast_forward.clear();
@@ -208,6 +216,7 @@ void __cdecl set_time(MovieHandle handle, std::int32_t time) {
         value.fast_forward.clear();
     }
     value.time = std::clamp(time, 0, static_cast<std::int32_t>(value.media->duration));
+    reset_callback_clock(handle);
     value.rumble.seek(value.time);
     // Forward seeks must still deliver crossed callbacks on the next MoviesTask.
     value.serviced_time = std::min(value.serviced_time, value.time);

@@ -32,6 +32,12 @@ jobs:
           python tests/native_story_files.py
           python tests/native_story_scenarios.py
           python tests/save_recipe.py
+      - name: Native profile and IDA tests
+        run: |
+          python tests/game_profiles.py
+          python tests/game_ida.py
+          python tests/game_ida_symbols.py
+          python tests/game_ida_research.py
       - name: Portable tests
         run: |
           mkdir -p /tmp/xfiles-recipe-checks

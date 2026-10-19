@@ -205,8 +205,8 @@ void dismiss() {}
 namespace {
 using namespace enhancements;
 
-bool key(WPARAM value) {
-    return navigate_keyboard(nullptr, value);
+bool key(WPARAM value, LPARAM data = 0) {
+    return navigate_keyboard(nullptr, value, data);
 }
 
 void reset() {
@@ -301,6 +301,29 @@ void devices_typing() {
     require(key(VK_TAB) && test_cursor.x == 300 && test_cursor.y == 200,
             "PDA Tab did not return to document content");
 
+    for (const auto resource :
+         {resource::pda_region, resource::pda_city, resource::pda_addresses}) {
+        reset();
+        test_script.resources = {resource};
+        test_script.buttons = {{300, 360, 335, 382}};
+        for (const auto value : {VK_RETURN, VK_BACK, VK_SPACE, int('A')}) {
+            require(!key(value), "The original invisible PDA code editor lost typing input");
+        }
+        require(calls.empty() && !inventory && groups == 0,
+                "PDA code submission clicked a control or changed focus");
+        inventory = dialogue_visible = true;
+        require(!key(VK_RETURN) && !key(VK_BACK) && calls.empty() && closes == 0,
+                "Stale world focus consumed the PDA code editor's keys");
+        inventory = dialogue_visible = false;
+        require(key(VK_TAB) && key(VK_RIGHT), "PDA code editing disabled toolbar navigation");
+        calls.clear();
+        test_cursor = {310, 370};
+        require(navigate_screen(nullptr, 0, 0, true, false, false, false),
+                "PDA code editing disabled controller activation");
+        selected(test_script.buttons.front(), true,
+                 "Controller activation lost its original PDA control");
+    }
+
     reset();
     test_script.resources = {resource::workstation_root, resource::workstation_message};
     test_script.buttons = {{24, 98, 113, 121}, {601, 99, 615, 116}, {601, 435, 615, 450}};
@@ -340,6 +363,54 @@ void devices_typing() {
     test_script.resources = {resource::workstation_root};
     require(!key(VK_RETURN) && !key(VK_DOWN) && calls.empty(),
             "A closed workstation's retained root generated navigation");
+}
+
+void phone_keypad_enter() {
+    reset();
+    constexpr LPARAM extended = LPARAM{1} << 24;
+    const RECT digit{249, 323, 296, 351}, call{256, 288, 304, 316};
+    test_script.resources = {resource::phone};
+    test_script.buttons = {digit, call};
+    test_script.event_targets = {{call, 0, 1}};
+    test_cursor = {270, 335};
+    require(key(VK_RETURN, extended), "Numpad Enter did not consume phone submission");
+    selected(call, true, "Numpad Enter activated the selected phone digit instead of Call");
+    calls.clear();
+    test_cursor = {270, 335};
+    require(key(VK_RETURN), "Main Enter lost phone activation");
+    selected(digit, true, "Main Enter changed its selected phone control");
+    calls.clear();
+    require(!key(VK_NUMPAD1) && !key('1') && calls.empty(), "Phone digit typing was intercepted");
+    test_script.event_targets.clear();
+    require(key(VK_RETURN, extended) && calls.empty(),
+            "Unavailable Call activated a different phone control");
+    test_cursor = {270, 335};
+    require(navigate_screen(nullptr, 0, 0, true, false, false, false),
+            "Controller phone activation was disabled");
+    selected(digit, true, "Controller phone activation changed to Call");
+    calls.clear();
+    test_script.resources = {98765};
+    require(key(VK_RETURN, extended), "Non-phone numpad Enter lost ordinary activation");
+    selected(digit, true, "Non-phone numpad Enter changed its selected control");
+    calls.clear();
+    test_script.resources = {resource::phone};
+    test_script.buttons = {digit, call};
+    test_script.event_targets = {{call, 0, 1}};
+    test_input = game::edition().main_menu;
+    test_cursor = {500, 100};
+    require(key(VK_RETURN, extended), "Native menu lost numpad Enter");
+    require(calls.size() == 1 && !EqualRect(&calls.front().bounds, &call),
+            "A phone behind the native menu received Call");
+    calls.clear();
+    test_input = 0;
+    for (const auto modifier : {VK_CONTROL, VK_MENU, VK_LWIN, VK_RWIN}) {
+        test_held[modifier] = true;
+        require(!key(VK_RETURN, extended) && calls.empty(),
+                "A modified numpad Enter called the phone");
+        test_held[modifier] = false;
+    }
+    foreground = false;
+    require(!key(VK_RETURN, extended) && calls.empty(), "An unfocused phone received Call");
 }
 
 void ownership_guards() {
@@ -406,6 +477,7 @@ int main() {
     try {
         conversation_inventory();
         devices_typing();
+        phone_keypad_enter();
         ownership_guards();
         std::cout << "Keyboard native activation, groups, typing and key ownership passed\n";
     } catch (const std::exception& error) {

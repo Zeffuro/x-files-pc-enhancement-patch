@@ -12,6 +12,8 @@ the executable.
 Browse records and their links, inspect fields and raw bytes, read text and
 localization strings, and preview images, fonts, movies and audio. Image archives
 can be exported or edited, then saved as a separate copy.
+**Easter eggs** opens a searchable guide to the original game's secrets. Click it
+again to return to the browser. **Copy code** copies the selected code for reference.
 See `docs/developer-tools.md` in this ZIP or the
 [developer tools guide](https://github.com/Zeffuro/x-files-pc-enhancement-patch/blob/main/docs/developer-tools.md)
 for the browser controls.

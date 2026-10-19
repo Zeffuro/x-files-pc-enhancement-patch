@@ -101,7 +101,7 @@ jobs:
       - name: Stage Wine checks
         run: |
           New-Item -ItemType Directory -Force build/wine-checks/source/ffmpeg | Out-Null
-          Copy-Item build/Release/*-test.exe,build/Release/*.dll,build/Release/*LICENSE*,build/Release/THIRD_PARTY.md build/wine-checks
+          Copy-Item build/Release/*-test.exe,build/Release/*.dll,build/Release/QuickTime.qts,build/Release/*LICENSE*,build/Release/THIRD_PARTY.md build/wine-checks
           Copy-Item build/Release/ddraw.ini build/wine-checks
           Copy-Item "$env:FFMPEG_ROOT/source/*" build/wine-checks/source/ffmpeg
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

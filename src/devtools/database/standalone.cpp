@@ -2,6 +2,7 @@
 #include "assets.h"
 #include "source.h"
 #include "devtools/checkpoints.h"
+#include "devtools/easter_eggs.h"
 #include <shlobj.h>
 #include "standalone_preview.h"
 #include "settings.h"
@@ -22,12 +23,14 @@ void trace_value(const char*, std::uint32_t) {}
 namespace {
 constexpr wchar_t host_class[] = L"XFilesStandaloneDatabase";
 constexpr unsigned open_id = 4100, folder_id = 4103, checkpoints_id = 4104;
+constexpr unsigned easter_eggs_id = 4105;
 constexpr UINT open_source_message = WM_APP + 1;
 using namespace devtools::standalone;
 
 struct Host {
     HWND window = nullptr, open = nullptr, folder = nullptr, path = nullptr, browser = nullptr;
     HWND checkpoints = nullptr;
+    HWND easter_eggs_button = nullptr, easter_eggs = nullptr;
     HMODULE module = nullptr;
     HFONT font = nullptr;
     std::filesystem::path root;
@@ -82,8 +85,11 @@ void layout(Host& state) {
     MoveWindow(state.open, 12, 10, 130, 28, TRUE);
     MoveWindow(state.folder, 150, 10, 130, 28, TRUE);
     MoveWindow(state.checkpoints, 288, 10, 130, 28, TRUE);
-    MoveWindow(state.path, 430, 14, std::max(1L, bounds.right - 442), 24, TRUE);
+    MoveWindow(state.easter_eggs_button, 426, 10, 130, 28, TRUE);
+    MoveWindow(state.path, 568, 14, std::max(1L, bounds.right - 580), 24, TRUE);
     MoveWindow(state.browser, 12, 50, std::max(1L, bounds.right - 24),
+               std::max(1L, bounds.bottom - 62), TRUE);
+    MoveWindow(state.easter_eggs, 12, 50, std::max(1L, bounds.right - 24),
                std::max(1L, bounds.bottom - 62), TRUE);
 }
 
@@ -113,6 +119,8 @@ void open_database(Host& state, std::filesystem::path requested) {
     }
     state.root = source.root;
     state.browser = next;
+    ShowWindow(state.easter_eggs, SW_HIDE);
+    SendMessageW(state.easter_eggs_button, BM_SETCHECK, BST_UNCHECKED, 0);
     SetWindowTextW(state.path, requested.c_str());
     layout(state);
     ShowWindow(next, SW_SHOW);
@@ -212,6 +220,9 @@ LRESULT CALLBACK host_proc(HWND window, UINT message, WPARAM value, LPARAM data)
             state->checkpoints =
                 child(window, state->module, state->font, L"BUTTON", L"Checkpoints...",
                       BS_PUSHBUTTON | WS_TABSTOP, checkpoints_id);
+            state->easter_eggs_button =
+                child(window, state->module, state->font, L"BUTTON", L"Easter eggs",
+                      BS_PUSHLIKE | BS_AUTOCHECKBOX | WS_TABSTOP, easter_eggs_id);
             state->path = child(window, state->module, state->font, L"STATIC",
                                 L"Open a folder, HDB, PFF or asset file", SS_LEFT);
             SetTimer(window, 1, 500, nullptr);
@@ -235,6 +246,20 @@ LRESULT CALLBACK host_proc(HWND window, UINT message, WPARAM value, LPARAM data)
         }
         if (message == WM_COMMAND && LOWORD(value) == checkpoints_id) {
             devtools::show_checkpoints(state->window, state->module, state->font, state->root);
+            return 0;
+        }
+        if (message == WM_COMMAND && LOWORD(value) == easter_eggs_id) {
+            const bool show = SendMessageW(state->easter_eggs_button, BM_GETCHECK, 0, 0) != 0;
+            if (show && !state->easter_eggs) {
+                state->easter_eggs =
+                    devtools::create_easter_eggs(window, state->module, state->font);
+                layout(*state);
+            }
+            ShowWindow(state->browser, show ? SW_HIDE : SW_SHOW);
+            ShowWindow(state->easter_eggs, show ? SW_SHOW : SW_HIDE);
+            if (show) {
+                SetFocus(GetDlgItem(state->easter_eggs, 5101));
+            }
             return 0;
         }
         if (message == open_source_message && !state->pending_source.empty()) {

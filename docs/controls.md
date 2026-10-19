@@ -12,6 +12,7 @@
 | F9 | Quick-load during exploration or from the main menu |
 | Arrow keys | Select conversation responses, evidence, inventory or device controls |
 | Enter | Use the selected control |
+| Numpad Enter | Call the entered phone number |
 | Tab | Switch conversation/evidence, inventory/scene or device groups |
 | Backspace | Leave inventory, close a conversation or go back on a device |
 | Hold backtick | Fast-forward a movie |
@@ -29,6 +30,8 @@ a row and Up/Down moves between items and opened evidence. Tab returns to the
 scene. On devices, Tab switches controls/content and Up/Down scrolls messages.
 Press once per step.
 Native text fields keep their normal typing and editing keys.
+On the PDA maps and address book, Enter and Backspace belong to the original
+hidden cheat editor. Click the toolbar controls or use a controller to activate them.
 
 Use the wheel over PDA notes, PDA messages, workstation messages, ING Field Notes
 or Photo Viewer thumbnails to scroll while keeping the pointer in place.
