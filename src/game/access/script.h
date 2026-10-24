@@ -206,6 +206,14 @@ public:
                             this->profile());
     }
 
+    auto tab() const {
+        const auto* build_profile = this->profile();
+        return RectangleRef(
+            build_profile ? this->offset_address(build_profile->choice_viewport + sizeof(Rectangle))
+                          : 0,
+            this->profile());
+    }
+
     auto scroll_position() const {
         const auto* build_profile = this->profile();
         return MemoryRef<unsigned>(

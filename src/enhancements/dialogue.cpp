@@ -24,6 +24,7 @@ using DrawList = native_game::NativeFunctions::DrawList;
 using ScrollList = native_game::NativeFunctions::MainScrollUp;
 
 ImportHooks imports;
+ImportHooks text_imports;
 DrawList original_draw = nullptr;
 DrawList* draw_slot = nullptr;
 game::ChoiceList* talk_list = nullptr;
@@ -42,7 +43,6 @@ thread_local POINT close_cursor{};
 thread_local bool return_valid = false;
 thread_local ULONGLONG closing_until = 0;
 thread_local bool evidence_focus = false;
-UINT text_code_page = 1252;
 thread_local transcript::Selection pending_choice;
 thread_local void* pending_input = nullptr;
 thread_local unsigned draw_generation = 0;
@@ -90,26 +90,50 @@ bool replace_draw(DrawList replacement) {
     return true;
 }
 
-int WINAPI draw_text(HDC dc, LPCSTR text, int length, LPRECT bounds, UINT format) {
-    const auto result = DrawTextA(dc, text, length, bounds, format);
-    if (collecting && result && !(format & DT_CALCRECT) && text && length != 0 && bounds) {
-        RECT clipped{};
-        if (IntersectRect(&clipped, bounds, &viewport) &&
-            collecting->count < collecting->choices.size()) {
-            const auto index = collecting->count++;
-            collecting->choices[index] = clipped;
-            // Native rows own distinct text buffers that survive scroll redraws.
-            collecting->rows[index] = reinterpret_cast<std::uintptr_t>(text);
-            const auto size = length < 0 ? static_cast<int>(std::strlen(text)) : length;
-            const auto count = MultiByteToWideChar(text_code_page, 0, text, size, nullptr, 0);
-            if (count > 0) {
-                collecting->text[index].resize(count);
-                MultiByteToWideChar(text_code_page, 0, text, size, collecting->text[index].data(),
-                                    count);
+int WINAPI draw_text(HDC dc, LPCSTR text, int length, LPRECT bounds, UINT format) noexcept {
+    const auto result = draw_game_text(dc, text, length, bounds, format);
+    try {
+        if (collecting && result && !(format & DT_CALCRECT) && text && length != 0 && bounds) {
+            RECT clipped{};
+            if (IntersectRect(&clipped, bounds, &viewport) &&
+                collecting->count < collecting->choices.size()) {
+                const auto index = collecting->count;
+                collecting->choices[index] = clipped;
+                // Native rows own distinct text buffers that survive scroll redraws.
+                collecting->rows[index] = reinterpret_cast<std::uintptr_t>(text);
+                const auto size = length < 0 ? static_cast<int>(std::strlen(text)) : length;
+                const auto code_page = game_string_code_page();
+                const auto count = MultiByteToWideChar(code_page, 0, text, size, nullptr, 0);
+                if (count > 0) {
+                    collecting->text[index].resize(count);
+                    MultiByteToWideChar(code_page, 0, text, size, collecting->text[index].data(),
+                                        count);
+                }
+                ++collecting->count;
             }
         }
+    } catch (...) {
     }
     return result;
+}
+
+FARPROC resolve_text(const char* name) {
+    if (std::strcmp(name, "TextOutA") == 0) {
+        return reinterpret_cast<FARPROC>(output_game_text);
+    }
+    return std::strcmp(name, "GetTextExtentPoint32A") == 0
+               ? reinterpret_cast<FARPROC>(measure_game_text)
+               : nullptr;
+}
+
+UINT resource_code_page(const std::filesystem::path& executable, bool japanese) {
+    try {
+        const auto text = executable.parent_path() / L"XFilesT.dll";
+        return game_resource_code_page(
+            std::filesystem::file_size(text) == 80896 ? sha256(text) : "", japanese);
+    } catch (...) {
+        return game_resource_code_page({}, japanese);
+    }
 }
 
 FARPROC resolve(const char* name) {
@@ -265,8 +289,9 @@ void attach_dialogue(HWND window) {
         if (!identity.build || !identity.build->profile) {
             return;
         }
-        text_code_page = identity.build->id == native_game::BuildId::cd_10020 ? 932 : 1252;
-        set_game_string_code_page(text_code_page);
+        const auto code_page =
+            resource_code_page(path.data(), identity.build->id == native_game::BuildId::cd_10020);
+        set_game_string_code_page(code_page);
         set_game_string_dvd_fallback(identity.build->id == native_game::BuildId::dvd_20000);
         auto* base = reinterpret_cast<std::byte*>(GetModuleHandleW(nullptr));
         const auto& addresses = *identity.build->profile;
@@ -280,7 +305,10 @@ void attach_dialogue(HWND window) {
         scroll_down = functions.main_scroll_down_target();
         if (*draw_slot != original_draw ||
             !imports.install(GetModuleHandleW(nullptr), "USER32.dll", resolve) ||
+            (code_page == 1251 &&
+             !text_imports.install(GetModuleHandleW(nullptr), "GDI32.dll", resolve_text)) ||
             !replace_draw(draw_list)) {
+            text_imports.remove();
             imports.remove();
             draw_slot = nullptr;
         }
@@ -296,6 +324,7 @@ void detach_dialogue() {
         draw_slot = nullptr;
     }
     imports.remove();
+    text_imports.remove();
     scroll_up = scroll_down = nullptr;
     clear_dialogue();
 }

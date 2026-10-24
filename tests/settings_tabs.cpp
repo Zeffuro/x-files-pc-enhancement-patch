@@ -38,6 +38,14 @@ void check_language(ui::Language language) {
     } cleanup{window};
 
     ui::translate_dialog(window, language);
+    const auto artwork =
+        LoadBitmapW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(201 + static_cast<int>(language)));
+    require(artwork != nullptr, "Settings-link artwork is missing for a supported language.");
+    BITMAP bitmap{};
+    const auto loaded = GetObjectW(artwork, sizeof(bitmap), &bitmap);
+    DeleteObject(artwork);
+    require(loaded && bitmap.bmWidth == 336 && bitmap.bmHeight == 86 * 21,
+            "Localized settings-link artwork has the wrong animation dimensions.");
     const auto speed = GetDlgItem(window, IDC_MOVIE_SPEED);
     const auto mute = GetDlgItem(window, IDC_MOVIE_SPEED_MUTE);
     RECT speed_bounds{}, mute_bounds{};
@@ -245,7 +253,7 @@ int main() {
     try {
         INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_BAR_CLASSES | ICC_TAB_CLASSES};
         require(InitCommonControlsEx(&controls), "Cannot initialize common controls.");
-        for (unsigned language = 0; language < 6; ++language) {
+        for (int language = 0; language < ui::language_count; ++language) {
             check_language(static_cast<ui::Language>(language));
         }
         std::cout << "All settings pages, tab order, translations and retained edits passed.\n";

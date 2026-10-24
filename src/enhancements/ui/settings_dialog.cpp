@@ -120,7 +120,7 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             state = reinterpret_cast<Dialog*>(data);
             SetWindowLongPtrW(window, DWLP_USER, data);
             SetDlgItemTextA(window, IDC_BUILD_VERSION, "Version " XFILES_BUILD_VERSION);
-            for (int index = 0; index < 6; ++index) {
+            for (int index = 0; index < ui::language_count; ++index) {
                 SendDlgItemMessageW(
                     window, IDC_INTERFACE_LANGUAGE, CB_ADDSTRING, 0,
                     reinterpret_cast<LPARAM>(ui::language_name(static_cast<ui::Language>(index))));
@@ -463,7 +463,7 @@ INT_PTR CALLBACK dialog_proc(HWND window, UINT message, WPARAM parameter, LPARAM
             value.controller_profile = state->draft.controller_profile;
             const auto selected_language =
                 SendDlgItemMessageW(window, IDC_INTERFACE_LANGUAGE, CB_GETCURSEL, 0, 0);
-            if (selected_language < 0 || selected_language >= 6) {
+            if (selected_language < 0 || selected_language >= ui::language_count) {
                 throw std::runtime_error("Select an interface language");
             }
             if (state->display_mode) {

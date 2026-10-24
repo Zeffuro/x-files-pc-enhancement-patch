@@ -319,15 +319,25 @@ if(BUILD_TESTING)
     add_test(NAME quick-menu-dialog-settings COMMAND quick-menu-dialog-test)
     add_executable(quick-menu-navigation-test tests/quick_menu_navigation.cpp
         src/enhancements/screens.cpp src/enhancements/ui/quick_menu.cpp
-        src/enhancements/ui/quick_menu_surface.cpp)
+        src/enhancements/ui/quick_menu_surface.cpp src/localization/ui.cpp)
     target_include_directories(quick-menu-navigation-test PRIVATE src)
     target_link_libraries(quick-menu-navigation-test PRIVATE gdi32 user32 msimg32)
     add_test(NAME gameplay-quick-menu-navigation COMMAND quick-menu-navigation-test)
     add_executable(quick-menu-test tests/quick_menu.cpp src/enhancements/ui/quick_menu.cpp
-        src/enhancements/ui/quick_menu_surface.cpp)
+        src/enhancements/ui/quick_menu_surface.cpp src/localization/ui.cpp)
     target_include_directories(quick-menu-test PRIVATE src)
     target_link_libraries(quick-menu-test PRIVATE gdi32 user32 msimg32)
     add_test(NAME gameplay-quick-menu COMMAND quick-menu-test)
+    add_executable(quick-menu-labels-test tests/quick_menu_labels.cpp
+        src/enhancements/ui/quick_menu_surface.cpp src/localization/ui.cpp)
+    target_include_directories(quick-menu-labels-test PRIVATE src)
+    target_link_libraries(quick-menu-labels-test PRIVATE gdi32 user32 msimg32)
+    add_test(NAME quick-menu-localized-labels COMMAND quick-menu-labels-test)
+    add_executable(system-menu-test tests/system_menu.cpp src/enhancements/ui/system_menu.cpp
+        src/localization/ui.cpp)
+    target_include_directories(system-menu-test PRIVATE src)
+    target_link_libraries(system-menu-test PRIVATE user32)
+    add_test(NAME localized-system-menu COMMAND system-menu-test)
     add_executable(browser-session-test tests/browser_session.cpp src/saves/browser.cpp
         src/saves/browser_navigation.cpp src/enhancements/scene_overlay.cpp)
     target_include_directories(browser-session-test PRIVATE src)
@@ -415,6 +425,10 @@ if(BUILD_TESTING)
     add_test(NAME native-ida-naming COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida.py")
     add_test(NAME native-ida-catalog COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida_symbols.py")
     add_test(NAME native-ida-research COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida_research.py")
+    add_test(NAME native-ida-types COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida_types.py")
+    add_test(NAME native-ida-export COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida_export.py")
+    add_test(NAME native-ida-full-import COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida_full.py")
+    add_test(NAME native-ida-parameters COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/game_ida_parameters.py")
     add_executable(game-strings-test tests/game_strings.cpp tests/game_strings.rc
         src/enhancements/game_strings.cpp)
     add_library(game-strings-fixture SHARED tests/game_strings_fixture.cpp tests/game_strings_fixture.rc)
@@ -431,7 +445,9 @@ if(BUILD_TESTING)
     add_dependencies(game-strings-test game-strings-fixture)
     add_dependencies(game-strings-test game-strings-text-fixture game-strings-localized-fixture game-strings-missing-localized-fixture)
     target_include_directories(game-strings-test PRIVATE src)
+    target_link_libraries(game-strings-test PRIVATE gdi32)
     add_test(NAME localized-resource-strings COMMAND game-strings-test)
+    add_test(NAME ui-translation-catalogs COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/localization_catalog.py")
     add_test(NAME release-package-checker COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/package_check.py")
     add_executable(installation-test tests/installation.cpp src/launcher/configuration.cpp
         src/setup/destination.cpp)
@@ -440,7 +456,7 @@ if(BUILD_TESTING)
     add_executable(compatibility-test tests/compatibility.cpp "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
     target_link_libraries(compatibility-test PRIVATE launcher-common)
     add_test(NAME launcher-compatibility COMMAND compatibility-test)
-    add_executable(iso-files-test tests/iso_files.cpp src/setup/iso.cpp src/setup/disc_image.cpp
+    add_executable(iso-files-test tests/iso_files.cpp src/setup/iso.cpp src/setup/disc_image.cpp src/setup/repack.cpp
         "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
     target_link_libraries(iso-files-test PRIVATE launcher-common)
     add_test(NAME dvd-cd-iso-files COMMAND iso-files-test)
@@ -680,9 +696,14 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-    add_executable(setup-test tests/setup.cpp tests/setup_iso.cpp src/setup/shortcuts.cpp src/setup/media.cpp src/setup/destination.cpp src/setup/iso.cpp src/setup/disc_image.cpp
+    add_executable(setup-test tests/setup.cpp tests/setup_iso.cpp src/setup/shortcuts.cpp src/setup/media.cpp src/setup/destination.cpp src/setup/iso.cpp src/setup/disc_image.cpp src/setup/repack.cpp
         "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
     target_link_libraries(setup-test PRIVATE launcher-common ole32 uuid shell32)
     add_dependencies(setup-test xfiles-patch)
     add_test(NAME setup-validation COMMAND setup-test)
+    add_executable(repack-test tests/repack.cpp src/setup/media.cpp src/setup/destination.cpp
+        src/setup/iso.cpp src/setup/disc_image.cpp src/setup/repack.cpp
+        "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
+    target_link_libraries(repack-test PRIVATE launcher-common)
+    add_test(NAME russian-repack COMMAND repack-test)
 endif()

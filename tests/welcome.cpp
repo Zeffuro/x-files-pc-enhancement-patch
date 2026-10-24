@@ -165,7 +165,7 @@ int main() {
         verify_dialog(root, 2107, true);
         for (const auto label_language :
              {ui::Language::German, ui::Language::French, ui::Language::Spanish,
-              ui::Language::Italian, ui::Language::Japanese}) {
+              ui::Language::Italian, ui::Language::Japanese, ui::Language::Russian}) {
             test::require(std::wstring_view(ui::translate(L"Previous loads latest save at startup",
                                                           label_language)) !=
                               L"Previous loads latest save at startup",

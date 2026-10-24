@@ -49,7 +49,7 @@ class IdaSymbolsTest(unittest.TestCase):
             self.assertEqual(sum(row["shape"]["rows"] for row in tables), 449)
             self.assertEqual(rows[:41], tables)
             self.assertTrue(all(row["kind"] == "data" for row in tables))
-            counts = {"cd_10012": 454, "cd_10019": 487, "cd_10020": 482, "dvd_20000": 596}
+            counts = {"cd_10012": 472, "cd_10019": 505, "cd_10020": 500, "dvd_20000": 608}
             self.assertEqual(len(rows), counts[build["id"]])
         names = [row for row in self.build["symbols"] if row["source"] == "xesf"]
         self.assertEqual(len(names), 555)
@@ -161,6 +161,35 @@ class IdaSymbolsTest(unittest.TestCase):
         for malformed in (None, [], {}, {"schema": 1, "sources": {}, "builds": {}}):
             with self.subTest(catalog=malformed), self.assertRaises(ValueError):
                 symbols.validate(malformed, PROFILES)
+
+    def test_original_binary_sources_require_exact_profile_identities(self):
+        source = self.catalog["sources"]["original"]
+        self.assertEqual(source, {"kind": "original_binary", "builds": {
+            build["id"]: build["sha256"] for build in PROFILES["builds"]}})
+        for build_id in CATALOG["builds"]:
+            rows = [row for row in symbols.rows(CATALOG, build_id) if row["source"] == "original"]
+            expected = {"ai_list_clear", "ai_list_set_udf", "ai_glow_set_udf", "ai_glow_view_get",
+                        "action_list_storage", "action_list_ensure_cursor", "ai_icon_click",
+                        "ai_list_cycle", "ai_glow_view_dispatch", "action_list_current",
+                        "action_list_restore_position", "TriggerHandler_handle_timer"}
+            if build_id != "dvd_20000":
+                expected |= {"ai_list_get", "ai_trigger_get", "ai_icon_show",
+                             "timer_fired_callback", "timers_post_fired", "TimerEvent_ctor"}
+            self.assertEqual({row["source_name"] for row in rows}, expected)
+            self.assertTrue(all(row["kind"] == "function" and row["fingerprint"] for row in rows))
+        cases = [
+            lambda source: source.update(kind="binary"),
+            lambda source: source.update(extra=True),
+            lambda source: source.update(builds={}),
+            lambda source: source["builds"].update(dvd_20000="0" * 64),
+            lambda source: source["builds"].update(unknown=PROFILES["builds"][0]["sha256"]),
+            lambda source: source["builds"].pop("dvd_20000"),
+        ]
+        for mutate in cases:
+            catalog = copy.deepcopy(CATALOG)
+            mutate(catalog["sources"]["original"])
+            with self.subTest(mutation=cases.index(mutate)), self.assertRaises(ValueError):
+                symbols.validate(catalog, PROFILES)
 
     def test_name_kind_extent_and_shape_fail_closed(self):
         cases = [dict(name="bad name"), dict(name="generic_name"), dict(source_name="a/b"),

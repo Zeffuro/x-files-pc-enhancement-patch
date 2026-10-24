@@ -205,6 +205,7 @@ Subtitles have font, size and optional background colour/opacity settings.
 
 Many English scenes include dialogue captions. German, French and Spanish editions
 generally lack them. Enabling captions does not create or translate missing text.
+The Russian unofficial DVD repack has only a few English sound cues and no English dialogue subtitles.
 
 ## Saves
 

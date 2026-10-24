@@ -395,6 +395,13 @@ void copy_media_file(const MediaFile& file, const fs::path& output,
                      const std::function<bool()>& keep_going) {
     if (!file.offset) {
         platform::copy_file(file.source, output, fs::copy_options::overwrite_existing);
+        const auto attributes = GetFileAttributesW(output.c_str());
+        const auto writable = attributes & ~FILE_ATTRIBUTE_READONLY;
+        if (attributes == INVALID_FILE_ATTRIBUTES ||
+            ((attributes & FILE_ATTRIBUTE_READONLY) &&
+             !SetFileAttributesW(output.c_str(), writable ? writable : FILE_ATTRIBUTE_NORMAL))) {
+            throw std::runtime_error("Cannot make the imported game file writable.");
+        }
         return;
     }
     std::ofstream destination(output, std::ios::binary);

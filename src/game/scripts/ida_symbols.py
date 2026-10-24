@@ -27,6 +27,15 @@ def _hex(value):
     return bytes.fromhex(value)
 
 
+def _source(value, profiles):
+    if isinstance(value, str):
+        return SOURCE.fullmatch(value) is not None
+    return (_keys(value, ("kind", "builds")) and value["kind"] == "original_binary"
+            and isinstance(value["builds"], dict) and bool(value["builds"])
+            and all(build_id in profiles and digest == profiles[build_id]
+                    for build_id, digest in value["builds"].items()))
+
+
 def _fingerprint(symbol):
     fingerprint = symbol["fingerprint"]
     if fingerprint is None:
@@ -86,8 +95,8 @@ def validate(catalog, profiles):
     sources = catalog["sources"]
     if (not isinstance(sources, dict) or not sources
             or any(not isinstance(key, str) or NAME.fullmatch(key) is None
-                   or not isinstance(url, str) or SOURCE.fullmatch(url) is None for key, url in sources.items())):
-        raise ValueError("Invalid pinned symbol sources")
+                   or not _source(value, known) for key, value in sources.items())):
+        raise ValueError("Invalid supplemental symbol sources")
     builds = catalog["builds"]
     if not isinstance(builds, dict) or not builds:
         raise ValueError("Invalid supplemental builds")
@@ -110,6 +119,9 @@ def validate(catalog, profiles):
             names.add(symbol["name"])
             if not isinstance(symbol["source"], str) or symbol["source"] not in sources:
                 raise ValueError("Unknown supplemental symbol source")
+            source = sources[symbol["source"]]
+            if isinstance(source, dict) and source["builds"].get(build_id) != build["sha256"]:
+                raise ValueError("Original binary source does not cover the supplemental build")
             if symbol["kind"] not in ("function", "data") or type(symbol["zero_fill"]) is not bool:
                 raise ValueError("Invalid supplemental symbol kind")
             if (not _integer(symbol["rva"], 1) or not _integer(symbol["size"], 1, MAX_EXTENT)

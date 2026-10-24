@@ -2,6 +2,7 @@
 #include "media.h"
 #include "catalog.h"
 #include "identity.h"
+#include "repack.h"
 #include "launcher/staging.h"
 #include "launcher/session.h"
 #include "launcher/preferences.h"
@@ -80,6 +81,10 @@ MediaSource inspect_media(const fs::path& selected) {
         }
     }
     if (result.game.empty()) {
+        const auto files = russian_repack_folder(chosen);
+        if (!files.empty()) {
+            return prepare_media_import(chosen, files);
+        }
         return inspect_iso_folder(chosen);
     }
     std::map<std::wstring, MediaFile> files;

@@ -1,5 +1,12 @@
 # What's new
 
+## 0.4.6
+
+- Added Russian patch menus and support for the Russian unofficial DVD repack from 2008.
+- Translated quick-menu hover labels for every supported patch language.
+- Fixed patch entries disappearing from the window's right-click menu.
+- Unified IDA imports for verified names, parameters and native types, with expanded Artificial Intuition and timer coverage.
+
 ## 0.4.5
 
 - Dedicated Easter eggs shortcut in the developer tools, with a searchable guide and direct use of the original PDA cheats.

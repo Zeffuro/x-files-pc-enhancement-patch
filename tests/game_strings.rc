@@ -25,3 +25,10 @@ STRINGTABLE
 BEGIN
     4181 "日本語"
 END
+
+LANGUAGE 25, 1
+STRINGTABLE
+BEGIN
+    4201 "А что это за шишка из Вашингтона?"
+    4202 "Ёжик и ёлка"
+END

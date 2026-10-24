@@ -85,6 +85,10 @@ Identity identify(const std::filesystem::path&) {
     return {};
 }
 
+std::string sha256(const std::filesystem::path&) {
+    return {};
+}
+
 void trace_value(const char*, std::uint32_t) {}
 
 const Settings& settings() {
@@ -105,6 +109,26 @@ bool message(HWND, UINT, WPARAM, LPARAM) {
 
 namespace enhancements {
 void set_game_string_code_page(UINT) noexcept {}
+
+UINT game_string_code_page() noexcept {
+    return 1252;
+}
+
+UINT game_resource_code_page(std::string_view, bool japanese) noexcept {
+    return japanese ? 932 : 1252;
+}
+
+int WINAPI draw_game_text(HDC dc, LPCSTR text, int length, LPRECT bounds, UINT format) noexcept {
+    return DrawTextA(dc, text, length, bounds, format);
+}
+
+BOOL WINAPI output_game_text(HDC, int, int, LPCSTR, int) noexcept {
+    return FALSE;
+}
+
+BOOL WINAPI measure_game_text(HDC, LPCSTR, int, LPSIZE) noexcept {
+    return FALSE;
+}
 
 void set_game_string_dvd_fallback(bool) noexcept {}
 

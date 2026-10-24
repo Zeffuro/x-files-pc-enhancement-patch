@@ -149,6 +149,9 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: xfiles-enhancement-windows-x86
@@ -166,12 +169,20 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          printf '%s\n\n' "## What's new" > release-notes.md
+          awk -v heading="## ${RELEASE_TAG#v}" '
+            $0 == heading { section = 1; found = 1; next }
+            section && /^## / { exit }
+            section { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md >> release-notes.md
+          printf '%s\n\n' '## Installation and updates' >> release-notes.md
           cd packages
           printf '%s\n\n%s\n\n%s\n\n%s\n' \
-            'New install: Extract the xfiles-enhancement ZIP and run XFilesSetup.exe. Select your supported PC game files or disc images, then choose a new folder such as C:\Games\The X-Files. English CD/DVD and German, French, Spanish, Italian and Japanese CD editions are supported.' \
+            'New install: Extract the xfiles-enhancement ZIP and run XFilesSetup.exe. Select your supported PC game files or disc images, then choose a new folder such as C:\Games\The X-Files. English CD/DVD, German, French, Spanish, Italian and Japanese CD editions, and the Russian unofficial DVD repack from 2008 are supported.' \
             'Updating: Close the game and extract the xfiles-enhancement ZIP into the folder containing XFilesPlay.exe. Replace files when asked. Saves and settings are kept. Do not run Setup again.' \
             'Standalone tools: Extract the xfiles-devtools ZIP into a separate folder and open xfiles-devtools.exe to browse your own databases, saves and assets without running the game. Live state editing, watches and history are available through the enhancement patch.' \
-            'Uses FFmpeg under LGPL-2.1-or-later; its matching source and build script are included in the ZIP.' > ../release-notes.md
+            'Uses FFmpeg under LGPL-2.1-or-later. Its matching source and build script are included in the ZIP.' >> ../release-notes.md
           args=(--verify-tag --draft --generate-notes --notes-file ../release-notes.md)
           if [[ "$RELEASE_TAG" == v0.* ]]; then args+=(--prerelease); fi
           gh release create "$RELEASE_TAG" ./*.zip SHA256SUMS.txt "${args[@]}"

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-set(XFILES_VERSION "0.4.5" CACHE STRING "Release version (major.minor.patch)")
+set(XFILES_VERSION "0.4.6" CACHE STRING "Release version (major.minor.patch)")
 if(NOT XFILES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "XFILES_VERSION must be major.minor.patch")
 endif()
@@ -88,6 +88,7 @@ add_library(quicktime SHARED
     src/enhancements/ui/menu_link.cpp
     src/enhancements/ui/notification.cpp
     src/enhancements/controls.cpp
+    src/enhancements/ui/system_menu.cpp
     src/enhancements/keyboard_navigation.cpp
     src/enhancements/hotspot_reveal.cpp
     src/enhancements/reveal_model.cpp
@@ -265,7 +266,7 @@ target_link_libraries(xfiles-patch PRIVATE launcher-common)
 configure_file(cmake/media-catalog.rc.in "${CMAKE_BINARY_DIR}/generated/media-catalog.rc" @ONLY)
 target_sources(xfiles-patch PRIVATE "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
 add_executable(xfiles-setup WIN32 src/setup/main.cpp src/setup/dialog.cpp
-    src/setup/dialog.rc src/setup/shortcuts.cpp src/setup/media.cpp src/setup/destination.cpp src/setup/iso.cpp src/setup/disc_image.cpp
+    src/setup/dialog.rc src/setup/shortcuts.cpp src/setup/media.cpp src/setup/destination.cpp src/setup/iso.cpp src/setup/disc_image.cpp src/setup/repack.cpp
     "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
 set_target_properties(xfiles-setup PROPERTIES OUTPUT_NAME XFilesSetup)
 target_link_libraries(xfiles-setup PRIVATE launcher-common ole32 uuid comctl32 shell32)

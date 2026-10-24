@@ -150,6 +150,7 @@ END
 204 BITMAP "assets/tweaks-es.bmp"
 205 BITMAP "assets/tweaks-it.bmp"
 206 BITMAP "assets/tweaks-ja.bmp"
+207 BITMAP "assets/tweaks-ru.bmp"
 
 3 RT_MANIFEST "tool-theme.manifest"
 

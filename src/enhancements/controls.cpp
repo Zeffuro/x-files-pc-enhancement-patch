@@ -7,6 +7,7 @@
 #include "ui/settings_dialog.h"
 #include "ui/quick_menu.h"
 #include "ui/menu_link.h"
+#include "ui/system_menu.h"
 #include "dialogue.h"
 #include "hotspot_reveal.h"
 #include "scrolling.h"
@@ -43,8 +44,8 @@ namespace enhancements {
 namespace {
 
 constexpr UINT_PTR subclass_id = 0x5846;
-constexpr UINT settings_command = 0x1ff0;
-constexpr UINT inspector_command = 0x1fe0;
+using system_menu::inspector_command;
+using system_menu::settings_command;
 constexpr UINT settings_message = WM_APP + 0x46;
 thread_local HWND game_window = nullptr;
 thread_local UINT_PTR timer = 0;
@@ -134,6 +135,9 @@ void show_settings(HWND window) {
 LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM value, LPARAM data, UINT_PTR,
                              DWORD_PTR) {
     static bool settings_clicked = false;
+    if (message == WM_INITMENU || (message == WM_INITMENUPOPUP && HIWORD(data))) {
+        system_menu::refresh(window, ui::language());
+    }
     if (message == WM_PAINT) {
         // Native window repaints bypass the normal canvas-transfer hook.
         const native_game::CanvasPresentation presentation(native_game::canvas_dc());
@@ -458,10 +462,7 @@ void attach_controls(HWND window) {
         native_game::attach_native_render();
         attach_modal_input(window);
         timer = SetTimer(window, subclass_id, 16, nullptr);
-        const auto menu = GetSystemMenu(window, FALSE);
-        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-        AppendMenuW(menu, MF_STRING, settings_command, L"Enhancements...\tF10");
-        AppendMenuW(menu, MF_STRING, inspector_command, L"Developer tools...\tCtrl+F11");
+        system_menu::refresh(window, ui::language());
         std::vector<wchar_t> path(32768);
         const auto length =
             GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));

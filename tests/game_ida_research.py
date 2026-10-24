@@ -14,7 +14,8 @@ class ResearchIda(FakeIda):
     def __init__(self, build, base=0x910000):
         super().__init__(build["sha256"], base)
         self.build = build
-        self.symbols = SYMBOLS.rows(CATALOG, build["id"])
+        self.symbols = [dict(row, name=row["source_name"] if row["kind"] == "function" else row["name"])
+                        for row in SYMBOLS.rows(CATALOG, build["id"])]
         self.memory = {}
         self.code = set()
         self.unreadable = set()
@@ -150,6 +151,89 @@ class ResearchImportTest(unittest.TestCase):
         self.assertEqual(len(rows), len(self.build["rvas"]))
         self.assertFalse(any(name.startswith("XFiles_re_") or name.startswith("XFiles_table_")
                              for _, name in self.ida.writes))
+
+    def test_exact_legacy_function_names_migrate_all_builds_and_repeat_without_writes(self):
+        for build in DATA["builds"]:
+            with self.subTest(build=build["id"]):
+                ida = ResearchIda(build)
+                _, decisions, definitions, _ = bridge._plan(DATA, ida)
+                functions, data = {}, {}
+                for decision, symbol in zip(decisions, definitions):
+                    if decision[0] != "ready":
+                        continue
+                    address = decision[1]
+                    if symbol["kind"] == "function":
+                        functions[address] = symbol["name"]
+                        ida.names[address] = symbol["legacy_name"]
+                    else:
+                        data[address] = symbol["name"]
+                        ida.names[address] = symbol["name"]
+                    ida.user.add(address)
+                preview = bridge.run(adapter=ida)
+                self.assertTrue(all(status == "migrate" for status, ea, _, _ in preview if ea in functions
+                                    and status != "alias"))
+                self.assertEqual(ida.writes, [])
+                bridge.run(True, ida)
+                self.assertTrue(all(ida.names[ea] == name and not name.startswith("XFiles_")
+                                    for ea, name in functions.items()))
+                self.assertTrue(all(ida.names[ea] == name and name.startswith("XFiles_")
+                                    for ea, name in data.items()))
+                count = len(ida.writes)
+                bridge.run(True, ida)
+                self.assertEqual(len(ida.writes), count)
+
+    def test_wrong_address_legacy_names_custom_names_and_bare_collisions_are_preserved(self):
+        cases = (("XFiles_re_operator_new", False, "user_name"),
+                 ("XFiles_custom_allocator", False, "user_name"),
+                 ("XFiles_re_heap_alloc_retry", True, "collision"))
+        for current, collision, expected in cases:
+            ida = ResearchIda(self.build)
+            symbol = next(row for row in ida.symbols if row["source_name"] == "heap_alloc_retry")
+            ea = ida.base + symbol["rva"]
+            ida.names[ea] = current
+            ida.user.add(ea)
+            if collision:
+                ida.names[0x9000000] = symbol["name"]
+            result = bridge.run(True, ida)
+            self.assertEqual(self.outcome(result, symbol["name"])[0], expected)
+            self.assertEqual(ida.names[ea], current)
+            self.assertNotIn(ea, [address for address, _ in ida.writes])
+
+    def test_verified_legacy_alias_migrates_to_native_primary_name(self):
+        symbol = self.symbol("vc_queue_action_list")
+        address = self.ida.base + symbol["rva"]
+        self.ida.names[address] = "XFiles_re_" + symbol["source_name"]
+        self.ida.user.add(address)
+        result = bridge.run(True, self.ida)
+        self.assertEqual(self.outcome(result, "queue_action_list")[0], "applied")
+        self.assertEqual(self.ida.names[address], "queue_action_list")
+        self.assertEqual(self.outcome(result, symbol["name"])[0], "alias")
+
+    def test_legacy_migration_rechecks_name_owner_bytes_and_function_entry(self):
+        for change in ("name", "owner", "bytes", "entry"):
+            ida = ResearchIda(self.build)
+            symbol = next(row for row in ida.symbols if row["source_name"] == "action_list_storage")
+            address = ida.base + symbol["rva"]
+            ida.names[address] = "XFiles_re_" + symbol["source_name"]
+            ida.user.add(address)
+            original = bridge._plan
+
+            def mutate(*args, **kwargs):
+                result = original(*args, **kwargs)
+                if change == "name":
+                    ida.names[address] = "CustomAfterPlan"
+                elif change == "owner":
+                    ida.names[0x9000000] = symbol["name"]
+                elif change == "bytes":
+                    ida.memory[address] ^= 1
+                else:
+                    ida.not_functions.add(address)
+                return result
+
+            with patch.object(bridge, "_plan", side_effect=mutate):
+                result = bridge.run(True, ida)
+            self.assertEqual(self.outcome(result, symbol["name"])[0], "changed_since_plan")
+            self.assertNotIn(address, [ea for ea, _ in ida.writes])
 
 
 if __name__ == "__main__":

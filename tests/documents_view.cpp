@@ -44,6 +44,7 @@ native_game::CanvasSource reader = nullptr;
 bool native_input = false, native_valid = true, paused = false, browser = false;
 bool transcript_open = false, entry = false, confirmation = false, quick = false;
 unsigned pauses = 0, resumes = 0, suspended = 0;
+UINT fixture_code_page = 1252;
 
 void require(bool condition, const char* reason) {
     if (!condition) {
@@ -105,6 +106,10 @@ ScriptControls script_controls() {
 }
 
 namespace enhancements {
+UINT game_string_code_page() noexcept {
+    return fixture_code_page;
+}
+
 bool text_entry_busy() {
     return entry;
 }
@@ -179,6 +184,17 @@ int main() {
         controls.document_text = {{{200, 90, 410, 340}, "Current note\n" + std::string(3000, 'W')}};
         documents::update(window);
         require(reader && documents::available(), "Reader failed to attach to a current note");
+        const auto original_fields = controls.document_text;
+        for (const auto page : {1251u, 932u}) {
+            fixture_code_page = page;
+            controls.document_text.front().value =
+                page == 1251 ? "\xcf\xf0\xe8\xe2\xe5\xf2" : "\x93\xfa\x96\x7b\x8c\xea";
+            const auto note = documents::current();
+            require(note && note->text == (page == 1251 ? L"Привет" : L"日本語"),
+                    "Reader ignored the active game resource encoding");
+        }
+        fixture_code_page = 1252;
+        controls.document_text = original_fields;
         require(!send(WM_KEYDOWN, VK_F7) && !send(WM_KEYDOWN, VK_F7, LPARAM{1} << 30) &&
                     !send(WM_KEYUP, VK_F7) && !documents::active() && pauses == 0,
                 "F7 opened the reader or consumed native input");

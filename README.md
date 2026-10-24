@@ -4,6 +4,7 @@ Play *The X-Files Game* on modern Windows without installing QuickTime.
 Adds windowed play, controller support, a save browser and subtitle options.
 
 Supports English PC CD/DVD and German, French, Spanish, Italian and Japanese PC CD editions.
+Also supports the Russian unofficial DVD repack from 2008 (Release 1.00/RU).
 You need your own copy of the game.
 
 [Download](https://github.com/Zeffuro/x-files-pc-enhancement-patch/releases) ·
@@ -32,6 +33,9 @@ You can change these later with **F10**.
 The discs aren't needed after installation. If setup cannot open a DVD image,
 mount it in Windows and select the mounted drive with **Folder...**.
 MDF/MDS images and the French DVD edition aren't supported yet.
+
+For the Russian repack, select its ISO with **Image...**, or its mounted or extracted
+disc folder with **Folder...**. Setup imports the game without running the old installer.
 
 Choose a writable folder outside Program Files. To uninstall, remove the game
 folder and its shortcuts. Back up your saves first.

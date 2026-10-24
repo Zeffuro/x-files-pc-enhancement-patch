@@ -15,6 +15,7 @@ constexpr MediaSet sets[] = {
     {MediaSetId::cd_es, "Spanish CD", 1205, false},
     {MediaSetId::cd_it, "Italian CD", 1206, false},
     {MediaSetId::cd_jp, "Japanese CD", 1207, false},
+    {MediaSetId::ru_fan, "Russian unofficial DVD (2008)", 1208, false},
 };
 constexpr const wchar_t* identity_files[] = {L"xfiles.exe",  L"xfiles.hdb",  L"xfiles.gam",
                                              L"xfilesc.dll", L"xfilese.dll", L"xfiless.dll",
@@ -109,7 +110,8 @@ MediaSetId identify_media_set(const std::map<std::wstring, std::set<std::string>
     if (detected == MediaSetId::unknown) {
         throw std::runtime_error(
             "Unsupported or mixed game media. Select a complete English CD/DVD "
-            "or German, French, Spanish, Italian or Japanese CD set.");
+            "or German, French, Spanish, Italian or Japanese CD set, or the Russian unofficial "
+            "DVD (2008).");
     }
     return detected;
 }

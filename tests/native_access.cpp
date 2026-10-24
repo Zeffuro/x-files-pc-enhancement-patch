@@ -9,6 +9,7 @@ BOOL WINAPI trace_read(HANDLE process, LPCVOID source, LPVOID destination, SIZE_
 #include "game/access/script.h"
 #undef ReadProcessMemory
 #include "game/functions/generated.h"
+#include "game/layouts/ai.h"
 
 #include <array>
 #include <cstring>

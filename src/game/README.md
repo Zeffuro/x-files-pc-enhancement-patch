@@ -23,7 +23,9 @@ every variable writer, uncached target, load or intermediate value.
 
 Italian CDs share the CD 1.00.19 executable. Italian and Japanese editions have
 complete seven-disc setup catalogs. Japanese native resource strings use code page 932 to match
-the executable's Shift-JIS font selection. The other profiles use code page 1252.
+the executable's Shift-JIS font selection. The Russian unofficial DVD repack uses
+the unchanged CD 1.00.12 executable with translated resources and fonts. Its text
+uses code page 1251. Other supported editions use code page 1252.
 
 `profiles/functions.json` is the canonical list of native call targets, their roles and their observed argument passing. It refers to fields in `builds.json`, which supplies the RVA for each executable hash. The call shapes are not IDA type declarations. Data globals, vtables and layout offsets remain outside the function catalog.
 
@@ -60,20 +62,22 @@ mutation or guessed serialized-state mapping for older saves. Preview failure fa
 back to the thumbnail. Deleting a slot unpublishes its metadata before removing its
 generation files, leaving unrelated files alone.
 
-In IDA, execute `scripts/ida_import.py` to preview names for the input-file hash. To apply, import the script and explicitly call `run(apply=True)`. Use `run(research=False)` to preview only the native profile names, or add `apply=True` to apply that subset.
+In IDA, select `scripts/ida_import.py` through **File → Script file**. It automatically imports verified names, native layouts, complete known function signatures and global types, then saves the database. Importing the script in IDA runs the same process. Conflicting user names and types are preserved.
 
-Native profile names use `XFiles_<field>` and take precedence over supplemental aliases. Table names use `XFiles_table_<name>` and other labels use `XFiles_re_<name>`. These names were checked against the original executables using research from [Shiloh](https://github.com/Asterber/shiloh) and [xesf's The X-Files game project](https://github.com/xesf/the-x-files-game). `ida/symbols.json` records the pinned source revisions and per-build fingerprints.
+Functions use their catalog names, such as `ai_list_clear`, with native profile names taking precedence over supplemental aliases. Profile globals retain `XFiles_<field>` and tables use `XFiles_table_<name>`. Exact older importer names migrate automatically, while custom names remain intact. Verified parameter names replace generic labels and preserve custom names. These names were checked against the original executables using research from [Shiloh](https://github.com/Asterber/shiloh) and [xesf's The X-Files game project](https://github.com/xesf/the-x-files-game), plus direct executable analysis. `ida/symbols.json` records source revisions or exact original executable hashes and per-build fingerprints.
 
 | Executable | Function labels | Data labels | Tables |
 | --- | ---: | ---: | ---: |
-| CD 1.00.12 | 399 | 14 | 41 |
-| CD 1.00.19 | 432 | 14 | 41 |
-| Japanese CD 1.00.20 | 427 | 14 | 41 |
-| DVD | 541 | 14 | 41 |
+| CD 1.00.12 | 417 | 14 | 41 |
+| CD 1.00.19 | 450 | 14 | 41 |
+| Japanese CD 1.00.20 | 445 | 14 | 41 |
+| DVD | 553 | 14 | 41 |
 
 CD matches include all 203 built-in handlers and 51 class factories. Matches use original registrations, verified references and instruction decoding from known entries. Unresolved DVD labels remain absent from the corresponding CD catalogs. Names identify routines without declaring their calling conventions or object layouts.
 
-The bridge waits for autoanalysis, requires a matching 32-bit input hash, rebases each RVA, and requires each cataloged function to start at its target address. Supplemental names also require matching byte fingerprints, including rebased pointers where present. For functions, `size` describes the fingerprint span. Data ranges must be mapped without code. The bridge skips user names, collisions and unmapped addresses, and rechecks candidates before applying them. It never applies type declarations or changes existing types. It does not create functions, structures or data items.
+The bridge waits for autoanalysis, requires a matching 32-bit input hash, rebases each RVA, and requires each cataloged function to start at its target address. Supplemental names also require matching byte fingerprints, including rebased pointers where present. For functions, `size` describes the fingerprint span. Data ranges must be mapped without code. The bridge skips user names, collisions and unmapped addresses, and rechecks candidates before applying them. It does not create functions or infer missing signatures.
+
+`ida/types.json` is generated from the C++ layouts and shared catalogs by `ida/export_types.py`, using libclang and the 32-bit Microsoft ABI. Regeneration needs MSVC and Windows SDK headers. `--check` verifies source hashes without Clang, while `--verify-ast` compares a fresh extraction. The importer checks those hashes, constructs types in a temporary library and selects profile-dependent field offsets before importing. Conflicting types and their dependents are preserved. AI layouts describe action-list storage, cursor ownership and glow state as verified prefixes.
 
 Native UI, state, resource and queue prefixes live in `layouts/`. Known inventory
 selection values use one enum in `layouts/input/inventory_selection.h`, and

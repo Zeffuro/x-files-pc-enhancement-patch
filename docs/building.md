@@ -27,7 +27,7 @@ Nothing is installed or published.
 Useful options:
 
 ```powershell
-.\build.ps1 -Version 0.4.5
+.\build.ps1 -Version 0.4.6
 .\build.ps1 -BuildDirectory build-release -Jobs 4
 .\build.ps1 -FFmpegRoot C:/dependencies/ffmpeg -Clean
 ```
@@ -163,8 +163,8 @@ save backups, restored with settings after the test game exits.
 Pushing code runs the GitHub checks. After local testing, tag the release:
 
 ```sh
-git tag -a v0.4.5 -m "v0.4.5"
-git push origin v0.4.5
+git tag -a v0.4.6 -m "v0.4.6"
+git push origin v0.4.6
 ```
 
 The tag sets the release version. If all checks pass, GitHub creates a draft
@@ -175,7 +175,7 @@ For packaging after a manual build, run CPack and then prepare both downloads:
 
 ```powershell
 cpack --config build/CPackConfig.cmake -C Release
-python tools/package-release.py build/packages/xfiles-enhancement-0.4.5-windows-x86.zip --version 0.4.5
+python tools/package-release.py build/packages/xfiles-enhancement-0.4.6-windows-x86.zip --version 0.4.6
 ```
 
 Keep dependency licenses and matching FFmpeg source with redistributed packages.

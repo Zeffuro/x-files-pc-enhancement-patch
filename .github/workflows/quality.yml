@@ -38,6 +38,12 @@ jobs:
           python tests/game_ida.py
           python tests/game_ida_symbols.py
           python tests/game_ida_research.py
+          python tests/game_ida_types.py
+          python tests/game_ida_export.py
+          python tests/game_ida_full.py
+          python tests/game_ida_parameters.py
+      - name: Translation catalogs
+        run: python tests/localization_catalog.py
       - name: Portable tests
         run: |
           mkdir -p /tmp/xfiles-recipe-checks

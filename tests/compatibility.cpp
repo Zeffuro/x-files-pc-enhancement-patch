@@ -144,6 +144,17 @@ void clean_and_catalogs() {
 void media_checks() {
     {
         Fixture fixture;
+        const auto name = L"xt/80893.xtx";
+        write(fixture.game / name, "");
+        fixture.catalog.files.emplace(name, MediaRecord{0, sha256(fixture.game / name)});
+        const auto report = fixture.check();
+        require(report.problems.empty() && report.warnings.empty(),
+                "Catalogued empty media rejected as damaged");
+        fs::remove(fixture.game / name);
+        require(!fixture.check().problems.empty(), "Missing catalogued empty media accepted");
+    }
+    {
+        Fixture fixture;
         fixture.move_to_media(L"xfiles.hdb");
         fixture.move_to_media(L"nav1.nmv", L"MININST");
         fixture.move_to_media(L"xv/late.xmv", L"MEDINST");

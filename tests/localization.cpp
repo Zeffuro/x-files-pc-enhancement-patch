@@ -1,5 +1,8 @@
 #include "localization/ui.h"
+#include "localization/english.h"
+#include "localization/russian.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
@@ -28,7 +31,7 @@ int main() {
         require(ui::read_language(path) == ui::system_language());
         WritePrivateProfileStringW(L"Interface", L"Language", L"xx", path.c_str());
         require(ui::read_language(path) == ui::system_language());
-        for (int index = 0; index < 6; ++index) {
+        for (int index = 0; index < ui::language_count; ++index) {
             const auto selected = static_cast<ui::Language>(index);
             ui::save_language(path, selected);
             require(ui::read_language(path) == selected);
@@ -44,6 +47,17 @@ int main() {
         }
         require(std::wstring(ui::translate(L"Install", ui::Language::German)) == L"Installieren");
         require(std::wstring(ui::translate(L"Install", ui::Language::Japanese)) == L"インストール");
+        require(std::wstring(ui::language_name(ui::Language::Russian)) == L"Русский");
+        WritePrivateProfileStringW(L"Interface", L"Language", L"RU", path.c_str());
+        require(ui::read_language(path) == ui::Language::Russian);
+        for (const auto& entry : ui::detail::english_entries) {
+            const auto russian = std::find_if(
+                std::begin(ui::detail::russian_entries), std::end(ui::detail::russian_entries),
+                [&](const auto& value) { return value.id == entry.id; });
+            require(russian != std::end(ui::detail::russian_entries));
+            require(std::wstring(ui::translate(entry.text, ui::Language::Russian)) ==
+                    russian->text);
+        }
         require(std::wstring(ui::translate(L"Unmapped text", ui::Language::French)) ==
                 L"Unmapped text");
 
@@ -68,6 +82,12 @@ int main() {
         require(text(button) == L"Installieren");
         translator.apply(ui::Language::Japanese);
         require(text(label) == L"The X-Files をインストール");
+        require(text(source) == L"C:\\my\\Install");
+        require(SendMessageW(languages, CB_GETCURSEL, 0, 0) == 1);
+        translator.apply(ui::Language::Russian);
+        require(text(parent) == L"Установка The X-Files");
+        require(text(label) == L"Установить The X-Files");
+        require(text(button) == L"Установить");
         require(text(source) == L"C:\\my\\Install");
         require(SendMessageW(languages, CB_GETCURSEL, 0, 0) == 1);
         translator.apply(ui::Language::English);

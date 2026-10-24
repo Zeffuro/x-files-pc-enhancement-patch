@@ -157,7 +157,7 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
         SetWindowLongPtrW(window, DWLP_USER, data);
         setup = reinterpret_cast<Setup*>(data);
         setup->labels.emplace(window);
-        for (int index = 0; index < 6; ++index) {
+        for (int index = 0; index < ui::language_count; ++index) {
             SendDlgItemMessageW(
                 window, language_field, CB_ADDSTRING, 0,
                 reinterpret_cast<LPARAM>(ui::language_name(static_cast<ui::Language>(index))));
@@ -238,7 +238,7 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
         }
         if (command == language_field && HIWORD(parameter) == CBN_SELCHANGE && !setup->ready) {
             const auto selected = SendDlgItemMessageW(window, language_field, CB_GETCURSEL, 0, 0);
-            if (selected >= 0 && selected < 6) {
+            if (selected >= 0 && selected < ui::language_count) {
                 setup->language = static_cast<ui::Language>(selected);
                 setup->labels->apply(setup->language);
             }

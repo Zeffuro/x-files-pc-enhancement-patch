@@ -319,7 +319,7 @@ void localization() {
                                 L"Press one button or trigger to assign it.",
                                 L"Release all controls, then press one button.",
                                 L"Enter a value in the range shown."};
-    for (unsigned language = 1; language <= 5; ++language) {
+    for (int language = 1; language < ui::language_count; ++language) {
         for (const auto* label : labels) {
             require(std::wstring(ui::translate(label, static_cast<ui::Language>(language))) !=
                         label,

@@ -1,6 +1,15 @@
 #include "ui.h"
+#include "english.h"
+#include "german.h"
+#include "french.h"
+#include "spanish.h"
+#include "italian.h"
+#include "japanese.h"
+#include "russian.h"
 
 #include <array>
+#include <algorithm>
+#include <span>
 #include <cwchar>
 #include <stdexcept>
 #include <string>
@@ -9,623 +18,10 @@
 namespace ui {
 namespace {
 
-struct Entry {
-    const wchar_t* english;
-    const wchar_t* german;
-    const wchar_t* french;
-    const wchar_t* spanish;
-    const wchar_t* italian;
-    const wchar_t* japanese;
-};
-
-constexpr Entry entries[] = {
-    {L"Click", L"Klicken", L"Cliquer", L"Haz clic", L"Clicca", L"クリック"},
-    {L"Interact", L"Interagieren", L"Interagir", L"Interactúa", L"Interagisci", L"操作する"},
-    {L"View", L"Ansehen", L"Regarder", L"Mira", L"Guarda", L"見る"},
-    {L"Talk", L"Sprechen", L"Parler", L"Habla", L"Parla", L"話す"},
-    {L"Use", L"Benutzen", L"Utiliser", L"Usar", L"Usa", L"使う"},
-    {L"Target", L"Ziel", L"Cible", L"Objetivo", L"Bersaglio", L"対象"},
-    {L"Hotspot", L"Interaktionspunkt", L"Zone interactive", L"Zona interactiva",
-     L"Punto interattivo", L"操作ポイント"},
-    {L"The X-Files Setup", L"The X-Files Installation", L"Installation de The X-Files",
-     L"Instalación de The X-Files", L"Installazione di The X-Files", L"The X-Files セットアップ"},
-    {L"Install The X-Files", L"The X-Files installieren", L"Installer The X-Files",
-     L"Instalar The X-Files", L"Installa The X-Files", L"The X-Files をインストール"},
-    {L"Choose your game files or disc images. Setup detects the game language.",
-     L"Wählen Sie Spieldateien oder Datenträgerabbilder. Die Spielsprache wird erkannt.",
-     L"Choisissez les fichiers du jeu ou des images disque. La langue du jeu est détectée.",
-     L"Elige archivos del juego o imágenes de disco. Se detectará el idioma del juego.",
-     L"Scegli i file di gioco o le immagini disco. La lingua del gioco viene rilevata.",
-     L"ゲームファイルまたはディスクイメージを選択してください。ゲームの言語は自動検出されます。"},
-    {L"Game files or disc images", L"Spieldateien oder Datenträgerabbilder",
-     L"Fichiers du jeu ou images disque", L"Archivos del juego o imágenes de disco",
-     L"File di gioco o immagini disco", L"ゲームファイルまたはディスクイメージ"},
-    {L"Install to a new folder", L"In neuen Ordner installieren",
-     L"Installer dans un nouveau dossier", L"Instalar en una carpeta nueva",
-     L"Installa in una nuova cartella", L"新しいフォルダーにインストール"},
-    {L"Folder...", L"Ordner...", L"Dossier...", L"Carpeta...", L"Cartella...", L"フォルダー..."},
-    {L"Image...", L"Abbild...", L"Image...", L"Imagen...", L"Immagine...", L"イメージ..."},
-    {L"Browse...", L"Durchsuchen...", L"Parcourir...", L"Examinar...", L"Sfoglia...", L"参照..."},
-    {L"Start in a window", L"Im Fenster starten", L"Démarrer en fenêtre", L"Iniciar en una ventana",
-     L"Avvia in finestra", L"ウィンドウで起動"},
-    {L"Desktop shortcut", L"Desktopverknüpfung", L"Raccourci sur le bureau",
-     L"Acceso directo en el escritorio", L"Collegamento sul desktop",
-     L"デスクトップにショートカット"},
-    {L"Start Menu shortcut", L"Startmenüverknüpfung", L"Raccourci du menu Démarrer",
-     L"Acceso directo en Inicio", L"Collegamento nel menu Start",
-     L"スタートメニューにショートカット"},
-    {L"Updating? Close the game and extract the new release ZIP into the installed folder. Replace "
-     L"files when asked. Saves and settings are kept.",
-     L"Update: Schließen Sie das Spiel und entpacken Sie die neue ZIP-Datei in den "
-     L"Installationsordner. Ersetzen Sie Dateien auf Nachfrage. Spielstände und Einstellungen "
-     L"bleiben erhalten.",
-     L"Mise à jour : fermez le jeu et extrayez le nouveau ZIP dans le dossier d'installation. "
-     L"Remplacez les fichiers à la demande. Les sauvegardes et réglages sont conservés.",
-     L"Para actualizar, cierra el juego y extrae el nuevo ZIP en la carpeta instalada. Reemplaza "
-     L"los archivos cuando se te pida. Se conservan las partidas y los ajustes.",
-     L"Per aggiornare, chiudi il gioco ed estrai il nuovo ZIP nella cartella di installazione. "
-     L"Sostituisci i file quando richiesto. Salvataggi e impostazioni restano invariati.",
-     L"更新するにはゲームを閉じ、新しい ZIP "
-     L"をインストール先に展開してファイルを上書きしてください。セーブデータと設定は保持されます。"},
-    {L"Interface language (independent of game media)",
-     L"Oberflächensprache (unabhängig von den Spieldateien)",
-     L"Langue de l'interface (indépendante des fichiers du jeu)",
-     L"Idioma de la interfaz (independiente del disco)",
-     L"Lingua dell'interfaccia (indipendente dai file di gioco)",
-     L"表示言語 (ゲームディスクとは別)"},
-    {L"Interface language", L"Oberflächensprache", L"Langue de l'interface",
-     L"Idioma de la interfaz", L"Lingua dell'interfaccia", L"表示言語"},
-    {L"Install", L"Installieren", L"Installer", L"Instalar", L"Installa", L"インストール"},
-    {L"Cancel", L"Abbrechen", L"Annuler", L"Cancelar", L"Annulla", L"キャンセル"},
-    {L"Play", L"Spielen", L"Jouer", L"Jugar", L"Gioca", L"プレイ"},
-    {L"Close", L"Schließen", L"Fermer", L"Cerrar", L"Chiudi", L"閉じる"},
-    {L"Checking game files and free space...", L"Spieldateien und freien Speicher prüfen...",
-     L"Vérification des fichiers et de l'espace libre...",
-     L"Comprobando archivos y espacio libre...", L"Controllo file e spazio libero...",
-     L"ゲームファイルと空き容量を確認中..."},
-    {L"Copying and verifying game files...", L"Spieldateien kopieren und prüfen...",
-     L"Copie et vérification des fichiers du jeu...",
-     L"Copiando y verificando archivos del juego...", L"Copia e verifica dei file di gioco...",
-     L"ゲームファイルをコピーして確認中..."},
-    {L"Ready to play. The source disc or folder is no longer needed.",
-     L"Spielbereit. Der Quelldatenträger oder -ordner wird nicht mehr benötigt.",
-     L"Prêt à jouer. Le disque ou dossier source n'est plus nécessaire.",
-     L"Listo para jugar. Ya no necesitas el disco o la carpeta de origen.",
-     L"Pronto per giocare. Il disco o la cartella di origine non è più necessario.",
-     L"プレイの準備ができました。元のディスクやフォルダーはもう不要です。"},
-    {L"Setup did not finish. Check the details below before retrying.",
-     L"Installation nicht abgeschlossen. Prüfen Sie die Details und versuchen Sie es erneut.",
-     L"L'installation a échoué. Vérifiez les détails avant de réessayer.",
-     L"La instalación no terminó. Revisa los detalles antes de reintentar.",
-     L"Installazione non completata. Controlla i dettagli prima di riprovare.",
-     L"セットアップは完了しませんでした。詳細を確認して再試行してください。"},
-    {L"Stopping after the current file...", L"Nach der aktuellen Datei anhalten...",
-     L"Arrêt après le fichier en cours...", L"Deteniendo tras el archivo actual...",
-     L"Arresto dopo il file corrente...", L"現在のファイルが終わったら停止します..."},
-    {L"Choose a PC disc ISO or CUE sheet", L"ISO- oder CUE-Datei eines PC-Datenträgers wählen",
-     L"Choisir une image ISO ou CUE du disque PC", L"Elige una imagen ISO o CUE del disco de PC",
-     L"Scegli un'immagine ISO o CUE del disco PC", L"PC ディスクの ISO または CUE を選択"},
-    {L"Choose game files or all seven CD images",
-     L"Spieldateien oder alle sieben CD-Abbilder wählen",
-     L"Choisir les fichiers du jeu ou les sept images CD",
-     L"Elige archivos del juego o las siete imágenes de CD",
-     L"Scegli i file di gioco o tutte le sette immagini CD",
-     L"ゲームファイルまたは 7 枚の CD イメージを選択"},
-    {L"Choose a parent folder for The X-Files", L"Übergeordneten Ordner für The X-Files wählen",
-     L"Choisir le dossier parent de The X-Files", L"Elige la carpeta principal para The X-Files",
-     L"Scegli la cartella principale per The X-Files", L"The X-Files の親フォルダーを選択"},
-    {L"The X-Files enhancements", L"The X-Files Erweiterungen", L"Améliorations de The X-Files",
-     L"Mejoras de The X-Files", L"Migliorie di The X-Files", L"The X-Files 拡張設定"},
-    {L"Display and audio", L"Anzeige und Audio", L"Affichage et audio", L"Pantalla y audio",
-     L"Schermo e audio", L"画面と音声"},
-    {L"Display mode", L"Anzeigemodus", L"Mode d'affichage", L"Modo de pantalla",
-     L"Modalità schermo", L"表示モード"},
-    {L"Windowed", L"Fenster", L"Fenêtre", L"Ventana", L"Finestra", L"ウィンドウ"},
-    {L"Borderless fullscreen", L"Randloses Vollbild", L"Plein écran sans bordure",
-     L"Pantalla completa sin bordes", L"Schermo intero senza bordi", L"ボーダーレス全画面"},
-    {L"Alt+Enter switches between windowed and borderless.",
-     L"Alt+Eingabe wechselt zwischen Fenster und randlosem Vollbild.",
-     L"Alt+Entrée alterne entre fenêtre et plein écran sans bordure.",
-     L"Alt+Entrar cambia entre ventana y pantalla completa sin bordes.",
-     L"Alt+Invio alterna finestra e schermo intero senza bordi.",
-     L"Alt+Enter でウィンドウとボーダーレス全画面を切り替えます。"},
-    {L"Alt+Enter switches display mode.", L"Alt+Eingabe wechselt den Anzeigemodus.",
-     L"Alt+Entrée change le mode d'affichage.", L"Alt+Entrar cambia el modo de pantalla.",
-     L"Alt+Invio cambia modalità schermo.", L"Alt+Enter で表示モードを切り替えます。"},
-    {L"Window size", L"Fenstergröße", L"Taille de la fenêtre", L"Tamaño de ventana",
-     L"Dimensione finestra", L"ウィンドウサイズ"},
-    {L"Keep current size", L"Aktuelle Größe beibehalten", L"Conserver la taille actuelle",
-     L"Mantener tamaño actual", L"Mantieni dimensione attuale", L"現在のサイズを維持"},
-    {L"640 x 480 (original 4:3)", L"640 x 480 (Original 4:3)", L"640 x 480 (original 4:3)",
-     L"640 x 480 (original 4:3)", L"640 x 480 (originale 4:3)", L"640 x 480 (元の 4:3)"},
-    {L"1280 x 720 (16:9, side bars)", L"1280 x 720 (16:9, Seitenbalken)",
-     L"1280 x 720 (16:9, bandes latérales)", L"1280 x 720 (16:9, barras laterales)",
-     L"1280 x 720 (16:9, bande laterali)", L"1280 x 720 (16:9、左右に余白)"},
-    {L"Scaling filter", L"Skalierungsfilter", L"Filtre de mise à l'échelle", L"Filtro de escalado",
-     L"Filtro di ridimensionamento", L"拡大フィルター"},
-    {L"Original proportions. Filters require Direct3D 9.",
-     L"Originalproportionen. Filter benötigen Direct3D 9.",
-     L"Proportions d'origine. Filtres avec Direct3D 9.",
-     L"Proporciones originales. Los filtros requieren Direct3D 9.",
-     L"Proporzioni originali. I filtri richiedono Direct3D 9.",
-     L"元の縦横比。フィルターには Direct3D 9 が必要です。"},
-    {L"Audio output", L"Audioausgabe", L"Sortie audio", L"Salida de audio", L"Uscita audio",
-     L"音声出力"},
-    {L"Nearest neighbour", L"Nächster Nachbar", L"Plus proche voisin", L"Vecino más cercano",
-     L"Vicino più prossimo", L"最近傍"},
-    {L"Bilinear (soft)", L"Bilinear (weich)", L"Bilinéaire (doux)", L"Bilineal (suave)",
-     L"Bilineare (morbido)", L"バイリニア (ソフト)"},
-    {L"Bicubic (default)", L"Bikubisch (Standard)", L"Bicubique (défaut)",
-     L"Bicúbico (predeterminado)", L"Bicubico (predefinito)", L"バイキュービック (標準)"},
-    {L"Lanczos (sharp)", L"Lanczos (scharf)", L"Lanczos (net)", L"Lanczos (nítido)",
-     L"Lanczos (nitido)", L"Lanczos (シャープ)"},
-    {L"Controller", L"Controller", L"Manette", L"Mando", L"Controller", L"コントローラー"},
-    {L"Configure controller", L"Controller konfigurieren", L"Configurer la manette",
-     L"Configurar mando", L"Configura controller", L"コントローラーの設定"},
-    {L"Configure controller...", L"Controller konfigurieren...", L"Configurer la manette...",
-     L"Configurar mando...", L"Configura controller...", L"コントローラーの設定..."},
-    {L"Bindings", L"Belegung", L"Affectations", L"Asignaciones", L"Assegnazioni",
-     L"ボタン割り当て"},
-    {L"Choose an action, then assign a button.", L"Aktion wählen und eine Taste zuweisen.",
-     L"Choisissez une action, puis un bouton.", L"Elige una acción y asigna un botón.",
-     L"Scegli un'azione e assegna un pulsante.", L"動作を選び、ボタンを割り当ててください。"},
-    {L"Assigned button", L"Zugewiesene Taste", L"Bouton affecté", L"Botón asignado",
-     L"Pulsante assegnato", L"割り当てボタン"},
-    {L"Capture button", L"Taste erfassen", L"Détecter un bouton", L"Detectar botón",
-     L"Rileva pulsante", L"ボタンを検出"},
-    {L"Cancel capture", L"Erfassung abbrechen", L"Annuler la détection", L"Cancelar detección",
-     L"Annulla rilevamento", L"検出を中止"},
-    {L"Assignments swap to keep every action available.",
-     L"Belegungen werden getauscht. Jede Aktion bleibt verfügbar.",
-     L"Les affectations s'échangent pour garder toutes les actions.",
-     L"Las asignaciones se intercambian para conservar cada acción.",
-     L"Le assegnazioni si scambiano per mantenere ogni azione.",
-     L"割り当ては交換され、すべての動作が使えます。"},
-    {L"Calibration", L"Kalibrierung", L"Calibrage", L"Calibración", L"Calibrazione", L"調整"},
-    {L"Stick deadzone (0-30000)", L"Stick-Totzone (0-30000)", L"Zone morte (0-30000)",
-     L"Zona muerta (0-30000)", L"Zona morta (0-30000)", L"スティック不感帯 (0-30000)"},
-    {L"Sensitivity (25-300%)", L"Empfindlichkeit (25-300%)", L"Sensibilité (25-300%)",
-     L"Sensibilidad (25-300%)", L"Sensibilità (25-300%)", L"感度 (25-300%)"},
-    {L"Response curve", L"Reaktionskurve", L"Courbe de réponse", L"Curva de respuesta",
-     L"Curva di risposta", L"応答曲線"},
-    {L"Curve changes pointer speed. Spring movement is linear.",
-     L"Kurve ändert das Zeigertempo. Federbewegung ist linear.",
-     L"La courbe change la vitesse. Le mouvement centré est linéaire.",
-     L"La curva cambia la velocidad. El movimiento centrado es lineal.",
-     L"La curva cambia la velocità. Il movimento centrato è lineare.",
-     L"曲線はポインターの速度を変えます。中央復帰の移動は線形です。"},
-    {L"Trigger threshold (0-254)", L"Trigger-Schwelle (0-254)", L"Seuil gâchette (0-254)",
-     L"Umbral gatillo (0-254)", L"Soglia grilletto (0-254)", L"トリガーしきい値 (0-254)"},
-    {L"Invert stick X", L"Stick-X umkehren", L"Inverser X du stick", L"Invertir eje X",
-     L"Inverti asse X", L"スティック X を反転"},
-    {L"Invert stick Y", L"Stick-Y umkehren", L"Inverser Y du stick", L"Invertir eje Y",
-     L"Inverti asse Y", L"スティック Y を反転"},
-    {L"Live input", L"Live-Eingabe", L"Entrée en direct", L"Entrada en vivo",
-     L"Ingresso in tempo reale", L"入力テスト"},
-    {L"Reset recommended", L"Empfohlene Werte", L"Réglages conseillés", L"Restablecer recomendados",
-     L"Ripristina consigliati", L"推奨設定に戻す"},
-    {L"Linear", L"Linear", L"Linéaire", L"Lineal", L"Lineare", L"線形"},
-    {L"Quadratic", L"Quadratisch", L"Quadratique", L"Cuadrática", L"Quadratica", L"二次曲線"},
-    {L"Cubic", L"Kubisch", L"Cubique", L"Cúbica", L"Cubica", L"三次曲線"},
-    {L"Activate", L"Aktivieren", L"Activer", L"Activar", L"Attiva", L"実行"},
-    {L"Use / confirm", L"Benutzen / bestätigen", L"Utiliser / confirmer", L"Usar / confirmar",
-     L"Usa / conferma", L"使う / 確認"},
-    {L"Inventory / focus", L"Inventar / Fokus", L"Inventaire / sélection",
-     L"Inventario / selección", L"Inventario / selezione", L"所持品 / 選択"},
-    {L"Skip movie", L"Film überspringen", L"Passer la vidéo", L"Omitir vídeo", L"Salta filmato",
-     L"映像をスキップ"},
-    {L"Menu / resume", L"Menü / fortsetzen", L"Menu / reprendre", L"Menú / continuar",
-     L"Menu / riprendi", L"メニュー / 再開"},
-    {L"Equip / aim", L"Ausrüsten / zielen", L"Équiper / viser", L"Equipar / apuntar",
-     L"Equipaggia / mira", L"装備 / 照準"},
-    {L"Hotspot selection", L"Hotspot-Auswahl", L"Sélection de zones", L"Selección de zonas",
-     L"Selezione punti attivi", L"ホットスポット選択"},
-    {L"Inventory", L"Inventar", L"Inventaire", L"Inventario", L"Inventario", L"所持品"},
-    {L"Examine", L"Untersuchen", L"Examiner", L"Examinar", L"Esamina", L"調べる"},
-    {L"Back", L"Zurück", L"Retour", L"Volver", L"Indietro", L"戻る"},
-    {L"Skip", L"Überspringen", L"Passer", L"Omitir", L"Salta", L"スキップ"},
-    {L"Previous", L"Vorheriges", L"Précédent", L"Anterior", L"Precedente", L"前へ"},
-    {L"Next", L"Nächstes", L"Suivant", L"Siguiente", L"Successivo", L"次へ"},
-    {L"Evidence", L"Beweise", L"Indices", L"Pruebas", L"Prove", L"証拠"},
-    {L"Speed", L"Geschwindigkeit", L"Vitesse", L"Velocidad", L"Velocità", L"速度"},
-    {L"Aim", L"Zielen", L"Viser", L"Apuntar", L"Mira", L"照準"},
-    {L"Targets", L"Ziele", L"Cibles", L"Objetivos", L"Bersagli", L"対象"},
-    {L"Start", L"Start", L"Start", L"Start", L"Start", L"Start"},
-    {L"Buttons", L"Tasten", L"Boutons", L"Botones", L"Pulsanti", L"ボタン"},
-    {L"Calibrated", L"Kalibriert", L"Calibré", L"Calibrado", L"Calibrato", L"調整後"},
-    {L"No controller connected.", L"Kein Controller verbunden.", L"Aucune manette connectée.",
-     L"No hay mando conectado.", L"Nessun controller collegato.",
-     L"コントローラーが接続されていません。"},
-    {L"Controller disconnected. Capture cancelled.", L"Controller getrennt. Erfassung abgebrochen.",
-     L"Manette déconnectée. Détection annulée.", L"Mando desconectado. Detección cancelada.",
-     L"Controller scollegato. Rilevamento annullato.", L"接続が切れました。検出を中止しました。"},
-    {L"Press one button or trigger to assign it.", L"Eine Taste oder einen Trigger drücken.",
-     L"Appuyez sur un bouton ou une gâchette.", L"Pulsa un botón o gatillo para asignarlo.",
-     L"Premi un pulsante o un grilletto.", L"ボタンまたはトリガーを一つ押してください。"},
-    {L"Release all controls, then press one button.", L"Alles loslassen, dann eine Taste drücken.",
-     L"Relâchez tout, puis appuyez sur un bouton.", L"Suelta todo y pulsa un solo botón.",
-     L"Rilascia tutto, poi premi un pulsante.", L"すべて離してから、一つ押してください。"},
-    {L"Button assigned. The previous assignment was swapped.",
-     L"Taste zugewiesen. Vorherige Belegung getauscht.",
-     L"Bouton affecté. L'ancienne affectation a été échangée.",
-     L"Botón asignado. Se intercambió la asignación anterior.",
-     L"Pulsante assegnato. Assegnazione precedente scambiata.",
-     L"ボタンを割り当てました。元の割り当ては交換されました。"},
-    {L"Capture cancelled.", L"Erfassung abgebrochen.", L"Détection annulée.",
-     L"Detección cancelada.", L"Rilevamento annullato.", L"検出を中止しました。"},
-    {L"Recommended settings restored in this dialog.",
-     L"Empfohlene Werte in diesem Dialog wiederhergestellt.",
-     L"Réglages conseillés restaurés dans cette fenêtre.",
-     L"Ajustes recomendados restaurados en esta ventana.",
-     L"Impostazioni consigliate ripristinate in questa finestra.",
-     L"この画面の設定を推奨値に戻しました。"},
-    {L"Enter a value in the range shown.", L"Einen Wert im angezeigten Bereich eingeben.",
-     L"Saisissez une valeur dans la plage indiquée.",
-     L"Introduce un valor en el intervalo indicado.",
-     L"Inserisci un valore nell'intervallo indicato.", L"表示された範囲内の値を入力してください。"},
-    {L"Enable gamepad", L"Gamepad aktivieren", L"Activer la manette", L"Activar mando",
-     L"Abilita controller", L"ゲームパッドを有効にする"},
-    {L"Controller vibration", L"Controller-Vibration", L"Vibration de la manette",
-     L"Vibración del mando", L"Vibrazione del controller", L"コントローラーの振動"},
-    {L"Analog stick moves pointer (D-pad selects controls)",
-     L"Analogstick bewegt Zeiger (Steuerkreuz wählt Bedienelemente)",
-     L"Le stick déplace le pointeur (la croix choisit les commandes)",
-     L"El stick mueve el puntero (la cruceta selecciona controles)",
-     L"La levetta muove il puntatore (la croce seleziona i comandi)",
-     L"スティックでポインター移動 (方向キーで操作を選択)"},
-    {L"Spring-centred pointer (return to centre on release)",
-     L"Zeiger kehrt beim Loslassen zur Mitte zurück",
-     L"Retour du pointeur au centre après relâchement", L"El puntero vuelve al centro al soltarlo",
-     L"Il puntatore torna al centro quando si rilascia", L"離すとポインターを中央に戻す"},
-    {L"Focus highlight", L"Fokusmarkierung", L"Surbrillance de sélection",
-     L"Resaltado de selección", L"Evidenziazione selezione", L"選択枠"},
-    {L"Automatic", L"Automatisch", L"Automatique", L"Automático", L"Automatico", L"自動"},
-    {L"Always", L"Immer", L"Toujours", L"Siempre", L"Sempre", L"常に"},
-    {L"Off", L"Aus", L"Désactivé", L"Desactivado", L"Disattivato", L"オフ"},
-    {L"On", L"Ein", L"Activé", L"Activado", L"Attivato", L"オン"},
-    {L"Subtitles", L"Untertitel", L"Sous-titres", L"Subtítulos", L"Sottotitoli", L"字幕"},
-    {L"Closed captions", L"Untertitel für Hörgeschädigte", L"Sous-titres descriptifs",
-     L"Subtítulos descriptivos", L"Sottotitoli descrittivi", L"クローズドキャプション"},
-    {L"Game preference", L"Spieleinstellung", L"Préférence du jeu", L"Preferencia del juego",
-     L"Preferenza del gioco", L"ゲームの設定"},
-    {L"Font", L"Schriftart", L"Police", L"Fuente", L"Carattere", L"フォント"},
-    {L"Size (%)", L"Größe (%)", L"Taille (%)", L"Tamaño (%)", L"Dimensione (%)", L"サイズ (%)"},
-    {L"Dark background", L"Dunkler Hintergrund", L"Fond sombre", L"Fondo oscuro", L"Sfondo scuro",
-     L"暗い背景"},
-    {L"Black", L"Schwarz", L"Noir", L"Negro", L"Nero", L"黒"},
-    {L"Charcoal", L"Anthrazit", L"Gris anthracite", L"Gris carbón", L"Antracite", L"チャコール"},
-    {L"Navy", L"Marineblau", L"Bleu marine", L"Azul marino", L"Blu navy", L"ネイビー"},
-    {L"Opacity", L"Deckkraft", L"Opacité", L"Opacidad", L"Opacità", L"不透明度"},
-    {L"Game", L"Spiel", L"Jeu", L"Juego", L"Gioco", L"ゲーム"},
-    {L"Use DVD movies", L"DVD-Videos verwenden", L"Utiliser les vidéos DVD", L"Usar vídeos DVD",
-     L"Usa video DVD", L"DVD 動画を使用"},
-    {L"Movie contrast", L"Filmkontrast", L"Contraste des vidéos", L"Contraste de vídeos",
-     L"Contrasto video", L"動画のコントラスト"},
-    {L"Movie colors", L"Filmfarben", L"Couleurs des vidéos", L"Colores de vídeos", L"Colori video",
-     L"動画の色調"},
-    {L"Fast-forward", L"Vorspulen", L"Avance rapide", L"Avance rápido", L"Avanzamento rapido",
-     L"早送り"},
-    {L"Mute fast-forward", L"Beim Vorspulen stumm", L"Couper le son en avance rapide",
-     L"Silenciar al avanzar", L"Silenzia durante l'avanzamento", L"早送り中は消音"},
-    {L"Mute", L"Stumm", L"Muet", L"Silenciar", L"Silenzia", L"消音"},
-    {L"2x (natural pitch)", L"2x (normale Tonhöhe)", L"2x (hauteur naturelle)",
-     L"2x (tono natural)", L"2x (tono naturale)", L"2x（自然な音程）"},
-    {L"3x (natural pitch)", L"3x (normale Tonhöhe)", L"3x (hauteur naturelle)",
-     L"3x (tono natural)", L"3x (tono naturale)", L"3x（自然な音程）"},
-    {L"4x (natural pitch)", L"4x (normale Tonhöhe)", L"4x (hauteur naturelle)",
-     L"4x (tono natural)", L"4x (tono naturale)", L"4x（自然な音程）"},
-    {L"Original (off)", L"Original (aus)", L"Original (désactivé)", L"Original (desactivado)",
-     L"Originale (disattivato)", L"オリジナル（オフ）"},
-    {L"Reviewed scene grades", L"Abgestimmte Szenenfarben", L"Couleurs ajustées par scène",
-     L"Colores ajustados por escena", L"Colori regolati per scena", L"シーン別の色調補正"},
-    {L"Contrast +15% (Cinepak)", L"Kontrast +15% (Cinepak)", L"Contraste +15% (Cinepak)",
-     L"Contraste +15% (Cinepak)", L"Contrasto +15% (Cinepak)", L"コントラスト +15% (Cinepak)"},
-    {L"Contrast +25% (Cinepak)", L"Kontrast +25% (Cinepak)", L"Contraste +25% (Cinepak)",
-     L"Contraste +25% (Cinepak)", L"Contrasto +25% (Cinepak)", L"コントラスト +25% (Cinepak)"},
-    {L"Movie preview...", L"Filmvorschau...", L"Aperçu vidéo...", L"Vista previa...",
-     L"Anteprima video...", L"動画プレビュー..."},
-    {L"Controller hints (button positions)", L"Controller-Hinweise (Tastenpositionen)",
-     L"Repères de manette (position des boutons)", L"Indicaciones (posición de botones)",
-     L"Indicazioni (posizione dei pulsanti)", L"操作ヒント（ボタンの位置）"},
-    {L"Scene defaults", L"Szenenvorgaben", L"Réglages par scène", L"Ajustes por escena",
-     L"Impostazioni per scena", L"シーン別設定"},
-    {L"Mild", L"Leicht", L"Léger", L"Suave", L"Leggero", L"弱"},
-    {L"Medium", L"Mittel", L"Moyen", L"Medio", L"Medio", L"中"},
-    {L"Deinterlace DVD video", L"DVD-Video deinterlacen", L"Désentrelacer les vidéos DVD",
-     L"Desentrelazar vídeo DVD", L"Deinterlaccia video DVD", L"DVD 映像のインターレース解除"},
-    {L"Restore black menu backgrounds", L"Schwarze Menühintergründe wiederherstellen",
-     L"Restaurer les fonds noirs des menus", L"Restaurar fondos negros de los menús",
-     L"Ripristina gli sfondi neri dei menu", L"メニューの黒い背景を復元"},
-    {L"Skip workstation login puzzle", L"Computer-Anmelderätsel überspringen",
-     L"Passer l'énigme de connexion", L"Omitir el puzle de inicio de sesión",
-     L"Salta l'enigma di accesso", L"端末のログインパズルをスキップ"},
-    {L"Skip menu logo and entrance animations", L"Menülogo und Startanimationen überspringen",
-     L"Passer le logo et les animations du menu", L"Omitir logo y animaciones del menú",
-     L"Salta logo e animazioni del menu", L"メニューのロゴと開始アニメをスキップ"},
-    {L"Dialogue transcript", L"Dialogprotokoll", L"Historique des dialogues",
-     L"Historial de diálogos", L"Registro dei dialoghi", L"会話履歴"},
-    {L"Hold to reveal", L"Gedrückt halten", L"Maintenir pour révéler", L"Mantener para mostrar",
-     L"Tieni premuto", L"長押しで表示"},
-    {L"Hotspot reveal", L"Hotspots anzeigen", L"Révéler les zones", L"Mostrar zonas",
-     L"Mostra le zone", L"操作対象を表示"},
-    {L"Hold", L"Halten", L"Maintenir", L"Mantener", L"Tieni premuto", L"長押し"},
-    {L"Toggle", L"Umschalten", L"Basculer", L"Alternar", L"Alterna", L"切り替え"},
-    {L"Hold or tap", L"Halten / tippen", L"Maintenir / tap", L"Mantener / toque", L"Tieni / tocca",
-     L"長押し／タップ"},
-    {L"Remember load browser this session", L"Ladeansicht in dieser Sitzung merken",
-     L"Retenir la vue de chargement pour la session", L"Recordar carga durante esta sesión",
-     L"Ricorda la vista di carico per la sessione", L"この起動中のロード画面を記憶"},
-    {L"Confine mouse in windowed mode", L"Maus im Fenstermodus begrenzen",
-     L"Limiter la souris en mode fenêtré", L"Limitar ratón en modo ventana",
-     L"Limita mouse in modalità finestra", L"ウィンドウ内にマウスを制限"},
-    {L"All interactions", L"Alle Interaktionen", L"Toutes les interactions",
-     L"Todas las interacciones", L"Tutte le interazioni", L"すべての操作対象"},
-    {L"Exits only", L"Nur Ausgänge", L"Sorties uniquement", L"Solo salidas", L"Solo uscite",
-     L"出口のみ"},
-    {L"Left Alt", L"Linke Alt", L"Alt gauche", L"Alt izquierdo", L"Alt sinistro", L"左 Alt"},
-    {L"Show hotspot labels", L"Hotspot-Beschriftungen anzeigen", L"Afficher les libellés des zones",
-     L"Mostrar etiquetas de zonas", L"Mostra etichette delle zone", L"操作対象のラベルを表示"},
-    {L"Readable documents", L"Lesbare Dokumente", L"Documents lisibles", L"Documentos legibles",
-     L"Documenti leggibili", L"読みやすい文書"},
-    {L"Hold to reveal hotspots (Left Alt / RT)", L"Hotspots anzeigen (linke Alt / RT halten)",
-     L"Révéler les zones (maintenir Alt gauche / RT)",
-     L"Mostrar zonas (mantener Alt izquierdo / RT)",
-     L"Mostra le zone (tieni premuto Alt sinistro / RT)", L"操作対象を表示 (左 Alt / RT 長押し)"},
-    {L"Quick menu", L"Schnellmenü", L"Menu rapide", L"Menú rápido", L"Menu rapido",
-     L"クイックメニュー"},
-    {L"Quick menu...", L"Schnellmenü...", L"Menu rapide...", L"Menú rápido...", L"Menu rapido...",
-     L"クイックメニュー..."},
-    {L"Enable", L"Aktivieren", L"Activer", L"Activar", L"Abilita", L"有効にする"},
-    {L"Visible buttons", L"Sichtbare Schaltflächen", L"Boutons visibles", L"Botones visibles",
-     L"Pulsanti visibili", L"表示するボタン"},
-    {L"Save", L"Speichern", L"Sauvegarder", L"Guardar", L"Salva", L"セーブ"},
-    {L"Load", L"Laden", L"Charger", L"Cargar", L"Carica", L"ロード"},
-    {L"Transcript", L"Dialogprotokoll", L"Historique", L"Historial", L"Registro", L"会話履歴"},
-    {L"Tweaks", L"Anpassungen", L"Réglages", L"Ajustes", L"Modifiche", L"調整"},
-    {L"Menu", L"Menü", L"Menu", L"Menú", L"Menu", L"メニュー"},
-    {L"Save browser with thumbnails", L"Spielstandliste mit Vorschaubildern",
-     L"Liste des sauvegardes avec miniatures", L"Lista de partidas con miniaturas",
-     L"Elenco salvataggi con anteprime", L"サムネイル付きセーブ一覧"},
-    {L"Rolling safe autosaves", L"Sichere automatische Spielstände",
-     L"Sauvegardes automatiques sûres", L"Autoguardados seguros", L"Salvataggi automatici sicuri",
-     L"安全な自動セーブ"},
-    {L"Previous loads latest save at startup",
-     L"Vorheriges Spiel lädt beim Start den neuesten Spielstand",
-     L"Précédent charge la dernière sauvegarde au démarrage",
-     L"Anterior carga la partida más reciente al iniciar",
-     L"Precedente carica il salvataggio più recente all’avvio",
-     L"起動時に「前回のゲーム」で最新のセーブをロード"},
-    {L"Tools...", L"Werkzeuge...", L"Outils...", L"Herramientas...", L"Strumenti...", L"ツール..."},
-    {L"The X-Files tools", L"The X-Files Werkzeuge", L"Outils The X-Files",
-     L"Herramientas de The X-Files", L"Strumenti di The X-Files", L"The X-Files ツール"},
-    {L"Troubleshooting", L"Fehlerbehebung", L"Dépannage", L"Solución de problemas",
-     L"Risoluzione problemi", L"トラブルシューティング"},
-    {L"Save logs and version details to a ZIP for a bug report. You can include a saved game. "
-     L"Nothing is uploaded.",
-     L"Logs und Versionsdaten als ZIP für einen Fehlerbericht speichern. Ein Spielstand kann "
-     L"beigefügt werden. Es wird nichts hochgeladen.",
-     L"Enregistrez les journaux et la version dans un ZIP pour signaler un bug. Vous pouvez "
-     L"inclure une sauvegarde. Aucun envoi automatique.",
-     L"Guarda registros y versión en un ZIP para informar de un fallo. Puedes incluir una partida. "
-     L"No se sube nada.",
-     L"Salva log e versione in uno ZIP per segnalare un problema. Puoi includere un salvataggio. "
-     L"Non viene caricato nulla.",
-     L"不具合報告用にログとバージョン情報を ZIP "
-     L"に保存します。セーブデータも含められます。自動送信はしません。"},
-    {L"Include a saved game...", L"Spielstand beifügen...", L"Inclure une sauvegarde...",
-     L"Incluir una partida...", L"Includi un salvataggio...", L"セーブデータを含める..."},
-    {L"Open logs folder", L"Logordner öffnen", L"Ouvrir le dossier des journaux",
-     L"Abrir carpeta de registros", L"Apri cartella dei log", L"ログフォルダーを開く"},
-    {L"Save report ZIP...", L"Berichts-ZIP speichern...", L"Enregistrer le ZIP du rapport...",
-     L"Guardar informe ZIP...", L"Salva ZIP del rapporto...", L"報告用 ZIP を保存..."},
-    {L"Saved games", L"Spielstände", L"Sauvegardes", L"Partidas guardadas", L"Salvataggi",
-     L"セーブデータ"},
-    {L"Load during exploration or from the main menu. Loading discards unsaved progress. Save "
-     L"during exploration using a new filename.",
-     L"Beim Erkunden oder im Hauptmenü laden. Ungespeicherter Fortschritt geht verloren. Beim "
-     L"Erkunden unter neuem Dateinamen speichern.",
-     L"Chargez en exploration ou depuis le menu principal. Le chargement perd la progression non "
-     L"sauvegardée. Enregistrez sous un nouveau nom.",
-     L"Carga al explorar o desde el menú principal. Se perderá el progreso sin guardar. Guarda al "
-     L"explorar con un nombre nuevo.",
-     L"Carica durante l'esplorazione o dal menu principale. I progressi non salvati andranno "
-     L"persi. Salva con un nuovo nome.",
-     L"探索中またはメインメニューから読み込めます。未保存の進行は失われます。探索中は新しい名前で保"
-     L"存してください。"},
-    {L"Load from file...", L"Aus Datei laden...", L"Charger un fichier...",
-     L"Cargar desde archivo...", L"Carica da file...", L"ファイルから読み込む..."},
-    {L"Save to file...", L"In Datei speichern...", L"Enregistrer dans un fichier...",
-     L"Guardar en archivo...", L"Salva su file...", L"ファイルに保存..."},
-    {L"Export movie captions as editable SRT files, or install a subtitle pack. Original movies "
-     L"aren't changed.",
-     L"Filmuntertitel als bearbeitbare SRT-Dateien exportieren oder ein Untertitelpaket "
-     L"installieren. Originalfilme bleiben unverändert.",
-     L"Exportez les sous-titres en fichiers SRT modifiables ou installez un pack. Les vidéos "
-     L"d'origine restent intactes.",
-     L"Exporta subtítulos en archivos SRT editables o instala un paquete. Los vídeos originales no "
-     L"cambian.",
-     L"Esporta sottotitoli in file SRT modificabili o installa un pacchetto. I filmati originali "
-     L"non cambiano.",
-     L"字幕を編集可能な SRT "
-     L"ファイルに書き出すか、字幕パックをインストールできます。元の動画は変更されません。"},
-    {L"Export subtitles...", L"Untertitel exportieren...", L"Exporter les sous-titres...",
-     L"Exportar subtítulos...", L"Esporta sottotitoli...", L"字幕を書き出す..."},
-    {L"Install subtitles...", L"Untertitel installieren...", L"Installer des sous-titres...",
-     L"Instalar subtítulos...", L"Installa sottotitoli...", L"字幕をインストール..."},
-    {L"Developer tools", L"Entwicklerwerkzeuge", L"Outils de développement",
-     L"Herramientas de desarrollo", L"Strumenti di sviluppo", L"開発者ツール"},
-    {L"Preview live clips and add your own labels and notes.",
-     L"Aktuelle Clips ansehen und eigene Namen und Notizen hinzufügen.",
-     L"Prévisualisez les extraits et ajoutez des noms et notes.",
-     L"Previsualiza clips y añade nombres y notas.", L"Visualizza clip e aggiungi nomi e note.",
-     L"クリップを確認し、名前やメモを追加できます。"},
-    {L"Open developer tools...", L"Entwicklerwerkzeuge öffnen...",
-     L"Ouvrir les outils de développement...", L"Abrir herramientas de desarrollo...",
-     L"Apri strumenti di sviluppo...", L"開発者ツールを開く..."},
-    {L"Ctrl+F11 opens it during play.", L"Strg+F11 öffnet sie während des Spiels.",
-     L"Ctrl+F11 les ouvre pendant le jeu.", L"Ctrl+F11 las abre durante el juego.",
-     L"Ctrl+F11 li apre durante il gioco.", L"プレイ中は Ctrl+F11 で開きます。"},
-    {L"About...", L"Über...", L"À propos...", L"Acerca de...", L"Informazioni...",
-     L"バージョン情報..."},
-    {L"ZIP file...", L"ZIP-Datei...", L"Fichier ZIP...", L"Archivo ZIP...", L"File ZIP...",
-     L"ZIP ファイル..."},
-    {L"Make yourself at home", L"Machen Sie es sich bequem", L"Installez-vous", L"Ponte cómodo",
-     L"Mettiti comodo", L"快適にプレイしましょう"},
-    {L"Choose how you want to play. You can change these options later with F10.",
-     L"Wählen Sie Ihre Spielweise. Mit F10 können Sie diese Optionen später ändern.",
-     L"Choisissez votre façon de jouer. Vous pourrez modifier ces options plus tard avec F10.",
-     L"Elige cómo quieres jugar. Puedes cambiar estas opciones después con F10.",
-     L"Scegli come giocare. Puoi modificare queste opzioni in seguito con F10.",
-     L"プレイ方法を選んでください。これらの設定は後で F10 から変更できます。"},
-    {L"Recommended", L"Empfohlen", L"Recommandé", L"Recomendado", L"Consigliato", L"おすすめ"},
-    {L"Original game", L"Originalspiel", L"Jeu d'origine", L"Juego original", L"Gioco originale",
-     L"オリジナル版"},
-    {L"Start game", L"Spiel starten", L"Lancer le jeu", L"Iniciar juego", L"Avvia gioco",
-     L"ゲーム開始"},
-    {L"Not now", L"Jetzt nicht", L"Pas maintenant", L"Ahora no", L"Non ora", L"後で"},
-    {L"Cannot save your choices. Please try again.",
-     L"Ihre Auswahl konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
-     L"Impossible d'enregistrer vos choix. Veuillez réessayer.",
-     L"No se pudieron guardar tus opciones. Inténtalo de nuevo.",
-     L"Impossibile salvare le scelte. Riprova.",
-     L"選択を保存できませんでした。もう一度お試しください。"},
-    {L"Saved game exported.", L"Spielstand exportiert.", L"Sauvegarde exportée.",
-     L"Partida exportada.", L"Salvataggio esportato.", L"セーブデータを書き出しました。"},
-    {L"Install subtitles", L"Untertitel installieren", L"Installer des sous-titres",
-     L"Instalar subtítulos", L"Installa sottotitoli", L"字幕をインストール"},
-    {L"Export subtitles", L"Untertitel exportieren", L"Exporter les sous-titres",
-     L"Exportar subtítulos", L"Esporta sottotitoli", L"字幕を書き出す"},
-    {L"Open a ZIP pack or its extracted folder.",
-     L"Öffnen Sie ein ZIP-Paket oder den entpackten Ordner.",
-     L"Ouvrez un pack ZIP ou son dossier extrait.", L"Abre un paquete ZIP o su carpeta extraída.",
-     L"Apri un pacchetto ZIP o la cartella estratta.",
-     L"ZIP パックまたは展開済みフォルダーを開いてください。"},
-    {L"Use a ZIP to share subtitles, or a folder to edit them.",
-     L"Verwenden Sie ein ZIP zum Teilen oder einen Ordner zum Bearbeiten.",
-     L"Utilisez un ZIP pour partager ou un dossier pour modifier.",
-     L"Usa un ZIP para compartir o una carpeta para editar.",
-     L"Usa uno ZIP per condividere o una cartella per modificare.",
-     L"共有するには ZIP、編集するにはフォルダーを選んでください。"},
-    {L"Install subtitle pack", L"Untertitelpaket installieren", L"Installer un pack de sous-titres",
-     L"Instalar paquete de subtítulos", L"Installa pacchetto sottotitoli",
-     L"字幕パックをインストール"},
-    {L"Export subtitle pack", L"Untertitelpaket exportieren", L"Exporter un pack de sous-titres",
-     L"Exportar paquete de subtítulos", L"Esporta pacchetto sottotitoli", L"字幕パックを書き出す"},
-    {L"Choose the subtitle pack folder", L"Ordner des Untertitelpakets wählen",
-     L"Choisir le dossier du pack de sous-titres", L"Elige la carpeta del paquete de subtítulos",
-     L"Scegli la cartella del pacchetto sottotitoli", L"字幕パックのフォルダーを選択"},
-    {L"Choose an empty folder for subtitles", L"Leeren Ordner für Untertitel wählen",
-     L"Choisir un dossier vide pour les sous-titres",
-     L"Elige una carpeta vacía para los subtítulos", L"Scegli una cartella vuota per i sottotitoli",
-     L"字幕用の空フォルダーを選択"},
-    {L"Checking movies...", L"Filme prüfen...", L"Vérification des vidéos...",
-     L"Comprobando vídeos...", L"Controllo filmati...", L"動画を確認中..."},
-    {L"Processed: ", L"Verarbeitet: ", L"Traités : ", L"Procesados: ", L"Elaborati: ",
-     L"処理済み: "},
-    {L" of ", L" von ", L" sur ", L" de ", L" di ", L" / "},
-    {L"Cancelling...", L"Abbrechen...", L"Annulation...", L"Cancelando...", L"Annullamento...",
-     L"キャンセル中..."},
-    {L"Subtitles installed. Set closed captions to On to show them.",
-     L"Untertitel installiert. Aktivieren Sie Untertitel für Hörgeschädigte, um sie anzuzeigen.",
-     L"Sous-titres installés. Activez les sous-titres descriptifs pour les afficher.",
-     L"Subtítulos instalados. Activa los subtítulos descriptivos para verlos.",
-     L"Sottotitoli installati. Attiva i sottotitoli descrittivi per mostrarli.",
-     L"字幕をインストールしました。表示するにはクローズドキャプションをオンにしてください。"},
-    {L"Subtitles exported as SRT files. Edit the text, then use Install subtitles to load the "
-     L"pack.",
-     L"Untertitel als SRT-Dateien exportiert. Bearbeiten Sie den Text und laden Sie ihn mit "
-     L"Untertitel installieren.",
-     L"Sous-titres exportés en fichiers SRT. Modifiez-les, puis utilisez Installer des "
-     L"sous-titres.",
-     L"Subtítulos exportados como archivos SRT. Edita el texto y usa Instalar subtítulos para "
-     L"cargarlos.",
-     L"Sottotitoli esportati come file SRT. Modifica il testo, poi usa Installa sottotitoli.",
-     L"字幕を SRT ファイルに書き出しました。編集後、字幕のインストールから読み込んでください。"},
-    {L"\n\nSkipped ", L"\n\nÜbersprungen: ", L"\n\nIgnorées : ", L"\n\nOmitidos: ",
-     L"\n\nIgnorati: ", L"\n\nスキップ: "},
-    {L" unreadable movies. See skipped.txt in the exported pack.",
-     L" nicht lesbare Filme. Details in skipped.txt im Exportpaket.",
-     L" vidéos illisibles. Voir skipped.txt dans le pack exporté.",
-     L" vídeos ilegibles. Consulta skipped.txt en el paquete exportado.",
-     L" filmati illeggibili. Vedi skipped.txt nel pacchetto esportato.",
-     L" 本の読み取れない動画。書き出したパックの skipped.txt を参照してください。"},
-    {L"The X-Files subtitles", L"The X-Files Untertitel", L"Sous-titres The X-Files",
-     L"Subtítulos de The X-Files", L"Sottotitoli di The X-Files", L"The X-Files 字幕"},
-    {L"Save troubleshooting report", L"Fehlerbericht speichern",
-     L"Enregistrer le rapport de dépannage", L"Guardar informe de diagnóstico",
-     L"Salva rapporto diagnostico", L"診断レポートを保存"},
-    {L"Save game to file", L"Spielstand in Datei speichern",
-     L"Enregistrer la partie dans un fichier", L"Guardar partida en archivo",
-     L"Salva partita su file", L"セーブデータをファイルに保存"},
-    {L"Choose saved game", L"Spielstand wählen", L"Choisir une sauvegarde",
-     L"Elegir partida guardada", L"Scegli un salvataggio", L"セーブデータを選択"},
-    {L"Report saved. Nothing was uploaded. Review the ZIP before sharing it.",
-     L"Bericht gespeichert. Es wurde nichts hochgeladen. Prüfen Sie das ZIP vor dem Teilen.",
-     L"Rapport enregistré. Aucun envoi. Vérifiez le ZIP avant de le partager.",
-     L"Informe guardado. No se subió nada. Revisa el ZIP antes de compartirlo.",
-     L"Rapporto salvato. Non è stato caricato nulla. Controlla lo ZIP prima di condividerlo.",
-     L"レポートを保存しました。送信はしていません。共有前に ZIP を確認してください。"},
-    {L"The game stopped unexpectedly. Diagnostic logs have been kept in the game's logs "
-     L"folder.\n\nCreate a troubleshooting ZIP now?",
-     L"Das Spiel wurde unerwartet beendet. Diagnoseprotokolle liegen im Logordner des "
-     L"Spiels.\n\nJetzt ein ZIP für die Fehlerbehebung erstellen?",
-     L"Le jeu s'est arrêté de façon inattendue. Les journaux sont dans le dossier des logs du "
-     L"jeu.\n\nCréer un ZIP de diagnostic maintenant ?",
-     L"El juego se cerró inesperadamente. Los registros están en la carpeta de logs del "
-     L"juego.\n\n¿Crear un ZIP de diagnóstico ahora?",
-     L"Il gioco si è chiuso inaspettatamente. I log sono nella cartella del gioco.\n\nCreare ora "
-     L"uno ZIP diagnostico?",
-     L"ゲームが予期せず終了しました。診断ログはゲームのログフォルダーに保存されています。\n\n診断用"
-     L" ZIP を作成しますか？"},
-    {L"Include a saved game to help reproduce the problem?\n\nYou can choose one existing save. "
-     L"The game cannot recover unsaved progress after a crash.",
-     L"Einen Spielstand zur Fehleranalyse beifügen?\n\nSie können einen vorhandenen Spielstand "
-     L"wählen. Ungespeicherter Fortschritt kann nach einem Absturz nicht wiederhergestellt werden.",
-     L"Inclure une sauvegarde pour reproduire le problème ?\n\nVous pouvez choisir une sauvegarde "
-     L"existante. La progression non sauvegardée est perdue après un plantage.",
-     L"¿Incluir una partida para reproducir el problema?\n\nPuedes elegir una partida existente. "
-     L"El progreso sin guardar se pierde tras un fallo.",
-     L"Includere un salvataggio per riprodurre il problema?\n\nPuoi scegliere un salvataggio "
-     L"esistente. I progressi non salvati non si recuperano dopo un arresto anomalo.",
-     L"問題の再現に使うセーブデータを含めますか？\n\n既存のセーブを 1 "
-     L"つ選べます。異常終了後に未保存の進行は復元できません。"},
-    {L"Troubleshooting report", L"Fehlerbericht", L"Rapport de dépannage",
-     L"Informe de diagnóstico", L"Rapporto diagnostico", L"診断レポート"},
-    {L"About the patch", L"Über den Patch", L"À propos du patch", L"Acerca del parche",
-     L"Informazioni sulla patch", L"パッチについて"},
-    {L"Copyright (c) 2026 Zeffuro. MIT License.\n\nUses FFmpeg libraries under LGPL-2.1-or-later, "
-     L"cnc-ddraw (MIT), and zlib (zlib license).\n\nLicense notices are in the game folder. "
-     L"Matching FFmpeg source and the build script are in the patch release ZIP.\n\nUnofficial "
-     L"patch. Game content belongs to its owners.",
-     L"Copyright (c) 2026 Zeffuro. MIT-Lizenz.\n\nVerwendet FFmpeg-Bibliotheken unter "
-     L"LGPL-2.1-or-later, cnc-ddraw (MIT) und zlib (zlib-Lizenz).\n\nLizenzhinweise liegen im "
-     L"Spielordner. Passender FFmpeg-Quellcode und das Buildskript liegen im "
-     L"Release-ZIP.\n\nInoffizieller Patch. Spielinhalte gehören ihren Eigentümern.",
-     L"Copyright (c) 2026 Zeffuro. Licence MIT.\n\nUtilise les bibliothèques FFmpeg sous "
-     L"LGPL-2.1-or-later, cnc-ddraw (MIT) et zlib (licence zlib).\n\nLes notices de licence sont "
-     L"dans le dossier du jeu. Le code source FFmpeg correspondant et le script de compilation "
-     L"sont dans le ZIP de la version.\n\nPatch non officiel. Le contenu du jeu appartient à ses "
-     L"ayants droit.",
-     L"Copyright (c) 2026 Zeffuro. Licencia MIT.\n\nUsa las bibliotecas FFmpeg bajo "
-     L"LGPL-2.1-or-later, cnc-ddraw (MIT) y zlib (licencia zlib).\n\nLos avisos de licencia están "
-     L"en la carpeta del juego. El código FFmpeg correspondiente y el script de compilación están "
-     L"en el ZIP de la versión.\n\nParche no oficial. El contenido del juego pertenece a sus "
-     L"titulares.",
-     L"Copyright (c) 2026 Zeffuro. Licenza MIT.\n\nUsa le librerie FFmpeg con licenza "
-     L"LGPL-2.1-or-later, cnc-ddraw (MIT) e zlib (licenza zlib).\n\nLe note sulle licenze sono "
-     L"nella cartella del gioco. Il sorgente FFmpeg corrispondente e lo script di build sono nello "
-     L"ZIP della versione.\n\nPatch non ufficiale. I contenuti del gioco appartengono ai "
-     L"rispettivi proprietari.",
-     L"Copyright (c) 2026 Zeffuro。MIT ライセンス。\n\nFFmpeg ライブラリ "
-     L"(LGPL-2.1-or-later)、cnc-ddraw (MIT)、zlib (zlib ライセンス) "
-     L"を使用します。\n\nライセンス通知はゲームフォルダーにあります。対応する FFmpeg "
-     L"ソースとビルドスクリプトはリリース ZIP "
-     L"にあります。\n\n非公式パッチです。ゲームのコンテンツの権利は各権利者に帰属します。"},
-};
-
-constexpr std::array<const wchar_t*, 6> codes{L"en", L"de", L"fr", L"es", L"it", L"ja"};
-constexpr std::array<const wchar_t*, 6> names{L"English", L"Deutsch",  L"Français",
-                                              L"Español", L"Italiano", L"日本語"};
+constexpr std::array<const wchar_t*, language_count> codes{L"en", L"de", L"fr", L"es",
+                                                           L"it", L"ja", L"ru"};
+constexpr std::array<const wchar_t*, language_count> names{
+    L"English", L"Deutsch", L"Français", L"Español", L"Italiano", L"日本語", L"Русский"};
 
 std::filesystem::path settings_path() {
     std::vector<wchar_t> executable(32768);
@@ -669,6 +65,8 @@ Language system_language() {
             return Language::Italian;
         case LANG_JAPANESE:
             return Language::Japanese;
+        case LANG_RUSSIAN:
+            return Language::Russian;
         default:
             return Language::English;
     }
@@ -710,22 +108,38 @@ const wchar_t* translate(const wchar_t* english, Language value) {
     if (!english || value == Language::English) {
         return english;
     }
+    const auto source =
+        std::find_if(std::begin(detail::english_entries), std::end(detail::english_entries),
+                     [&](const auto& entry) { return std::wcscmp(english, entry.text) == 0; });
+    if (source == std::end(detail::english_entries)) {
+        return english;
+    }
+    std::span<const detail::Translation> entries;
+    switch (value) {
+        case Language::German:
+            entries = detail::german_entries;
+            break;
+        case Language::French:
+            entries = detail::french_entries;
+            break;
+        case Language::Spanish:
+            entries = detail::spanish_entries;
+            break;
+        case Language::Italian:
+            entries = detail::italian_entries;
+            break;
+        case Language::Japanese:
+            entries = detail::japanese_entries;
+            break;
+        case Language::Russian:
+            entries = detail::russian_entries;
+            break;
+        default:
+            return english;
+    }
     for (const auto& entry : entries) {
-        if (std::wcscmp(english, entry.english) == 0) {
-            switch (value) {
-                case Language::German:
-                    return entry.german;
-                case Language::French:
-                    return entry.french;
-                case Language::Spanish:
-                    return entry.spanish;
-                case Language::Italian:
-                    return entry.italian;
-                case Language::Japanese:
-                    return entry.japanese;
-                default:
-                    return english;
-            }
+        if (entry.id == source->id) {
+            return entry.text;
         }
     }
     return english;

@@ -2,6 +2,7 @@
 #include "catalog.h"
 #include "disc_image.h"
 #include "identity.h"
+#include "repack.h"
 
 #include <windows.h>
 #include <algorithm>
@@ -37,15 +38,11 @@ namespace {
 std::string checksum(const MediaFile& file) {
     return media_file_sha256(file);
 }
+}
 
-MediaSource prepare_image_import(const fs::path& root, const std::vector<MediaFile>& files) {
+MediaSource prepare_media_import(const fs::path& root, const std::vector<MediaFile>& files) {
     MediaSource result;
     result.root = fs::canonical(root);
-    result.set = detect_media_set(files);
-    result.files = select_iso_files(files, media_catalog(result.set));
-    for (const auto& file : result.files) {
-        result.bytes += file.size;
-    }
     const auto core =
         fs::temp_directory_path() / (L"xfiles-disc-core-" + std::to_wstring(GetCurrentProcessId()) +
                                      L"-" + std::to_wstring(GetTickCount64()));
@@ -54,6 +51,13 @@ MediaSource prepare_image_import(const fs::path& root, const std::vector<MediaFi
         throw std::runtime_error("Cannot create the disc import workspace.");
     }
     lifetime->path = core;
+    auto candidates = files;
+    expand_russian_repack(candidates, core);
+    result.set = detect_media_set(candidates);
+    result.files = select_iso_files(candidates, media_catalog(result.set));
+    for (const auto& file : result.files) {
+        result.bytes += file.size;
+    }
     for (const auto& file : result.files) {
         if (file.relative.has_parent_path()) {
             continue;
@@ -71,7 +75,6 @@ MediaSource prepare_image_import(const fs::path& root, const std::vector<MediaFi
     result.game = core;
     result.workspace = std::move(lifetime);
     return result;
-}
 }
 
 std::vector<MediaFile> select_iso_files(const std::vector<MediaFile>& files,
@@ -128,7 +131,7 @@ std::vector<MediaFile> select_iso_files(const std::vector<MediaFile>& files,
 
 MediaSource inspect_dvd_iso(const fs::path& image) {
     const auto path = fs::canonical(image);
-    return prepare_image_import(path, read_iso(path));
+    return prepare_media_import(path, read_iso(path));
 }
 
 MediaSource inspect_iso_folder(const fs::path& folder) {
@@ -170,5 +173,5 @@ MediaSource inspect_iso_folder(const fs::path& folder) {
         throw std::runtime_error("This folder contains a DVD ISO and other images. Use Image to "
                                  "select the DVD, or choose only seven CD images of one format.");
     }
-    return prepare_image_import(dvd.empty() ? folder : dvd, files);
+    return prepare_media_import(dvd.empty() ? folder : dvd, files);
 }

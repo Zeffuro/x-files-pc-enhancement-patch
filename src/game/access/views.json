@@ -366,6 +366,11 @@
             "view": "RectangleRef"
           },
           {
+            "name": "tab",
+            "offset": "build_profile->choice_viewport + sizeof(Rectangle)",
+            "view": "RectangleRef"
+          },
+          {
             "name": "scroll_position",
             "offset": "build_profile->choice_viewport + offsetof(ChoiceViewportPrefix, scroll_position)",
             "type": "unsigned"

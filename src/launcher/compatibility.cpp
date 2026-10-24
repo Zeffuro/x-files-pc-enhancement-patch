@@ -192,7 +192,7 @@ CompatibilityReport inspect_installation_files(const fs::path& game, const Ident
         const bool local = dvd || fs::path(name).extension() == L".dll" || name == L"xfiles.exe";
         const auto path = local ? game / name : effective_file(game, session, name);
         std::uintmax_t size = 0;
-        const bool available = readable_file(path, size, true);
+        const bool available = readable_file(path, size, record.size != 0);
         if (dvd) {
             ++report.dvd_files;
             report.unavailable_dvd_files += !available;

@@ -9,7 +9,8 @@
 
 namespace ui {
 
-enum class Language { English, German, French, Spanish, Italian, Japanese };
+enum class Language { English, German, French, Spanish, Italian, Japanese, Russian, Count };
+inline constexpr int language_count = static_cast<int>(Language::Count);
 
 Language system_language();
 Language language();

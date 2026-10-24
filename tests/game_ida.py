@@ -85,8 +85,8 @@ class IdaImportTest(unittest.TestCase):
         actual = {name: ea for _, ea, name, _ in rows}
         self.assertEqual(build["id"], "cd_10020")
         self.assertEqual(actual["XFiles_application"], ida.base + 0x2B6F04)
-        self.assertEqual(actual["XFiles_draw_list"], ida.base + 0x16E60)
-        self.assertEqual(actual["XFiles_remove"], ida.base + 0x32880)
+        self.assertEqual(actual["draw_list"], ida.base + 0x16E60)
+        self.assertEqual(actual["remove"], ida.base + 0x32880)
         self.assertEqual(ida.writes, [])
 
     def test_navigation_cursor_type_names_cover_all_rebased_builds(self):
@@ -161,7 +161,7 @@ class IdaImportTest(unittest.TestCase):
         ea = self.ida.base + self.build["rvas"]["draw_list"]
         self.ida.not_functions.add(ea)
         outcomes = bridge.run(apply=True, adapter=self.ida)
-        row = next(row for row in outcomes if row[2] == "XFiles_draw_list")
+        row = next(row for row in outcomes if row[2] == "draw_list")
         self.assertEqual(row[0], "not_function")
         self.assertNotIn(ea, self.ida.names)
         self.assertTrue(any("Draw a dialogue choice list" in line for line in self.ida.messages))
@@ -178,7 +178,7 @@ class IdaImportTest(unittest.TestCase):
 
         self.ida.is_function = changing
         outcomes = bridge.run(apply=True, adapter=self.ida)
-        row = next(row for row in outcomes if row[2] == "XFiles_draw_list")
+        row = next(row for row in outcomes if row[2] == "draw_list")
         self.assertEqual(row[0], "changed_since_plan")
         self.assertNotIn(ea, self.ida.names)
         self.ida.is_function = original

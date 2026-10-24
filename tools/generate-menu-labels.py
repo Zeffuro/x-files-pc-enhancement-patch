@@ -1,4 +1,4 @@
-"""Render localized menu labels using the artwork's Industria typeface."""
+"""Render localized menu labels with the artwork's typeface or a script-specific font."""
 
 import argparse
 from pathlib import Path
@@ -6,7 +6,8 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 
-LABELS = {"en": "Tweaks", "de": "Extras", "fr": "Réglages", "es": "Ajustes", "it": "Modifiche", "ja": "調整"}
+LABELS = {"en": "Tweaks", "de": "Extras", "fr": "Réglages", "es": "Ajustes", "it": "Modifiche",
+          "ja": "調整", "ru": "Настройки"}
 DESCRIPTIONS = {
     "en": "Opens the enhancement\nconfiguration window",
     "de": "Öffnet die Einstellungen\nfür Erweiterungen",
@@ -14,6 +15,7 @@ DESCRIPTIONS = {
     "es": "Abre la configuración\nde las mejoras",
     "it": "Apre le impostazioni\ndelle migliorie",
     "ja": "拡張機能の設定画面を\n開きます",
+    "ru": "Открыть настройки\nулучшений игры",
 }
 
 
@@ -76,15 +78,25 @@ def render(mask, hover):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--latin-font", type=Path, required=True)
-    parser.add_argument("--japanese-font", type=Path, required=True)
+    parser.add_argument("--latin-font", type=Path)
+    parser.add_argument("--japanese-font", type=Path)
+    parser.add_argument("--russian-font", type=Path)
     parser.add_argument("--description-font", type=Path, required=True)
+    parser.add_argument("--language", choices=LABELS, action="append")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    languages = args.language or LABELS
+    if "ja" in languages and not args.japanese_font:
+        parser.error("--japanese-font is required for Japanese")
+    if any(language not in ("ja", "ru") for language in languages) and not args.latin_font:
+        parser.error("--latin-font is required for Latin-script languages")
     args.output.mkdir(parents=True, exist_ok=True)
-    for language, value in LABELS.items():
+    for language in languages:
         japanese = language == "ja"
-        mask = lettering(value, args.japanese_font if japanese else args.latin_font, japanese)
+        font_path = args.japanese_font if japanese else args.latin_font
+        if language == "ru":
+            font_path = args.russian_font or args.description_font
+        mask = lettering(LABELS[language], font_path, japanese)
         hover = description(DESCRIPTIONS[language],
                             args.japanese_font if japanese else args.description_font)
         filename = "tweaks.bmp" if language == "en" else f"tweaks-{language}.bmp"

@@ -229,7 +229,8 @@ void update(bool focused) {
 
 HDC canvas(HDC background) {
     return native_button && surface && (corner_hovered || opened || progress)
-               ? surface->draw(background, *native_button, progress, hover, enabled, visible)
+               ? surface->draw(background, *native_button, progress, hover, enabled, visible,
+                               ui::language())
                : background;
 }
 

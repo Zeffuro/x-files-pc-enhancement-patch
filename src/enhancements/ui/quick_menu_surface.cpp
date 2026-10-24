@@ -21,6 +21,13 @@ void fill(HDC dc, RECT bounds, COLORREF color) {
     FillRect(dc, &bounds, brush);
     DeleteObject(brush);
 }
+
+HFONT label_font(bool japanese) {
+    return CreateFontW(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                       japanese ? SHIFTJIS_CHARSET : ANSI_CHARSET, OUT_DEFAULT_PRECIS,
+                       CLIP_DEFAULT_PRECIS, NONANTIALIASED_QUALITY, DEFAULT_PITCH,
+                       japanese ? L"MS Gothic" : L"Arial");
+}
 }
 
 Surface::Surface() {
@@ -47,15 +54,15 @@ Surface::Surface() {
     }
     previous_ = SelectObject(dc_, bitmap_);
     icon_previous_ = SelectObject(icon_dc_, icon_bitmap_);
-    font_ =
-        CreateFontW(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS,
-                    CLIP_DEFAULT_PRECIS, NONANTIALIASED_QUALITY, DEFAULT_PITCH, L"Arial");
+    font_ = label_font(false);
+    japanese_font_ = label_font(true);
 }
 
 Surface::~Surface() {
     SelectObject(dc_, previous_);
     SelectObject(icon_dc_, icon_previous_);
     DeleteObject(font_);
+    DeleteObject(japanese_font_);
     DeleteObject(bitmap_);
     DeleteObject(icon_bitmap_);
     DeleteDC(dc_);
@@ -102,7 +109,8 @@ void Surface::icon(unsigned index, int x, int y, COLORREF color) {
 }
 
 HDC Surface::draw(HDC background, RECT native_button, int progress, int hover,
-                  const std::array<bool, 5>& enabled, const std::array<bool, 5>& visible) {
+                  const std::array<bool, 5>& enabled, const std::array<bool, 5>& visible,
+                  ui::Language language) {
     BitBlt(dc_, 0, 0, 640, 480, background, 0, 0, SRCCOPY);
     fill(dc_, native_button, RGB(0, 0, 0));
     const auto anchor = toggle(native_button);
@@ -131,13 +139,15 @@ HDC Surface::draw(HDC background, RECT native_button, int progress, int hover,
     icon(5, anchor.left + 5, anchor.top + 5, hover == 5 ? game_highlight : game_blue);
     if (progress == 100 && hover >= 0 && hover < 5) {
         const std::array labels{L"Save", L"Load", L"Transcript", L"Tweaks", L"Menu"};
-        const auto old = SelectObject(dc_, font_);
+        const auto old =
+            SelectObject(dc_, language == ui::Language::Japanese ? japanese_font_ : font_);
         SetBkMode(dc_, TRANSPARENT);
         SetTextColor(dc_, game_highlight);
         const auto item = button(native_button, hover, visible);
         RECT label{std::max<LONG>(0, item.left - 35), item.bottom + 2,
                    std::min<LONG>(640, item.right + 35), item.bottom + 22};
-        DrawTextW(dc_, labels[hover], -1, &label, DT_CENTER | DT_SINGLELINE | DT_NOPREFIX);
+        DrawTextW(dc_, ui::translate(labels[hover], language), -1, &label,
+                  DT_CENTER | DT_SINGLELINE | DT_NOPREFIX);
         SelectObject(dc_, old);
     }
     return dc_;

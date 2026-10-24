@@ -1,6 +1,7 @@
 #include "documents.h"
 #include "document_text.h"
 #include "game_resources.h"
+#include "game_strings.h"
 #include "ui/document_page.h"
 #include "ui/quick_menu.h"
 #include "scene_overlay.h"
@@ -30,7 +31,7 @@ bool wheel_zoom = false;
 constexpr std::array buttons{smaller_button, larger_button, up_button, down_button, done_button};
 
 unsigned code_page() {
-    return game::edition().text == native_game::profile_cd_10020.text ? 932u : 1252u;
+    return game_string_code_page();
 }
 
 std::optional<Document> current() {

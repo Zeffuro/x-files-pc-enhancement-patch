@@ -1,4 +1,5 @@
 #pragma once
+#include "localization/ui.h"
 #include <windows.h>
 #include <array>
 
@@ -10,7 +11,8 @@ public:
     Surface(const Surface&) = delete;
     Surface& operator=(const Surface&) = delete;
     HDC draw(HDC background, RECT native_button, int progress, int hover,
-             const std::array<bool, 5>& enabled, const std::array<bool, 5>& visible);
+             const std::array<bool, 5>& enabled, const std::array<bool, 5>& visible,
+             ui::Language language);
     static RECT toggle(RECT native_button);
     static RECT reveal(RECT native_button);
     static RECT button(RECT native_button, unsigned index,
@@ -22,6 +24,7 @@ private:
     HBITMAP bitmap_ = nullptr, icon_bitmap_ = nullptr;
     HGDIOBJ previous_ = nullptr, icon_previous_ = nullptr;
     HFONT font_ = nullptr;
+    HFONT japanese_font_ = nullptr;
     unsigned* pixels_ = nullptr;
     void icon(unsigned index, int x, int y, COLORREF color);
 };
