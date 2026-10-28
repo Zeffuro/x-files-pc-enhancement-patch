@@ -8,7 +8,18 @@
 #include <optional>
 #include <memory>
 
-enum class MediaSetId { unknown, cd_en, dvd_en, cd_de, cd_fr, cd_es, cd_it, cd_jp, ru_fan };
+enum class MediaSetId {
+    unknown,
+    cd_en,
+    dvd_en,
+    cd_de,
+    cd_fr,
+    cd_es,
+    cd_it,
+    cd_jp,
+    ru_fan,
+    cd_en_us
+};
 
 struct ImageGeometry {
     std::uint32_t sector_size = 2048;

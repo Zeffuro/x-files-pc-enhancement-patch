@@ -707,3 +707,10 @@ if(BUILD_TESTING)
     target_link_libraries(repack-test PRIVATE launcher-common)
     add_test(NAME russian-repack COMMAND repack-test)
 endif()
+
+if(BUILD_TESTING)
+    add_executable(media-catalog-test tests/media_catalog.cpp src/setup/catalog.cpp
+        "${CMAKE_BINARY_DIR}/generated/media-catalog.rc")
+    target_include_directories(media-catalog-test PRIVATE src)
+    add_test(NAME media-catalog-identity COMMAND media-catalog-test)
+endif()

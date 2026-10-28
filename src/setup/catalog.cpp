@@ -9,6 +9,7 @@
 namespace {
 constexpr MediaSet sets[] = {
     {MediaSetId::cd_en, "English CD", 1201, false},
+    {MediaSetId::cd_en_us, "English CD (US)", 1201, false},
     {MediaSetId::dvd_en, "English DVD", 1202, true},
     {MediaSetId::cd_de, "German CD", 1203, false},
     {MediaSetId::cd_fr, "French CD", 1204, false},
@@ -73,7 +74,14 @@ std::map<std::wstring, MediaRecord> media_catalog(MediaSetId set) {
     if (!data || !size) {
         throw std::runtime_error("Setup is missing its media catalog.");
     }
-    return parse_catalog({static_cast<const char*>(data), size});
+    auto catalog = parse_catalog({static_cast<const char*>(data), size});
+    if (set == MediaSetId::cd_en_us) {
+        // Release 1.00/US has different credits resources from Release 1.00/UK.
+        // Keep the exact US checksum for both identification and installation.
+        catalog.at(L"xfilesc.dll") = {
+            22528, "7d18aa903ee3800cb3a285141d8942b88100b6b030befa04e5762e9e672b49d4"};
+    }
+    return catalog;
 }
 
 std::wstring media_relative(const std::filesystem::path& path) {
