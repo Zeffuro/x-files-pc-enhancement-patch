@@ -1,5 +1,9 @@
 # What's new
 
+## 0.4.7
+
+- Fixed Setup rejecting the US English retail CD edition.
+
 ## 0.4.6
 
 - Added Russian patch menus and support for the Russian unofficial DVD repack from 2008.
