@@ -31,7 +31,7 @@ CHECKS = (
     "controller-delivery", "controller-state", "controller-navigation",
     "controller-click", "navigation", "evidence-navigation", "dialogue-navigation", "native-gun", "options-navigation", "rumble",
     "fast-forward", "dvd-clock", "save-compatibility", "save-conversion",
-    "save-storage", "save-slots", "installation", "compatibility", "repack", "welcome", "menu-colors",
+    "save-storage", "save-slots", "installation", "compatibility", "repack", "media-catalog", "welcome", "menu-colors",
     "ui-colors", "ui-localization", "movie", "playback", "audio", "tempo", "audio-endpoint", "playback-audio", "playback-output-missing", "dvd-no-audio-output", "compressed-audio", "video", "canvas-presentation",
     "transcript-history", "transcript-page", "transcript-capture", "transcript-view",
     "browser-session", "scene-overlay", "menu-control", "quick-menu", "quick-menu-navigation",

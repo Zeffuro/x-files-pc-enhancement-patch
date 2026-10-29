@@ -12,6 +12,7 @@ struct MediaSet {
     const char* name;
     unsigned resource;
     bool dvd;
+    std::string_view overrides = {};
 };
 
 struct MediaRecord {
