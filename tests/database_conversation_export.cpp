@@ -25,6 +25,12 @@ std::wstring control_type(HWND window) {
     return type;
 }
 
+bool enter_filename(HWND edit, const std::wstring& value) {
+    SendMessageW(edit, EM_SETSEL, 0, -1);
+    SendMessageW(edit, EM_REPLACESEL, TRUE, reinterpret_cast<LPARAM>(value.c_str()));
+    return ui::text(edit) == value;
+}
+
 BOOL CALLBACK filename_control(HWND window, LPARAM result) {
     wchar_t type[32]{};
     GetClassNameW(window, type, 32);
@@ -85,7 +91,7 @@ BOOL CALLBACK handle_dialog(HWND window, LPARAM) {
         if (dialog_initial.empty()) {
             dialog_initial = current;
         }
-        const auto changed = SetWindowTextW(filename, dialog_output.c_str());
+        const auto changed = enter_filename(filename, dialog_output);
         ++dialog_writes;
         dialog_history += L"\nselected_edit_id=" + std::to_wstring(GetDlgCtrlID(filename)) +
                           L" set_result=" + std::to_wstring(changed) + L" readback=" +
@@ -174,6 +180,23 @@ HWND create(HWND parent, const std::filesystem::path& path) {
                                              path.parent_path(), {}, {}, path);
 }
 
+struct FilenameModel {
+    HWND combo;
+    std::wstring value;
+    unsigned edits = 0;
+};
+
+LRESULT CALLBACK filename_model(HWND window, UINT message, WPARAM parameter, LPARAM data, UINT_PTR,
+                                DWORD_PTR context) {
+    auto& model = *reinterpret_cast<FilenameModel*>(context);
+    if (message == WM_COMMAND && HIWORD(parameter) == CBN_EDITCHANGE &&
+        reinterpret_cast<HWND>(data) == model.combo) {
+        model.value = ui::text(model.combo);
+        ++model.edits;
+    }
+    return DefSubclassProc(window, message, parameter, data);
+}
+
 void verify_filename_selector(HWND parent) {
     const auto fixture = CreateWindowExW(0, L"STATIC", L"", WS_CHILD, 0, 0, 400, 200, parent,
                                          nullptr, GetModuleHandleW(nullptr), nullptr);
@@ -199,6 +222,18 @@ void verify_filename_selector(HWND parent) {
         std::wcerr << L"Filename selector decoy regression:" << dialog_diagnostics << L'\n';
     }
     require(selected == info.hwndItem, "Filename selector chose non-filename Edit1001");
+    FilenameModel model{filename, L"initial.json"};
+    SetWindowTextW(info.hwndItem, model.value.c_str());
+    require(SetWindowSubclass(fixture, filename_model, 1, reinterpret_cast<DWORD_PTR>(&model)),
+            "Cannot observe actual filename ComboBox edit notifications");
+    const std::wstring desired = L"C:\\owned-export\\dialog.json";
+    require(enter_filename(info.hwndItem, desired), "Cannot enter filename through its Edit");
+    if (model.value != desired || !model.edits) {
+        std::wcerr << L"Filename ComboBox model=" << model.value << L" visual="
+                   << ui::text(info.hwndItem) << L" edit_notifications=" << model.edits << L'\n';
+    }
+    require(model.value == desired && model.edits,
+            "Filename changed visually without updating the ComboBox model");
     DestroyWindow(fixture);
 }
 }
