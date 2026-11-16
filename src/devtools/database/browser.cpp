@@ -174,6 +174,14 @@ LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM value, LPARAM data)
 
             } else if (id == follow_id) {
                 follow(*state);
+            } else if (id == conversations_browse_id) {
+                browse_conversations(*state);
+            } else if (id == reactions_browse_id) {
+                browse_conversations(*state, true);
+            } else if (id == conversations_open_id) {
+                open_conversation_media(*state);
+            } else if (id == conversations_follow_id) {
+                follow_conversation(*state);
             } else if (id == fields_copy_id) {
                 copy_field_table(*state);
             } else if (id == database_browse_id) {
@@ -257,6 +265,9 @@ LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM value, LPARAM data)
             }
         } else if (message == WM_NOTIFY) {
             auto* notification = reinterpret_cast<NMHDR*>(data);
+            if (conversation_notification(*state, notification)) {
+                return 0;
+            }
             if (table_notification(*state, notification)) {
                 return 0;
             }

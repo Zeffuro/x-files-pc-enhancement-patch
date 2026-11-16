@@ -127,6 +127,29 @@ std::wstring scalar_meaning(std::uint32_t cls, unsigned offset, bool signed_valu
         return L"Raw conversation Boolean byte. The native reader tests nonzero as true. What the "
                L"flag controls is unknown.";
     }
+    if (cls == 0x31) {
+        switch (offset) {
+            case 6:
+                return L"Topic name reference to VCName class 0x2f.";
+            case 10:
+                return L"Icon candidate list, referring to VCAssetRefList class 0x36.";
+            case 14:
+                return L"Ordered response candidates, referring to VCAssetRefList class 0x36. "
+                       L"Current eligibility is not evaluated.";
+            case 18:
+                return L"Associated trigger list, referring to VCTriggerList class 0x52. Execution "
+                       L"is not evaluated.";
+            case 22:
+                return L"Ordered spoken question candidates, referring to VCAssetRefList class "
+                       L"0x36.";
+            case 26:
+                return L"Stock or topic reply candidates, referring to VCAssetRefList class 0x36. "
+                       L"Character stock slots depend on association context.";
+        }
+    }
+    if (cls == 0x2d && offset == 22) {
+        return L"Character conversation association, referring to VCConversationList class 0x32.";
+    }
     if (cls == 0x3e || cls == 0x40) {
         return L"One of three words in a fixed ordered array. Member purpose and target class are "
                L"unknown. No list count is stored.";
@@ -174,11 +197,12 @@ std::wstring database_class_purpose(std::uint32_t cls) {
             return L"Name definition holding two counted byte strings. Useful for inspecting "
                    L"authoring names. Encoding and localization roles are unverified.";
         case 0x31:
-            return L"Conversation definition with six words and a Boolean byte. Speaker, dialogue "
-                   L"text and branch mappings are unverified.";
+            return L"Conversation topic with a name, icon, question, response and reply "
+                   L"candidates, "
+                   L"and a trigger list. Current availability is not evaluated.";
         case 0x32:
             return L"Conversation list definition. Stores ordered member IDs, including duplicates "
-                   L"and nulls. Member-class routing remains unverified.";
+                   L"and nulls, referring to conversation definitions.";
         case 0x33:
             return L"Navigation definition. Stores three complete words. Destination, media and "
                    L"runtime movement meanings are unknown.";

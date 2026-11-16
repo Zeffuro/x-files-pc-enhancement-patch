@@ -1,6 +1,7 @@
 #include "reference_index.h"
 #include "stored_action.h"
 #include "stored_fields.h"
+#include "stored_conversation.h"
 #include "stored_format.h"
 #include "stored_list.h"
 #include "stored_trigger.h"
@@ -224,6 +225,45 @@ ReferenceIndex build_reference_index(std::span<const ReferenceSource> sources,
                 result.decoded_bytes += format::trigger::descriptor_size;
                 add(local, format::class_id::action_list, trigger->action_list_id,
                     "Trigger action list");
+            } else if (record.class_id == 0x31) {
+                const auto conversation = parse_stored_conversation(source.bytes, *source.index,
+                                                                    record.class_id, record.id);
+                if (!conversation) {
+                    reject();
+                    continue;
+                }
+                result.decoded_bytes += 31 + conversation->name.size();
+                add(local, 0x2f, conversation->name_id, "Conversation name");
+                add(local, 0x36, conversation->icons_id, "Conversation icons");
+                add(local, 0x36, conversation->question_id, "Conversation question");
+                add(local, 0x36, conversation->responses_id, "Conversation responses");
+                add(local, 0x36, conversation->atoms_id, "Conversation replies");
+                add(local, 0x52, conversation->triggers_id, "Conversation triggers");
+            } else if (record.class_id == 0x32) {
+                const auto list =
+                    parse_stored_object_list(source.bytes, *source.index, 0x32, record.id);
+                if (!list) {
+                    reject();
+                    continue;
+                }
+                result.decoded_bytes += list->descriptor_extent + list->decoded_resource_bytes;
+                for (std::size_t at = 0; at < list->ids.size(); ++at) {
+                    add(local, 0x31, list->ids[at],
+                        "Conversation member[" + std::to_string(at) + "]");
+                }
+            } else if (record.class_id == 0x2d) {
+                const auto fields =
+                    parse_stored_fields(source.bytes, *source.index, 0x2d, record.id);
+                if (!fields) {
+                    reject();
+                    continue;
+                }
+                result.decoded_bytes += fields->extent;
+                for (const auto& field : fields->scalars) {
+                    if (field.offset == 22) {
+                        add(local, 0x32, field.value, "Character conversations");
+                    }
+                }
             } else if (record.class_id == format::class_id::title ||
                        record.class_id == format::class_id::standard_action ||
                        (record.class_id == format::class_id::enabled_object &&

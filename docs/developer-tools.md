@@ -118,6 +118,14 @@ opens supported media in the Library. **Auto-refresh** updates cached fields eve
 two seconds. Use **Refresh** to rescan files or before and after a game action,
 then select **Changed variables** to compare values. Database browsing is read-only.
 
+Choose **Conversations** to search named dialogue topics. The **Conversations** tab
+shows question, response and topic-reply candidates in stored order. Character-view
+records and their conversation lists also show stock reply slots. **Character reactions**
+lets you search by character name. Select a media row
+and use **Open in Library**, or **Follow record** to inspect its definition.
+Missing files and unresolved records remain visible. These are stored possibilities.
+Current topic availability, selected responses and item reactions depend on game state.
+
 **Database tables** also exposes definitions that the game has not cached. These show
 saved definitions and decoded fields rather than current runtime values.
 Select an action or trigger list to see its ordered IDs on **Overview** and follow

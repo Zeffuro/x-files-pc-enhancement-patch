@@ -39,6 +39,9 @@ void configure_tabs(Browser& state) {
     if (row && (row->stored || row->object)) {
         panes.emplace_back(Pane::fields, L"Fields");
     }
+    if (state.has_conversations) {
+        panes.emplace_back(Pane::conversations, L"Conversations");
+    }
     if (!state.links.empty()) {
         panes.emplace_back(Pane::links, L"Links");
     }

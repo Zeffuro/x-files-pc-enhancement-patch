@@ -1,4 +1,5 @@
 #include "subtitles.h"
+#include "platform/copy_file.h"
 
 #include <windows.h>
 #include <ioapi.h>
@@ -168,6 +169,70 @@ void rejected(const std::function<void()>& operation) {
     throw std::runtime_error("Malformed subtitle pack was accepted.");
 }
 
+std::uint64_t little(const std::string& bytes, std::size_t offset, unsigned width) {
+    require(offset + width <= bytes.size(), "Truncated ZIP fixture field");
+    std::uint64_t value = 0;
+    for (unsigned i = 0; i < width; ++i) {
+        value |= std::uint64_t(static_cast<unsigned char>(bytes[offset + i])) << (8 * i);
+    }
+    return value;
+}
+
+void little(std::string& bytes, std::size_t offset, std::uint64_t value, unsigned width) {
+    require(offset + width <= bytes.size(), "Truncated ZIP fixture field");
+    for (unsigned i = 0; i < width; ++i) {
+        bytes[offset + i] = static_cast<char>(value >> (8 * i));
+    }
+}
+
+std::string extra_field(std::string bytes, std::string extra, std::string comment = {},
+                        unsigned field = 0, unsigned width = 4) {
+    const auto central = bytes.find("PK\x01\x02");
+    const auto end = bytes.rfind("PK\x05\x06");
+    require(central != bytes.npos && end != bytes.npos && little(bytes, central + 30, 2) == 0 &&
+                little(bytes, central + 32, 2) == 0,
+            "Unexpected exported ZIP fixture layout");
+    const auto insertion = central + 46 + static_cast<std::size_t>(little(bytes, central + 28, 2));
+    const auto added = extra.size() + comment.size();
+    little(bytes, end + 12, little(bytes, end + 12, 4) + added, 4);
+    little(bytes, central + 30, extra.size(), 2);
+    little(bytes, central + 32, comment.size(), 2);
+    if (field) {
+        little(bytes, central + field, width == 2 ? 0xffff : 0xffffffff, width);
+    }
+    bytes.insert(insertion, extra + comment);
+    return bytes;
+}
+
+std::string zip64_end(std::string bytes, bool adjacent) {
+    const auto end = bytes.rfind("PK\x05\x06");
+    require(end != bytes.npos, "Missing ZIP fixture directory");
+    std::string records(76, '\0');
+    little(records, 0, 0x06064b50, 4);
+    little(records, 4, 44, 8);
+    little(records, 12, 45, 2);
+    little(records, 14, 45, 2);
+    little(records, 24, adjacent ? little(bytes, end + 8, 2) : 0, 8);
+    little(records, 32, adjacent ? little(bytes, end + 10, 2) : 0, 8);
+    little(records, 40, adjacent ? little(bytes, end + 12, 4) : 0, 8);
+    little(records, 48, adjacent ? little(bytes, end + 16, 4) : end + 22, 8);
+    little(records, 56, 0x07064b50, 4);
+    little(records, 64, adjacent ? end : end + 22, 8);
+    little(records, 72, 1, 4);
+    if (adjacent) {
+        little(bytes, end + 8, 0xffff, 2);
+        little(bytes, end + 10, 0xffff, 2);
+        little(bytes, end + 12, 0xffffffff, 4);
+        little(bytes, end + 16, 0xffffffff, 4);
+        bytes.insert(end, records);
+    } else {
+        // A locator inside the archive comment must not replace the real directory.
+        little(bytes, end + 20, records.size(), 2);
+        bytes += records;
+    }
+    return bytes;
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -289,7 +354,7 @@ int main(int argc, char** argv) {
                         .text == L"Edited",
                 "Edited local SRT was not loaded.");
         const auto second = base / "game" / "XV" / "456.xmv";
-        fs::copy_file(movie_path, second);
+        platform::copy_file(movie_path, second);
         const std::string single = "1\n00:00:00,050 --> 00:00:00,150\nSecond clip\n\n";
         media::subtitles::install_text(base / "game", "XV/456.xmv", single);
         require(media::subtitles::load_override(base / "game", "XV/123.xmv", movie_path)
@@ -324,6 +389,56 @@ int main(int argc, char** argv) {
         const auto installed_srt = read(base / "game/subtitles/XV/456.srt");
         const auto installed_manifest = read(base / "game/subtitles/manifest.tsv");
         const auto bad_zip = base / "invalid.zip";
+        const auto installed_first = read(base / "game/subtitles/XV/123.srt");
+        unsigned zip64_failures = 0;
+        const auto zip64_case = [&](const char* name, const std::string& bytes, bool valid) {
+            write(bad_zip, bytes);
+            const auto before = media::subtitles::install_generation();
+            try {
+                if (valid) {
+                    require(media::subtitles::install_zip(base / "game", bad_zip).movies == 2,
+                            "Valid Zip64 pack lost movies");
+                } else {
+                    rejected([&] { media::subtitles::install_zip(base / "game", bad_zip); });
+                }
+                require(media::subtitles::install_generation() == before + (valid ? 1 : 0),
+                        "Zip64 import invalidated subtitles unexpectedly");
+                require(read(base / "game/subtitles/XV/123.srt") == installed_first &&
+                            read(base / "game/subtitles/XV/456.srt") == installed_srt &&
+                            read(base / "game/subtitles/manifest.tsv") == installed_manifest,
+                        "Zip64 import changed installed subtitles");
+            } catch (const std::exception& error) {
+                ++zip64_failures;
+                std::cerr << name << ": " << error.what() << '\n';
+            }
+        };
+        const auto central_zip = original_zip.find("PK\x01\x02");
+        for (const auto field : {24u, 20u, 42u, 34u}) {
+            const auto width = field == 34 ? 2u : 4u;
+            const auto value_width = field == 34 ? 4u : 8u;
+            std::string extra(4 + value_width, '\0');
+            little(extra, 0, 1, 2);
+            little(extra, 2, value_width, 2);
+            little(extra, 4, little(original_zip, central_zip + field, width), value_width);
+            zip64_case("complete Zip64 extra", extra_field(original_zip, extra, {}, field, width),
+                       true);
+            // Keep the missing value byte in the comment so an unbounded reader can borrow it.
+            const auto comment = extra.substr(extra.size() - 1);
+            extra.pop_back();
+            little(extra, 2, value_width - 1, 2);
+            zip64_case("short Zip64 value", extra_field(original_zip, extra, comment, field, width),
+                       false);
+        }
+        for (unsigned length = 1; length < 4; ++length) {
+            zip64_case("truncated extra header",
+                       extra_field(original_zip, std::string(length, '\0'), std::string(4, '\0')),
+                       false);
+        }
+        zip64_case("extra exceeds record",
+                   extra_field(original_zip, std::string("\x02\0\x01\0", 4)), false);
+        zip64_case("adjacent Zip64 locator", zip64_end(original_zip, true), true);
+        zip64_case("comment Zip64 locator", zip64_end(original_zip, false), true);
+        require(zip64_failures == 0, "Zip64 subtitle import regressions failed");
         const std::vector<std::pair<std::string, std::string>> valid_entries{
             {"manifest.tsv", installed_manifest},
             {"XV/123.srt", read(base / "game/subtitles/XV/123.srt")},
@@ -369,7 +484,7 @@ int main(int argc, char** argv) {
         require(!media::subtitles::load_override(base / "game", "XV/123.xmv", movie_path),
                 "Changed movie hash accepted a stale override.");
         if (argc == 3 && std::string_view(argv[1]) == "--archive-fixture") {
-            fs::copy_file(zip, fs::path(argv[2]));
+            platform::copy_file(zip, fs::path(argv[2]));
         }
         fs::remove_all(base);
         return 0;

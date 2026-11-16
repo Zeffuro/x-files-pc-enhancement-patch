@@ -104,6 +104,7 @@ void populate(Browser& state) {
                 stored_asset_list_row(state, record, row);
                 stored_asset_ref_row(state, record, row);
                 stored_fields_row(state, record, row);
+                conversation_row_name(state, record, row);
                 if (const auto trigger = game_assets::parse_stored_trigger(
                         state.database->bytes(), state.stored, record.class_id, record.id)) {
                     row.columns[3] += L" | Action list " +

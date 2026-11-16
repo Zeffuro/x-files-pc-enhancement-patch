@@ -544,6 +544,18 @@ void describe(Browser& state) {
     }
     SetWindowTextW(state.title, title.c_str());
     SetWindowTextW(state.detail, raw.c_str());
+    if (selection_changed) {
+        ListView_SetItemState(state.conversations_list, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+    }
+    if (row && row->stored) {
+        const auto& record = state.stored.records[*row->stored];
+        update_conversations(state, record.class_id, record.id);
+    } else if (row && row->object && !state.native.objects[*row->object].state_database) {
+        const auto& object = state.native.objects[*row->object];
+        update_conversations(state, object.class_id, object.id);
+    } else {
+        update_conversations(state, 0, 0);
+    }
     update_field_table(state);
     ListView_SetItemCount(state.relations, static_cast<int>(state.links.size()));
     ListView_SetItemState(state.relations, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);

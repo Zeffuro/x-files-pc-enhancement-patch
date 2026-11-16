@@ -21,7 +21,8 @@ LRESULT CALLBACK control_keys(HWND window, UINT message, WPARAM key, LPARAM data
     }
     if (message == WM_GETDLGCODE && key == VK_RETURN &&
         (GetDlgCtrlID(window) == list_id || GetDlgCtrlID(window) == relations_id ||
-         GetDlgCtrlID(window) == database_classes_id)) {
+         GetDlgCtrlID(window) == database_classes_id ||
+         GetDlgCtrlID(window) == conversations_list_id)) {
         return DefSubclassProc(window, message, key, data) | DLGC_WANTMESSAGE;
     }
 
@@ -122,6 +123,7 @@ void create_controls(Browser& state, HMODULE module, HFONT font, HWND parent) {
     state.font_preview = std::make_unique<FontPreview>();
     create_string_controls(state, module, font);
     create_table_controls(state, module, font);
+    create_conversation_controls(state, module, font);
     state.offset = child(L"EDIT", L"", ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP, offset_id);
     SendMessageW(state.offset, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(L"Hex file offset"));
     state.jump = child(L"BUTTON", L"Go to offset", BS_PUSHBUTTON | WS_TABSTOP, jump_id);
@@ -202,8 +204,12 @@ void layout(Browser& state) {
     MoveWindow(state.list, list_x, 64, split, height - 122, TRUE);
     MoveWindow(state.database_view, 0, 0, sidebar, 28, TRUE);
     MoveWindow(state.asset_browse, 0, 36, sidebar, 28, TRUE);
-    MoveWindow(state.database_heading, 0, 78, sidebar, 20, TRUE);
-    MoveWindow(state.database_classes, 0, 104, sidebar, std::max(80, height - 342), TRUE);
+    MoveWindow(state.conversations_browse, 0, 72, sidebar, 28, TRUE);
+    ShowWindow(state.conversations_browse, state.database ? SW_SHOW : SW_HIDE);
+    MoveWindow(state.reactions_browse, 0, 108, sidebar, 28, TRUE);
+    ShowWindow(state.reactions_browse, state.database ? SW_SHOW : SW_HIDE);
+    MoveWindow(state.database_heading, 0, 150, sidebar, 20, TRUE);
+    MoveWindow(state.database_classes, 0, 176, sidebar, std::max(80, height - 414), TRUE);
     MoveWindow(state.database_info, 0, height - 232, sidebar, 136, TRUE);
     MoveWindow(state.database_browse, 0, height - 88, sidebar, 28, TRUE);
     for (const auto control : {state.database_classes, state.database_info, state.database_browse,
@@ -237,6 +243,7 @@ void layout(Browser& state) {
     ShowWindow(state.font_view, tab == Pane::font ? SW_SHOW : SW_HIDE);
     layout_strings(state, x, y, w, h, tab == Pane::strings);
     layout_tables(state, x, y, w, h, tab);
+    layout_conversations(state, x, y, w, h, tab);
     for (const auto control : {state.relations, state.follow}) {
         ShowWindow(control, tab == Pane::links ? SW_SHOW : SW_HIDE);
     }

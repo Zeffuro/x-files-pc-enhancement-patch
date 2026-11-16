@@ -10,10 +10,9 @@ endif()
 
 ExternalProject_Add(cnc-ddraw
     GIT_REPOSITORY https://github.com/FunkyFr3sh/cnc-ddraw.git
-    GIT_TAG 541b5de218ec3fbd6ea91e606ebfadc07c1786b0
+    GIT_TAG 279a057ee7e1e4d584b56141c014ab01f3c6ee6d
     GIT_SUBMODULES ""
     SOURCE_DIR "${ddraw_source}"
-    UPDATE_COMMAND ""
     PATCH_COMMAND "${CMAKE_COMMAND}"
         "-DSOURCE_DIR=<SOURCE_DIR>"
         "-DPATCH_FILE=${CMAKE_SOURCE_DIR}/patches/cnc-ddraw-desktop.patch"
@@ -26,6 +25,7 @@ ExternalProject_Add(cnc-ddraw
     BUILD_IN_SOURCE TRUE
     BUILD_COMMAND "${msbuild}" <SOURCE_DIR>/cnc-ddraw.vcxproj
         /m /v:minimal /p:Configuration=Release /p:Platform=Win32
+        /p:PreBuildEventUseInBuild=false
         /p:SolutionDir=<SOURCE_DIR>/
     BUILD_BYPRODUCTS "${ddraw_source}/bin/Release/ddraw.dll"
     INSTALL_COMMAND ""

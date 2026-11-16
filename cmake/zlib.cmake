@@ -1,7 +1,7 @@
 include(FetchContent)
 FetchContent_Declare(zlib
-    URL https://zlib.net/fossils/zlib-1.3.2.tar.gz
-    URL_HASH SHA256=bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16
+    URL https://zlib.net/fossils/zlib-1.4.tar.gz
+    URL_HASH SHA256=02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     SOURCE_SUBDIR unused)
 FetchContent_MakeAvailable(zlib)

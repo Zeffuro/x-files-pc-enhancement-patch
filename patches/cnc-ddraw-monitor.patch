@@ -2,9 +2,9 @@ diff --git a/src/utils.c b/src/utils.c
 index 87b0c17..5e4de9f 100644
 --- a/src/utils.c
 +++ b/src/utils.c
-@@ -13,6 +13,26 @@
- #include "config.h"
+@@ -15,6 +15,26 @@
  #include "versionhelpers.h"
+ #include "delay_imports.h"
  
 +static void util_relocate_restore_rect(RECT* restored, const RECT* previous_work,
 +    const RECT* work, DWORD style, BOOL menu, DWORD exstyle)

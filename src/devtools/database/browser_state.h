@@ -48,10 +48,16 @@ enum {
     asset_browse_id,
     database_heading_id,
     list_context_id,
-    database_view_id
+    database_view_id,
+    conversations_browse_id,
+    conversations_list_id,
+    conversations_text_id,
+    conversations_open_id,
+    conversations_follow_id,
+    reactions_browse_id
 };
 
-enum class Pane { overview, links, raw, text, font, strings, fields };
+enum class Pane { overview, links, raw, text, font, strings, fields, conversations };
 
 struct Row {
     std::uint64_t key = 0;
@@ -91,6 +97,13 @@ struct Link {
     Destination destination;
 };
 
+struct ConversationRow {
+    std::array<std::wstring, 4> columns;
+    std::wstring detail;
+    Destination destination;
+    std::filesystem::path media;
+};
+
 struct Browser {
     HWND window = nullptr, mode = nullptr, search = nullptr, refresh = nullptr;
     HWND offset = nullptr, jump = nullptr, list = nullptr, detail = nullptr, status = nullptr;
@@ -109,6 +122,10 @@ struct Browser {
     HWND database_info = nullptr, database_classes = nullptr, database_browse = nullptr;
     HWND asset_browse = nullptr, database_heading = nullptr, list_context = nullptr,
          database_view = nullptr;
+    HWND conversations_browse = nullptr, conversations_list = nullptr, conversations_text = nullptr,
+         conversations_open = nullptr, conversations_follow = nullptr, reactions_browse = nullptr;
+    std::vector<ConversationRow> conversation_rows;
+    bool has_conversations = false;
     std::vector<std::array<std::wstring, 4>> field_rows, class_rows;
     std::vector<std::uint32_t> class_ids;
     HFONT fixed_font = nullptr;
@@ -187,4 +204,14 @@ void switch_view(Browser& state, unsigned mode);
 void update_navigation(Browser& state);
 void follow(Browser& state);
 void copy_property(Browser& state);
+void create_conversation_controls(Browser& state, HMODULE module, HFONT font);
+void layout_conversations(Browser& state, int x, int y, int width, int height, Pane pane);
+void update_conversations(Browser& state, std::uint32_t cls, std::uint32_t id);
+void select_conversation(Browser& state);
+void open_conversation_media(Browser& state);
+void follow_conversation(Browser& state);
+void browse_conversations(Browser& state, bool reactions = false);
+bool conversation_notification(Browser& state, NMHDR* notification);
+void conversation_row_name(const Browser& state, const game_assets::StoredDatabaseRecord& record,
+                           Row& row);
 }
