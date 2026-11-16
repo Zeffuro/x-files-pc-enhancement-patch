@@ -200,7 +200,8 @@ add_library(database-browser-ui STATIC
     src/devtools/database/browser_tabs.cpp src/devtools/database/font_preview.cpp
     src/devtools/database/browser_strings.cpp src/game/assets/resource_strings.cpp
     src/devtools/database/browser_text.cpp
-    src/devtools/database/browser_conversations.cpp src/game/database/stored_conversation.cpp
+    src/devtools/database/browser_conversations.cpp
+    src/devtools/database/browser_conversation_export.cpp src/game/database/stored_conversation.cpp
     src/devtools/database/browser_tables.cpp src/devtools/database/browser_database.cpp
     src/devtools/database/field_guide.cpp
     src/devtools/database/browser_accessibility.cpp

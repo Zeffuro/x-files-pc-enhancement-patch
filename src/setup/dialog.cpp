@@ -19,6 +19,8 @@ constexpr int destination_field = 1103, destination_browse = 1104, windowed_fiel
 constexpr int status_field = 1106, progress_field = 1107;
 constexpr int desktop_field = 1108, start_menu_field = 1109;
 constexpr int language_field = 1112;
+constexpr int media_field = 1113, french_cd_field = 1114, french_cd_folder = 1115;
+constexpr int french_cd_image = 1116;
 constexpr UINT progress_message = WM_APP + 1, completed_message = WM_APP + 2;
 
 struct Setup {
@@ -99,10 +101,26 @@ std::filesystem::path default_destination() {
 }
 
 void enable_fields(HWND window, bool enabled) {
-    for (int id : {source_field, source_browse, source_iso, destination_field, destination_browse,
-                   windowed_field, desktop_field, start_menu_field, language_field, IDOK}) {
+    for (int id :
+         {source_field, source_browse, source_iso, destination_field, destination_browse,
+          windowed_field, desktop_field, start_menu_field, language_field, media_field, IDOK}) {
         EnableWindow(GetDlgItem(window, id), enabled);
     }
+    const bool french = SendDlgItemMessageW(window, media_field, CB_GETCURSEL, 0, 0) == 1;
+    for (int id : {french_cd_field, french_cd_folder, french_cd_image}) {
+        EnableWindow(GetDlgItem(window, id), enabled && french);
+    }
+}
+
+void media_choices(HWND window, ui::Language language) {
+    const auto selected = SendDlgItemMessageW(window, media_field, CB_GETCURSEL, 0, 0);
+    SendDlgItemMessageW(window, media_field, CB_RESETCONTENT, 0, 0);
+    for (const auto* name :
+         {L"Automatic (English on bilingual DVD)", L"French DVD with French CD title"}) {
+        SendDlgItemMessageW(window, media_field, CB_ADDSTRING, 0,
+                            reinterpret_cast<LPARAM>(ui::translate(name, language)));
+    }
+    SendDlgItemMessageW(window, media_field, CB_SETCURSEL, selected == 1 ? 1 : 0, 0);
 }
 
 void start(HWND window, Setup& setup) {
@@ -110,6 +128,14 @@ void start(HWND window, Setup& setup) {
     const auto destination =
         std::filesystem::absolute(field(window, destination_field)).lexically_normal();
     const bool windowed = IsDlgButtonChecked(window, windowed_field) == BST_CHECKED;
+    MediaImportOptions options;
+    options.french_dvd = SendDlgItemMessageW(window, media_field, CB_GETCURSEL, 0, 0) == 1;
+    if (options.french_dvd) {
+        std::wstring text(32768, L'\0');
+        text.resize(
+            GetDlgItemTextW(window, french_cd_field, text.data(), static_cast<int>(text.size())));
+        options.french_cd = text;
+    }
     setup.destination = destination;
     setup.error.clear();
     setup.cancel = false;
@@ -119,9 +145,9 @@ void start(HWND window, Setup& setup) {
                     ui::translate(L"Checking game files and free space...", setup.language));
     SendDlgItemMessageW(window, progress_field, PBM_SETPOS, 0, 0);
     const auto language = setup.language;
-    setup.worker = std::thread([window, &setup, source, destination, windowed, language] {
+    setup.worker = std::thread([window, &setup, source, destination, windowed, language, options] {
         try {
-            const auto media = inspect_media(source);
+            const auto media = inspect_media(source, options);
             if (setup.cancel) {
                 throw std::runtime_error("Setup cancelled. No files were changed.");
             }
@@ -165,6 +191,8 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
         SendDlgItemMessageW(window, language_field, CB_SETCURSEL,
                             static_cast<WPARAM>(setup->language), 0);
         setup->labels->apply(setup->language);
+        media_choices(window, setup->language);
+        enable_fields(window, true);
         const auto icon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(101));
         SendMessageW(window, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
         SendMessageW(window, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
@@ -241,22 +269,32 @@ INT_PTR CALLBACK procedure(HWND window, UINT message, WPARAM parameter, LPARAM d
             if (selected >= 0 && selected < ui::language_count) {
                 setup->language = static_cast<ui::Language>(selected);
                 setup->labels->apply(setup->language);
+                media_choices(window, setup->language);
             }
             return TRUE;
         }
-        if (command == source_browse || command == source_iso || command == destination_browse) {
-            const auto title = command == source_iso ? L"Choose a PC disc ISO or CUE sheet"
+        if (command == media_field && HIWORD(parameter) == CBN_SELCHANGE && !setup->ready) {
+            enable_fields(window, true);
+            return TRUE;
+        }
+        if (command == source_browse || command == source_iso || command == destination_browse ||
+            command == french_cd_folder || command == french_cd_image) {
+            const bool image = command == source_iso || command == french_cd_image;
+            const bool supplemental = command == french_cd_folder || command == french_cd_image;
+            const auto title = supplemental            ? L"Choose original French CD disc 1"
+                               : command == source_iso ? L"Choose a PC disc ISO or CUE sheet"
                                : command == source_browse
                                    ? L"Choose game files or all seven CD images"
                                    : L"Choose a parent folder for The X-Files";
-            auto path =
-                browse(window, ui::translate(title, setup->language), command == source_iso);
+            auto path = browse(window, ui::translate(title, setup->language), image);
             if (!path.empty()) {
                 if (command == destination_browse) {
                     path /= L"The X-Files";
                 }
                 SetDlgItemTextW(window,
-                                command == destination_browse ? destination_field : source_field,
+                                supplemental                    ? french_cd_field
+                                : command == destination_browse ? destination_field
+                                                                : source_field,
                                 path.c_str());
             }
             return TRUE;

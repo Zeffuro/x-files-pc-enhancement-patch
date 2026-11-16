@@ -52,6 +52,9 @@ MediaSource prepare_media_import(const fs::path& root, const std::vector<MediaFi
     }
     lifetime->path = core;
     auto candidates = files;
+    std::erase_if(candidates, [](const MediaFile& file) {
+        return lower(file.relative.generic_wstring()).starts_with(L"francais/");
+    });
     expand_russian_repack(candidates, core);
     result.set = detect_media_set(candidates);
     result.files = select_iso_files(candidates, media_catalog(result.set));
@@ -75,6 +78,50 @@ MediaSource prepare_media_import(const fs::path& root, const std::vector<MediaFi
     result.game = core;
     result.workspace = std::move(lifetime);
     return result;
+}
+
+std::vector<MediaFile> french_dvd_files(const std::vector<MediaFile>& files,
+                                        const std::vector<MediaFile>& french_cd) {
+    std::vector<MediaFile> candidates;
+    const bool has_french_tree = std::any_of(files.begin(), files.end(), [](const MediaFile& file) {
+        return lower(file.relative.generic_wstring()).starts_with(L"francais/");
+    });
+    for (auto file : files) {
+        const auto path = lower(file.relative.generic_wstring());
+        if (has_french_tree ? !path.starts_with(L"francais/") : path.starts_with(L"english/")) {
+            continue;
+        }
+        file.relative = media_relative(file.relative);
+        candidates.push_back(std::move(file));
+    }
+    if (detect_media_set(candidates) != MediaSetId::dvd_fr) {
+        throw std::runtime_error("Select the original French DVD game tree or its DVD image.");
+    }
+    if (detect_media_set(french_cd) != MediaSetId::cd_fr) {
+        throw std::runtime_error("The supplemental source must be original French CD disc 1.");
+    }
+    const auto catalog = media_catalog(MediaSetId::dvd_fr);
+    const auto append = [&](const std::vector<MediaFile>& source, const wchar_t* name,
+                            const wchar_t* destination) {
+        const auto& expected = catalog.at(destination);
+        for (auto file : source) {
+            if (media_relative(file.relative) == name && file.size == expected.size &&
+                checksum(file) == expected.sha256) {
+                file.relative = destination;
+                candidates.push_back(std::move(file));
+                return;
+            }
+        }
+        throw std::runtime_error("Missing or incorrect French game file: " +
+                                 fs::path(name).string() + ". Check the original source.");
+    };
+    const auto dvd = candidates;
+    append(dvd, L"xv/19668tst.xmv", L"xv/19668.xmv");
+    append(french_cd, L"xv/56001.xmv", L"xv/56001.xmv");
+    std::erase_if(candidates, [](const MediaFile& file) {
+        return media_relative(file.relative) == L"xv/19668tst.xmv";
+    });
+    return candidates;
 }
 
 std::vector<MediaFile> select_iso_files(const std::vector<MediaFile>& files,

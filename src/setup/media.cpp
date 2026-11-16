@@ -45,7 +45,69 @@ bool asset(const fs::path& path) {
 }
 }
 
-MediaSource inspect_media(const fs::path& selected) {
+std::vector<MediaFile> read_media_folder(const fs::path& root) {
+    std::vector<MediaFile> files;
+    for (const auto& layer : {root / L"MININST", root, root / L"MEDINST"}) {
+        if (!fs::is_directory(layer)) {
+            continue;
+        }
+        if (linked(layer)) {
+            throw std::runtime_error("Game media folders must not be links.");
+        }
+        const auto add = [&](const fs::path& path) {
+            if (linked(path)) {
+                throw std::runtime_error("Game media folders must not contain links.");
+            }
+            if (fs::is_regular_file(path) && asset(path)) {
+                files.push_back({path, path.lexically_relative(root), fs::file_size(path), {}, {}});
+            }
+        };
+        for (const auto& entry : fs::directory_iterator(layer)) {
+            if (entry.is_regular_file()) {
+                add(entry.path());
+            }
+        }
+        for (const auto* name : {L"XG", L"XN", L"XS", L"XT", L"XV", L"vob"}) {
+            const auto directory = layer / name;
+            if (!fs::is_directory(directory)) {
+                continue;
+            }
+            if (linked(directory)) {
+                throw std::runtime_error("Game media folders must not be links.");
+            }
+            for (const auto& entry : fs::recursive_directory_iterator(directory)) {
+                add(entry.path());
+            }
+        }
+    }
+    return files;
+}
+
+MediaSource inspect_media(const fs::path& selected, const MediaImportOptions& options) {
+    if (options.french_dvd) {
+        if (options.french_cd.empty()) {
+            throw std::runtime_error(
+                "French DVD needs the original French CD disc 1 title movie. Select its "
+                "ISO/CUE image or extracted game folder in French CD source.");
+        }
+        const auto read = [](const fs::path& path, bool dvd) {
+            if (fs::is_regular_file(path)) {
+                return read_iso(path);
+            }
+            if (!fs::is_directory(path)) {
+                throw std::runtime_error("Choose a game folder or an ISO/CUE image.");
+            }
+            return read_media_folder(
+                dvd && fs::is_directory(path / L"Francais") ? path / L"Francais" : path);
+        };
+        auto result = prepare_media_import(
+            selected, french_dvd_files(read(selected, true), read(options.french_cd, false)));
+        result.additional_roots.push_back(fs::canonical(options.french_cd));
+        return result;
+    }
+    if (!options.french_cd.empty()) {
+        throw std::runtime_error("Select French DVD before adding a French CD source.");
+    }
     if (fs::is_regular_file(selected)) {
         const auto extension = lower(selected.extension().wstring());
         if (extension == L".iso" || extension == L".cue") {

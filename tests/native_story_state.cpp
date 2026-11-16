@@ -28,6 +28,10 @@ unsigned raw_requests = 0, flags_requests = 0;
 std::uintptr_t cursor_header = 0, cursor_node = 0, cursor_first = 0;
 unsigned header_reads = 0, node_reads = 0, topology_drift = 0, node_drift = 0;
 bool move_iterator = false;
+std::uintptr_t graphic_address = 0;
+unsigned graphic_reads = 0;
+bool graphic_short_copy = false, graphic_drift = false;
+InventoryIcon::Graphic* graphic_replacement = nullptr;
 
 BOOL WINAPI checked_read(HANDLE process, LPCVOID source, LPVOID destination, SIZE_T size,
                          SIZE_T* copied) {
@@ -45,7 +49,18 @@ BOOL WINAPI checked_read(HANDLE process, LPCVOID source, LPVOID destination, SIZ
         require(size == sizeof(std::uint8_t), "Variable flags read has the wrong width");
         ++flags_requests;
     }
+    if (address == graphic_address) {
+        require(size == sizeof(void*), "Inventory graphic pointer read has the wrong width");
+        ++graphic_reads;
+        if (graphic_short_copy) {
+            *copied = size - 1;
+            return TRUE;
+        }
+    }
     const auto result = ReadProcessMemory(process, source, destination, size, copied);
+    if (result && address == graphic_address && graphic_drift && graphic_reads == 2) {
+        std::memcpy(destination, &graphic_replacement, sizeof(graphic_replacement));
+    }
     if (result && drift && address == raw_address && raw_requests == 2) {
         ++*static_cast<std::int32_t*>(destination);
     }
@@ -191,12 +206,79 @@ struct Fixture {
         foreground.first = foreground.last = &modal_node;
     }
 };
+
+void verify_inventory(const Build& build) {
+    Fixture fixture(build);
+    InventoryIcon unavailable{}, available{};
+    unavailable.rectangle.bounds = {10, 20, 40, 60};
+    available.rectangle.bounds = {50, 20, 80, 60};
+    InventoryIcon::Graphic graphic{};
+    InventoryIcon::Graphic::Resource resource{fixture.image + 0x200000, 22571};
+    graphic.resource = &resource;
+    available.graphic = &graphic;
+    InventoryItem first{&unavailable}, second{&available};
+    List<InventoryItem>::Node first_node{&first}, second_node{&second, nullptr, &first_node};
+    first_node.next = &second_node;
+    auto& inventory = fixture.view.inventory.items;
+    inventory.count = 2;
+    inventory.first = &first_node;
+    inventory.last = inventory.current = &second_node;
+    ChildView child{&fixture.view.inventory};
+    List<ChildView>::Node child_node{&child};
+    const MainViewRef view(&fixture.view, &fixture.profile);
+    auto& children = *reinterpret_cast<List<ChildView>*>(view.children().address());
+    children.count = 1;
+    children.first = children.last = &child_node;
+    fixture.app.application.view = &fixture.view;
+    const auto partial = fixture.snapshot();
+    require(partial.find("\"status\":\"ok\"") != std::string::npos &&
+                partial.find("\"inventory\":[{\"id\":null,\"graphic_status\":\"unavailable\","
+                             "\"rect\":[10,20,40,60],\"visible\":false},{\"id\":22571,"
+                             "\"rect\":[50,20,80,60],\"visible\":true}]") != std::string::npos,
+            "A null inventory graphic hid the following row or fabricated a clickable identity");
+    children.count = 0;
+    children.first = children.last = nullptr;
+    require(fixture.snapshot().find("\"id\":22571,\"rect\":[50,20,80,60],\"visible\":false") !=
+                std::string::npos,
+            "A hidden inventory item became clickable after a null graphic row");
+    graphic_address = InventoryIconRef(&unavailable, &fixture.profile).graphic().address();
+    graphic_short_copy = true;
+    const auto short_read = fixture.snapshot();
+    require(short_read.find("remote_read_failed") != std::string::npos &&
+                short_read.find("\"inventory\"") == std::string::npos,
+            "Short inventory pointer read produced a partial successful snapshot");
+    graphic_short_copy = false;
+    for (const bool initially_present : {false, true}) {
+        unavailable.graphic = initially_present ? &graphic : nullptr;
+        graphic_replacement = initially_present ? nullptr : &graphic;
+        graphic_reads = 0;
+        graphic_drift = true;
+        const auto changed = fixture.snapshot();
+        require(changed.find("state_changed_during_snapshot") != std::string::npos &&
+                    changed.find("\"inventory\"") == std::string::npos,
+                "Changing inventory graphic pointer bypassed coherence");
+    }
+    graphic_drift = false;
+    graphic_address = 0;
+    first.icon = nullptr;
+    require(fixture.snapshot().find("missing_inventory_icon") != std::string::npos,
+            "A null inventory icon bypassed checked traversal");
+    first.icon = &unavailable;
+    unavailable.graphic = reinterpret_cast<InventoryIcon::Graphic*>(1);
+    require(fixture.snapshot().find("remote_read_failed") != std::string::npos,
+            "An unreadable nonnull inventory graphic was treated as unavailable");
+    unavailable.graphic = &graphic;
+    graphic.resource = nullptr;
+    require(fixture.snapshot().find("missing_inventory_resource") != std::string::npos,
+            "A graphic with a missing resource was treated as an absent graphic");
+}
 }
 
 int main() {
     try {
         for (const auto selected :
              {&build_cd_10012, &build_cd_10019, &build_dvd_20000, &build_cd_10020}) {
+            verify_inventory(*selected);
             Fixture fixture(*selected);
             const auto state = fixture.snapshot();
             require(state.find("\"status\":\"ok\"") != std::string::npos, state.c_str());

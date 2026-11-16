@@ -39,6 +39,11 @@ if(BUILD_TESTING)
     add_executable(database-conversation-browser-test tests/database_conversation_browser.cpp)
     target_link_libraries(database-conversation-browser-test PRIVATE database-browser-ui)
     add_test(NAME database-conversation-browser COMMAND database-conversation-browser-test)
+    add_executable(database-conversation-export-test tests/database_conversation_export.cpp)
+    target_link_libraries(database-conversation-export-test PRIVATE database-browser-ui)
+    add_test(NAME database-conversation-export COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/database_conversation_export.py"
+        "$<TARGET_FILE:database-conversation-export-test>")
     add_executable(imports-test tests/imports.cpp src/platform/imports.cpp)
     target_include_directories(imports-test PRIVATE src)
     add_test(NAME bounded-import-hooks COMMAND imports-test)

@@ -41,6 +41,16 @@ int main() {
         require(identify_media_set(us) == MediaSetId::cd_en_us,
                 "US retail credits DLL prevented English CD identification");
         const auto uk_catalog = media_catalog(MediaSetId::cd_en);
+        const auto french_dvd = media_catalog(MediaSetId::dvd_fr);
+        const auto french_cd = media_catalog(MediaSetId::cd_fr);
+        require(french_dvd.at(L"xfiles.exe").sha256 ==
+                        media_catalog(MediaSetId::dvd_en).at(L"xfiles.exe").sha256 &&
+                    french_dvd.at(L"xv/19668.xmv").sha256 == french_cd.at(L"xv/19668.xmv").sha256 &&
+                    french_dvd.at(L"xv/56001.xmv").sha256 == french_cd.at(L"xv/56001.xmv").sha256 &&
+                    !french_dvd.contains(L"xv/19668tst.xmv") &&
+                    french_dvd.at(L"xv/56001.xmv").sha256 !=
+                        media_catalog(MediaSetId::dvd_en).at(L"xv/56001.xmv").sha256,
+                "French DVD did not retain its exact French title and teaser provenance");
         const auto us_catalog = media_catalog(MediaSetId::cd_en_us);
         require(us_catalog.size() == uk_catalog.size(), "US catalog lost required files");
         for (const auto& [name, record] : uk_catalog) {

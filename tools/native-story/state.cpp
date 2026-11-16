@@ -506,7 +506,13 @@ private:
             const auto bounds = reader.field(icon.rectangle().bounds());
             const auto graphic = reader.field(icon.graphic());
             if (!graphic) {
-                throw std::runtime_error("missing_inventory_graphic");
+                if (!first) {
+                    fields << ',';
+                }
+                first = false;
+                fields << "{\"id\":null,\"graphic_status\":\"unavailable\",\"rect\":"
+                       << rectangle(bounds) << ",\"visible\":false}";
+                continue;
             }
             const auto resource = reader.field(GraphicRef(graphic).resource());
             if (!resource) {

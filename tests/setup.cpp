@@ -9,11 +9,18 @@
 #include <iostream>
 
 void verify_disc_import(const std::filesystem::path& base);
+void verify_french_dvd_sources(const std::filesystem::path& image,
+                               const std::filesystem::path& folder,
+                               const std::filesystem::path& french_cd);
 
 int wmain(int argc, wchar_t** argv) {
     try {
         namespace fs = std::filesystem;
         using test::require;
+        if (argc == 5 && std::wstring_view(argv[1]) == L"--french") {
+            verify_french_dvd_sources(argv[2], argv[3], argv[4]);
+            return 0;
+        }
         const std::string hash(64, 'a');
         require(parse_catalog("xv/movie.xmv\t123\t" + hash + "\n").size() == 1,
                 "Valid catalog rejected");
@@ -80,6 +87,14 @@ int wmain(int argc, wchar_t** argv) {
                           (L"xfiles-setup-test-" + std::to_wstring(GetCurrentProcessId()));
         fs::create_directories(base / L"source");
         verify_disc_import(base);
+        bool supplemental_required = false;
+        try {
+            inspect_media(base, {true, {}});
+        } catch (const std::exception& error) {
+            supplemental_required =
+                std::string_view(error.what()).find("French CD disc 1") != std::string_view::npos;
+        }
+        require(supplemental_required, "French DVD missing-supplement error is not actionable");
         std::ofstream(base / L"source" / L"keep.txt") << "keep";
         MediaSource media;
         media.root = fs::canonical(base / L"source");
@@ -107,7 +122,9 @@ int wmain(int argc, wchar_t** argv) {
         fs::remove(base / L"source");
         fs::remove(base);
         if (argc >= 3) {
-            const auto source = inspect_media(argv[1]);
+            const bool french = argc == 5 && std::wstring_view(argv[1]) == L"--french-install";
+            const auto source =
+                french ? inspect_media(argv[2], {true, argv[3]}) : inspect_media(argv[1]);
             if (source.set == MediaSetId::dvd_en) {
                 const auto has_file = [&](const std::filesystem::path& name) {
                     return std::ranges::any_of(
@@ -117,7 +134,7 @@ int wmain(int argc, wchar_t** argv) {
                             !has_file(L"dlmpg.ini") && !has_file(L"dlmpgmci.dll"),
                         "DVD import did not preserve VOB assets and native fallback");
             }
-            const auto destination = fs::absolute(argv[2]);
+            const auto destination = fs::absolute(argv[french ? 4 : 2]);
             const bool parent_existed = fs::is_directory(destination.parent_path());
             const auto cancelled = fs::path(destination.wstring() + L"-cancelled");
             bool stopped = false;
@@ -153,18 +170,17 @@ int wmain(int argc, wchar_t** argv) {
                 return 0;
             }
             unsigned last = 101;
-            install_media(source, fs::absolute(argv[2]), true, [&](unsigned percent) {
+            install_media(source, destination, true, [&](unsigned percent) {
                 if (percent / 10 != last / 10) {
                     std::cout << percent << "%\n" << std::flush;
                     last = percent;
                 }
                 return true;
             });
-            const auto session = read_session(fs::absolute(argv[2]));
-            require(session.media == fs::canonical(argv[2]),
+            const auto session = read_session(destination);
+            require(session.media == fs::canonical(destination),
                     "Installed game still references source");
-            require(!fs::exists(fs::path(argv[2]) / L"installing.txt"),
-                    "Incomplete marker retained");
+            require(!fs::exists(destination / L"installing.txt"), "Incomplete marker retained");
             for (const auto* notice :
                  {L"LICENSE", L"THIRD_PARTY.md", L"cnc-ddraw.LICENSE", L"FFmpeg.LICENSE",
                   L"zlib.LICENSE", L"README.md", L"docs/controls.md", L"docs/building.md",

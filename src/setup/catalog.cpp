@@ -12,6 +12,7 @@ constexpr MediaSet sets[] = {
     {MediaSetId::cd_en_us, "English CD (US)", 1201, false,
      "xfilesc.dll\t22528\t7d18aa903ee3800cb3a285141d8942b88100b6b030befa04e5762e9e672b49d4"},
     {MediaSetId::dvd_en, "English DVD", 1202, true},
+    {MediaSetId::dvd_fr, "French DVD with French CD title", 1209, true},
     {MediaSetId::cd_de, "German CD", 1203, false},
     {MediaSetId::cd_fr, "French CD", 1204, false},
     {MediaSetId::cd_es, "Spanish CD", 1205, false},
@@ -89,8 +90,8 @@ std::wstring media_relative(const std::filesystem::path& path) {
     std::transform(name.begin(), name.end(), name.begin(), [](wchar_t c) {
         return static_cast<wchar_t>(c >= L'A' && c <= L'Z' ? c + (L'a' - L'A') : c);
     });
-    if (name.starts_with(L"english/")) {
-        name.erase(0, 8);
+    if (name.starts_with(L"english/") || name.starts_with(L"francais/")) {
+        name.erase(0, name.find(L'/') + 1);
     }
     if (name.starts_with(L"mininst/") || name.starts_with(L"medinst/")) {
         name.erase(0, 8);
@@ -117,7 +118,8 @@ MediaSetId identify_media_set(const std::map<std::wstring, std::set<std::string>
     }
     if (detected == MediaSetId::unknown) {
         throw std::runtime_error(
-            "Unsupported or mixed game media. Select a complete English CD/DVD "
+            "Unsupported or mixed game media. Select a complete English CD/DVD, French DVD "
+            "with its French CD title source, "
             "or German, French, Spanish, Italian or Japanese CD set, or the Russian unofficial "
             "DVD (2008).");
     }

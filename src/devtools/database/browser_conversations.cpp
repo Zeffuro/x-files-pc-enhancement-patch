@@ -82,11 +82,13 @@ const ConversationRow* selected(const Browser& state) {
 void add(Browser& state, ConversationRow row) {
     if (state.conversation_rows.size() < row_limit) {
         state.conversation_rows.push_back(std::move(row));
+    } else {
+        state.conversations_limited = true;
     }
 }
 
 void media_rows(Browser& state, std::uint32_t list_id, const std::wstring& role,
-                const std::wstring& topic, bool slots) {
+                const std::wstring& topic, std::uint32_t topic_id, bool slots) {
     const auto list =
         game_assets::parse_stored_asset_list(state.database->bytes(), state.stored, 0x36, list_id);
     const auto origin =
@@ -99,11 +101,18 @@ void media_rows(Browser& state, std::uint32_t list_id, const std::wstring& role,
                               : L"Empty"},
                     origin,
                     {},
+                    {},
+                    topic_id,
+                    list_id,
+                    {},
                     {}});
         return;
     }
-    for (std::size_t index = 0;
-         index < list->ids.size() && state.conversation_rows.size() < row_limit; ++index) {
+    for (std::size_t index = 0; index < list->ids.size(); ++index) {
+        if (state.conversation_rows.size() >= row_limit) {
+            state.conversations_limited = true;
+            break;
+        }
         const auto id = list->ids[index];
         const auto ref = game_assets::parse_stored_asset_reference(state.database->bytes(),
                                                                    state.stored, 0x35, id);
@@ -128,7 +137,11 @@ void media_rows(Browser& state, std::uint32_t list_id, const std::wstring& role,
                                : L"Missing / unsupported"},
                         detail,
                         destination,
-                        {}});
+                        {},
+                        topic_id,
+                        list_id,
+                        id,
+                        index});
         }
         for (const auto& path : paths) {
             const auto asset = database_asset_find(state.assets, path);
@@ -139,7 +152,11 @@ void media_rows(Browser& state, std::uint32_t list_id, const std::wstring& role,
                                ? L"\r\nMultiple stored paths. No variant is selected here."
                                : L""),
                  destination,
-                 path});
+                 path,
+                 topic_id,
+                 list_id,
+                 id,
+                 index});
         }
     }
 }
@@ -152,6 +169,10 @@ void topic_rows(Browser& state, std::uint32_t id, bool first) {
             {{L"Topic", L"Conversation " + std::to_wstring(id), L"", L"Missing / unsupported"},
              L"The exact conversation definition could not be decoded.",
              {},
+             {},
+             id,
+             {},
+             {},
              {}});
         return;
     }
@@ -163,15 +184,19 @@ void topic_rows(Browser& state, std::uint32_t id, bool first) {
              std::to_wstring(value->raw_flag) +
              L"\r\nThis topic's presence does not establish current availability.",
          {{{0x31, id, false}}, {}, true},
+         {},
+         id,
+         {},
+         {},
          {}});
     const bool stock = first && !value->icons_id && value->atoms_id;
     if (stock) {
-        media_rows(state, value->atoms_id, L"Stock slot", name, true);
+        media_rows(state, value->atoms_id, L"Stock slot", name, id, true);
     } else {
-        media_rows(state, value->question_id, L"Question", name, false);
-        media_rows(state, value->responses_id, L"Response", name, false);
+        media_rows(state, value->question_id, L"Question", name, id, false);
+        media_rows(state, value->responses_id, L"Response", name, id, false);
         if (value->atoms_id) {
-            media_rows(state, value->atoms_id, L"Topic reply", name, false);
+            media_rows(state, value->atoms_id, L"Topic reply", name, id, false);
         }
     }
 }
@@ -205,8 +230,11 @@ void update_conversations(Browser& state, std::uint32_t cls, std::uint32_t id) {
     const auto previous = ListView_GetNextItem(state.conversations_list, -1, LVNI_SELECTED);
     ListView_SetItemState(state.conversations_list, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
     state.conversation_rows.clear();
+    state.conversations_limited = false;
+    state.conversation_source.reset();
     state.has_conversations = state.database && (cls == 0x31 || cls == 0x32 || cls == 0x2d);
     if (state.has_conversations) {
+        state.conversation_source = DatabaseObjectKey{cls, id, false};
         if (cls == 0x31) {
             topic_rows(state, id, false);
         } else if (const auto list = game_assets::parse_stored_conversations(
@@ -217,9 +245,11 @@ void update_conversations(Browser& state, std::uint32_t cls, std::uint32_t id) {
                             {},
                             {}});
             }
-            for (std::size_t at = 0;
-                 at < list->conversations.size() && state.conversation_rows.size() < row_limit;
-                 ++at) {
+            for (std::size_t at = 0; at < list->conversations.size(); ++at) {
+                if (state.conversation_rows.size() >= row_limit) {
+                    state.conversations_limited = true;
+                    break;
+                }
                 topic_rows(state, list->conversations[at], at == 0);
             }
         } else {
@@ -228,7 +258,7 @@ void update_conversations(Browser& state, std::uint32_t cls, std::uint32_t id) {
                         {},
                         {}});
         }
-        if (state.conversation_rows.size() == row_limit) {
+        if (state.conversations_limited) {
             state.conversation_rows.push_back(
                 {{L"Display limit", L"First 4096 rows shown", L"", L"Incomplete"},
                  L"Follow individual topic records to inspect their complete candidate lists.",
@@ -257,6 +287,7 @@ void select_conversation(Browser& state) {
                                                state.assets.assets[*asset].previewable &&
                                                bool(state.open_asset));
     EnableWindow(state.conversations_follow, row && row->destination.object.has_value());
+    EnableWindow(state.conversations_export, state.conversation_source.has_value());
 }
 
 void open_conversation_media(Browser& state) {
@@ -330,6 +361,8 @@ void create_conversation_controls(Browser& state, HMODULE module, HFONT font) {
         child(L"BUTTON", L"Open in Library", BS_PUSHBUTTON | WS_TABSTOP, conversations_open_id);
     state.conversations_follow =
         child(L"BUTTON", L"Follow record", BS_PUSHBUTTON | WS_TABSTOP, conversations_follow_id);
+    state.conversations_export = child(L"BUTTON", L"Export reference...",
+                                       BS_PUSHBUTTON | WS_TABSTOP, conversations_export_id);
     ListView_SetExtendedListViewStyle(state.conversations_list,
                                       LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
     int column = 0;
@@ -344,14 +377,21 @@ void create_conversation_controls(Browser& state, HMODULE module, HFONT font) {
 
 void layout_conversations(Browser& state, int x, int y, int width, int height, Pane pane) {
     const int description = std::min(140, std::max(72, height / 3));
-    MoveWindow(state.conversations_list, x, y, width, std::max(10, height - description - 40),
-               TRUE);
-    MoveWindow(state.conversations_text, x, y + height - description - 34, width, description,
-               TRUE);
-    MoveWindow(state.conversations_open, x, y + height - 28, 130, 28, TRUE);
-    MoveWindow(state.conversations_follow, x + 138, y + height - 28, 110, 28, TRUE);
-    for (const auto control : {state.conversations_list, state.conversations_text,
-                               state.conversations_open, state.conversations_follow}) {
+    const int button_rows = width >= 401 ? 1 : width >= 248 ? 2 : 3;
+    const int button_height = button_rows * 34;
+    const int buttons_y = y + height - button_height + 6;
+    MoveWindow(state.conversations_list, x, y, width,
+               std::max(10, height - description - button_height - 6), TRUE);
+    MoveWindow(state.conversations_text, x, y + height - description - button_height, width,
+               description, TRUE);
+    MoveWindow(state.conversations_open, x, buttons_y, 130, 28, TRUE);
+    MoveWindow(state.conversations_follow, x + (width >= 248 ? 138 : 0),
+               buttons_y + (width >= 248 ? 0 : 34), 110, 28, TRUE);
+    MoveWindow(state.conversations_export, x + (button_rows == 1 ? 256 : 0),
+               buttons_y + (button_rows - 1) * 34, 145, 28, TRUE);
+    for (const auto control :
+         {state.conversations_list, state.conversations_text, state.conversations_open,
+          state.conversations_follow, state.conversations_export}) {
         ShowWindow(control, pane == Pane::conversations ? SW_SHOW : SW_HIDE);
     }
     ListView_SetColumnWidth(state.conversations_list, 0, 125);

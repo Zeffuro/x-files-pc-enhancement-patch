@@ -5,6 +5,11 @@
 namespace ui::detail {
 
 inline constexpr Translation french_entries[] = {
+    {Message::setup_media, L"Support du jeu"},
+    {Message::setup_media_auto, L"Automatique (anglais sur DVD bilingue)"},
+    {Message::setup_media_french, L"DVD français avec générique du CD français"},
+    {Message::setup_french_cd, L"Source CD français (requise pour le générique DVD)"},
+    {Message::choose_french_cd, L"Choisir le CD 1 français original"},
     {Message::click, L"Cliquer"},
     {Message::interact, L"Interagir"},
     {Message::view, L"Regarder"},

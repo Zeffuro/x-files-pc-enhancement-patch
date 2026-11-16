@@ -54,7 +54,8 @@ enum {
     conversations_text_id,
     conversations_open_id,
     conversations_follow_id,
-    reactions_browse_id
+    reactions_browse_id,
+    conversations_export_id
 };
 
 enum class Pane { overview, links, raw, text, font, strings, fields, conversations };
@@ -102,6 +103,8 @@ struct ConversationRow {
     std::wstring detail;
     Destination destination;
     std::filesystem::path media;
+    std::optional<std::uint32_t> topic_id, list_id, candidate_id;
+    std::optional<std::size_t> position;
 };
 
 struct Browser {
@@ -123,9 +126,12 @@ struct Browser {
     HWND asset_browse = nullptr, database_heading = nullptr, list_context = nullptr,
          database_view = nullptr;
     HWND conversations_browse = nullptr, conversations_list = nullptr, conversations_text = nullptr,
-         conversations_open = nullptr, conversations_follow = nullptr, reactions_browse = nullptr;
+         conversations_open = nullptr, conversations_follow = nullptr, reactions_browse = nullptr,
+         conversations_export = nullptr;
     std::vector<ConversationRow> conversation_rows;
     bool has_conversations = false;
+    bool conversations_limited = false;
+    std::optional<DatabaseObjectKey> conversation_source;
     std::vector<std::array<std::wstring, 4>> field_rows, class_rows;
     std::vector<std::uint32_t> class_ids;
     HFONT fixed_font = nullptr;
@@ -210,6 +216,9 @@ void update_conversations(Browser& state, std::uint32_t cls, std::uint32_t id);
 void select_conversation(Browser& state);
 void open_conversation_media(Browser& state);
 void follow_conversation(Browser& state);
+std::string conversation_reference_json(const Browser& state);
+void save_conversation_reference(const Browser& state, const std::filesystem::path& path);
+void export_conversation_reference(Browser& state);
 void browse_conversations(Browser& state, bool reactions = false);
 bool conversation_notification(Browser& state, NMHDR* notification);
 void conversation_row_name(const Browser& state, const game_assets::StoredDatabaseRecord& record,

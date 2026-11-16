@@ -10,3 +10,5 @@ MediaSource inspect_dvd_iso(const std::filesystem::path& image);
 MediaSource inspect_iso_folder(const std::filesystem::path& folder);
 MediaSource prepare_media_import(const std::filesystem::path& root,
                                  const std::vector<MediaFile>& files);
+std::vector<MediaFile> french_dvd_files(const std::vector<MediaFile>& files,
+                                        const std::vector<MediaFile>& french_cd);

@@ -125,6 +125,9 @@ lets you search by character name. Select a media row
 and use **Open in Library**, or **Follow record** to inspect its definition.
 Missing files and unresolved records remain visible. These are stored possibilities.
 Current topic availability, selected responses and item reactions depend on game state.
+Use **Export reference** to save the displayed topic or character rows as a JSON
+file. The export includes record IDs, media paths, unresolved entries and whether
+the display is incomplete. Names are previews and current eligibility is not evaluated.
 
 **Database tables** also exposes definitions that the game has not cached. These show
 saved definitions and decoded fields rather than current runtime values.

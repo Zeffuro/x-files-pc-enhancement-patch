@@ -51,6 +51,11 @@ void validate_destination(const MediaSource& source, const fs::path& destination
     if (within(output, fs::canonical(source.root))) {
         throw std::runtime_error("Choose a destination outside the source game/disc folder.");
     }
+    for (const auto& root : source.additional_roots) {
+        if (within(output, fs::canonical(root))) {
+            throw std::runtime_error("Choose a destination outside the supplemental game source.");
+        }
+    }
     const auto parent = install_parent(destination);
     constexpr std::uintmax_t reserve = 256ull * 1024 * 1024;
     const auto available = fs::space(parent).available;

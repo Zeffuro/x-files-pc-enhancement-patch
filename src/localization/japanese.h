@@ -5,6 +5,11 @@
 namespace ui::detail {
 
 inline constexpr Translation japanese_entries[] = {
+    {Message::setup_media, L"ゲームメディア"},
+    {Message::setup_media_auto, L"自動（2言語DVDは英語）"},
+    {Message::setup_media_french, L"フランス語DVDとCDのタイトル映像"},
+    {Message::setup_french_cd, L"フランス語CD（DVDのタイトル映像に必要）"},
+    {Message::choose_french_cd, L"フランス語版のオリジナルCD 1を選択"},
     {Message::click, L"クリック"},
     {Message::interact, L"操作する"},
     {Message::view, L"見る"},
