@@ -10,16 +10,42 @@ using stored_action_browser_fixture::require;
 
 namespace {
 std::wstring dialog_output;
+std::wstring dialog_diagnostics;
+std::wstring dialog_initial, dialog_history;
 bool dialog_seen = false, dialog_cancel = false;
+bool dialog_value_set = false, dialog_save_posted = false, dialog_timed_out = false;
+bool dialog_reset_requested = false, dialog_reset_done = false;
+unsigned dialog_writes = 0;
+ULONGLONG dialog_started = 0;
 UINT_PTR dialog_timer = 0;
+
+std::wstring control_type(HWND window) {
+    wchar_t type[128]{};
+    GetClassNameW(window, type, 128);
+    return type;
+}
 
 BOOL CALLBACK filename_control(HWND window, LPARAM result) {
     wchar_t type[32]{};
     GetClassNameW(window, type, 32);
     const auto id = GetDlgCtrlID(window);
-    if (std::wstring(type) == L"Edit" && (id == edt1 || id == cmb13 || id == 1001)) {
-        *reinterpret_cast<HWND*>(result) = window;
-        return FALSE;
+    const auto parent = GetParent(window);
+    const auto parent_type = control_type(parent);
+    const auto parent_id = GetDlgCtrlID(parent);
+    if (std::wstring(type) == L"Edit") {
+        dialog_diagnostics += L"\nEdit id=" + std::to_wstring(id) + L" parent_id=" +
+                              std::to_wstring(GetDlgCtrlID(GetParent(window))) + L" parent_type=" +
+                              control_type(GetParent(window)) + L" text=" + ui::text(window);
+    }
+    const bool filename_parent =
+        parent_type == L"ComboBox" &&
+        (parent_id == cmb13 || (parent_id == 0 && (id == 1001 || id == cmb13)));
+    if (std::wstring(type) == L"Edit" &&
+        (filename_parent || (id == edt1 && parent_type == L"#32770"))) {
+        auto& selected = *reinterpret_cast<HWND*>(result);
+        if (!selected) {
+            selected = window;
+        }
     }
     return TRUE;
 }
@@ -30,17 +56,55 @@ BOOL CALLBACK handle_dialog(HWND window, LPARAM) {
     if (std::wstring(title) != L"Export conversation reference to a new file") {
         return TRUE;
     }
+    dialog_diagnostics = L"default_id=" + std::to_wstring(SendMessageW(window, DM_GETDEFID, 0, 0)) +
+                         L" save_enabled=" +
+                         std::to_wstring(IsWindowEnabled(GetDlgItem(window, IDOK)));
     HWND filename = nullptr;
     EnumChildWindows(window, filename_control, reinterpret_cast<LPARAM>(&filename));
-    if (!dialog_cancel && !filename) {
-        return TRUE;
-    }
-    KillTimer(nullptr, dialog_timer);
     dialog_seen = true;
-    if (!dialog_cancel) {
-        SetWindowTextW(filename, dialog_output.c_str());
+    if (GetTickCount64() - dialog_started > 30000) {
+        dialog_timed_out = true;
+        KillTimer(nullptr, dialog_timer);
+        std::wcerr << L"Dialog driver deadline:" << dialog_diagnostics << L'\n' << dialog_history;
+        PostMessageW(window, WM_COMMAND, IDCANCEL, 0);
+        return FALSE;
     }
-    PostMessageW(window, WM_COMMAND, dialog_cancel ? IDCANCEL : IDOK, 0);
+    if (dialog_cancel) {
+        KillTimer(nullptr, dialog_timer);
+        PostMessageW(window, WM_COMMAND, IDCANCEL, 0);
+        return FALSE;
+    }
+    if (!filename || dialog_save_posted || !IsWindowEnabled(GetDlgItem(window, IDOK))) {
+        return FALSE;
+    }
+    const auto current = ui::text(filename);
+    if (!dialog_value_set) {
+        if (current.empty()) {
+            return FALSE;
+        }
+        if (dialog_initial.empty()) {
+            dialog_initial = current;
+        }
+        const auto changed = SetWindowTextW(filename, dialog_output.c_str());
+        ++dialog_writes;
+        dialog_history += L"\nselected_edit_id=" + std::to_wstring(GetDlgCtrlID(filename)) +
+                          L" set_result=" + std::to_wstring(changed) + L" readback=" +
+                          ui::text(filename);
+        dialog_value_set = changed != FALSE;
+        return FALSE;
+    }
+    if (dialog_reset_requested && !dialog_reset_done) {
+        SetWindowTextW(filename, dialog_initial.c_str());
+        dialog_reset_done = true;
+        return FALSE;
+    }
+    if (current != dialog_output) {
+        dialog_value_set = false;
+        dialog_history += L"\nFilename changed before Save: " + current;
+        return FALSE;
+    }
+    dialog_save_posted = true;
+    PostMessageW(window, WM_COMMAND, IDOK, 0);
     return FALSE;
 }
 
@@ -48,16 +112,35 @@ void CALLBACK dialog_tick(HWND, UINT, UINT_PTR, DWORD) {
     EnumThreadWindows(GetCurrentThreadId(), handle_dialog, 0);
 }
 
-void dialog_command(HWND window, const std::filesystem::path& output, bool cancel) {
+void dialog_command(HWND window, const std::filesystem::path& output, bool cancel,
+                    bool reset = false) {
     dialog_output = std::filesystem::absolute(output).wstring();
     dialog_cancel = cancel;
     dialog_seen = false;
+    dialog_value_set = dialog_save_posted = dialog_timed_out = dialog_reset_done = false;
+    dialog_reset_requested = reset;
+    dialog_writes = 0;
+    dialog_started = GetTickCount64();
+    dialog_initial.clear();
+    dialog_history.clear();
+    dialog_diagnostics.clear();
     dialog_timer = SetTimer(nullptr, 0, 50, dialog_tick);
     require(dialog_timer != 0, "Cannot start dialog driver");
     SendMessageW(window, WM_COMMAND, ui::conversations_export_id, 0);
     KillTimer(nullptr, dialog_timer);
+    if (!dialog_seen || dialog_timed_out || std::filesystem::exists(output) == cancel) {
+        std::wcerr << L"Dialog phase=" << (cancel ? L"cancel" : L"save") << L" expected="
+                   << output.wstring() << L" absolute=" << dialog_output << L" seen=" << dialog_seen
+                   << L" expected_exists=" << std::filesystem::exists(output)
+                   << L"\nBrowser status=" << ui::text(GetDlgItem(window, ui::status_id))
+                   << L"\nInitial filename=" << dialog_initial << L"\nDialog controls="
+                   << dialog_diagnostics << L"\nActions=" << dialog_history << L'\n';
+    }
     require(dialog_seen, "Export button did not open a save dialog");
+    require(!dialog_timed_out, "Export dialog driver did not complete before its deadline");
     require(std::filesystem::exists(output) != cancel, "Save dialog export/cancel failed");
+    require(!reset || (dialog_reset_done && dialog_writes >= 2),
+            "Filename initialization overwrite was not exercised");
 }
 
 void write_fixture(const std::filesystem::path& path, std::span<const std::uint8_t> bytes) {
@@ -89,6 +172,34 @@ HWND create(HWND parent, const std::filesystem::path& path) {
     return devtools::create_database_browser(parent, GetModuleHandleW(nullptr),
                                              static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT)),
                                              path.parent_path(), {}, {}, path);
+}
+
+void verify_filename_selector(HWND parent) {
+    const auto fixture = CreateWindowExW(0, L"STATIC", L"", WS_CHILD, 0, 0, 400, 200, parent,
+                                         nullptr, GetModuleHandleW(nullptr), nullptr);
+    const auto filename =
+        CreateWindowExW(0, L"COMBOBOX", L"", WS_CHILD | CBS_DROPDOWN, 0, 0, 200, 100, fixture,
+                        nullptr, GetModuleHandleW(nullptr), nullptr);
+    const auto decoy =
+        CreateWindowExW(0, L"EDIT", L"Search", WS_CHILD, 0, 0, 200, 24, fixture,
+                        reinterpret_cast<HMENU>(1001), GetModuleHandleW(nullptr), nullptr);
+    const auto address =
+        CreateWindowExW(0, L"COMBOBOX", L"", WS_CHILD | CBS_DROPDOWN, 0, 0, 200, 100, fixture,
+                        reinterpret_cast<HMENU>(41477), GetModuleHandleW(nullptr), nullptr);
+    require(fixture && filename && decoy && address,
+            "Cannot create filename-selector regression fixture");
+    SetWindowPos(decoy, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    SetWindowPos(address, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    COMBOBOXINFO info{sizeof(info)};
+    require(GetComboBoxInfo(filename, &info), "Cannot inspect actual ComboBox filename Edit");
+    HWND selected = nullptr;
+    dialog_diagnostics.clear();
+    EnumChildWindows(fixture, filename_control, reinterpret_cast<LPARAM>(&selected));
+    if (selected != info.hwndItem) {
+        std::wcerr << L"Filename selector decoy regression:" << dialog_diagnostics << L'\n';
+    }
+    require(selected == info.hwndItem, "Filename selector chose non-filename Edit1001");
+    DestroyWindow(fixture);
 }
 }
 
@@ -183,6 +294,8 @@ int main(int argc, char** argv) {
                 "Topic export test unexpectedly selected a candidate");
         dialog_command(window, output / L"dialog.json", false);
         dialog_command(window, output / L"cancel.json", true);
+        verify_filename_selector(window);
+        dialog_command(window, output / L"reset-dialog.json", false, true);
         select_record(window, 0x2d, 400);
         save(browser, output / L"character.json");
         select_record(window, 0x32, 201);

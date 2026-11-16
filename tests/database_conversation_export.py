@@ -30,6 +30,7 @@ def candidates(value, role):
 
 def verify(root, installed_count):
     topic = load(root, "dialog.json")
+    assert load(root, "reset-dialog.json") == topic
     assert topic["source_record"] == {"class_id": 0x31, "record_id": 301, "offset": 832}
     assert not topic["display_limit_reached"] and not topic["index_incomplete"]
     assert topic["has_unresolved"] and topic["incomplete"]
