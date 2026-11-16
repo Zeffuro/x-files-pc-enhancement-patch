@@ -201,8 +201,8 @@ void verify_filename_selector(HWND parent) {
     const auto fixture = CreateWindowExW(0, L"STATIC", L"", WS_CHILD, 0, 0, 400, 200, parent,
                                          nullptr, GetModuleHandleW(nullptr), nullptr);
     const auto filename =
-        CreateWindowExW(0, L"COMBOBOX", L"", WS_CHILD | CBS_DROPDOWN, 0, 0, 200, 100, fixture,
-                        nullptr, GetModuleHandleW(nullptr), nullptr);
+        CreateWindowExW(0, L"COMBOBOX", L"", WS_CHILD | CBS_DROPDOWN | CBS_AUTOHSCROLL, 0, 0, 200,
+                        100, fixture, nullptr, GetModuleHandleW(nullptr), nullptr);
     const auto decoy =
         CreateWindowExW(0, L"EDIT", L"Search", WS_CHILD, 0, 0, 200, 24, fixture,
                         reinterpret_cast<HMENU>(1001), GetModuleHandleW(nullptr), nullptr);
@@ -227,11 +227,15 @@ void verify_filename_selector(HWND parent) {
     require(SetWindowSubclass(fixture, filename_model, 1, reinterpret_cast<DWORD_PTR>(&model)),
             "Cannot observe actual filename ComboBox edit notifications");
     const std::wstring desired = L"C:\\owned-export\\dialog.json";
-    require(enter_filename(info.hwndItem, desired), "Cannot enter filename through its Edit");
-    if (model.value != desired || !model.edits) {
+    const bool entered = enter_filename(info.hwndItem, desired);
+    if (!entered || model.value != desired || !model.edits) {
         std::wcerr << L"Filename ComboBox model=" << model.value << L" visual="
-                   << ui::text(info.hwndItem) << L" edit_notifications=" << model.edits << L'\n';
+                   << ui::text(info.hwndItem) << L" edit_notifications=" << model.edits
+                   << L" combo_style=" << std::hex << GetWindowLongPtrW(filename, GWL_STYLE)
+                   << L" edit_style=" << GetWindowLongPtrW(info.hwndItem, GWL_STYLE) << std::dec
+                   << L'\n';
     }
+    require(entered, "Cannot enter filename through its Edit");
     require(model.value == desired && model.edits,
             "Filename changed visually without updating the ComboBox model");
     DestroyWindow(fixture);
